@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  DISCONTINUED
+}
+
+model Vendor {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  companyName  String    @map("company_name")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  products               Product[]
+  categories             Category[]
+  characteristicTemplates CharacteristicTemplate[]
+
+  @@map("vendors")
+}
+
+model Category {
+  id        String    @id @default(uuid())
+  name      String
+  parentId  String?   @map("parent_id")
+  vendorId  String?   @map("vendor_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  vendor   Vendor?    @relation(fields: [vendorId], references: [id])
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id              String        @id @default(uuid())
+  vendorId        String        @map("vendor_id")
+  categoryId      String        @map("category_id")
+  sku             String        @unique
+  baseName        String        @map("base_name")
+  imageUrl        String        @map("image_url")
+  barcode         String?
+  qrCodeUrl       String?       @map("qr_code_url")
+  status          ProductStatus @default(DRAFT)
+  characteristics Json          @default("[]")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  deletedAt       DateTime?     @map("deleted_at")
+
+  vendor   Vendor         @relation(fields: [vendorId], references: [id])
+  category Category       @relation(fields: [categoryId], references: [id])
+  images   ProductImage[]
+
+  @@map("products")
+}
+
+model ProductImage {
+  id        String   @id @default(uuid())
+  productId String   @map("product_id")
+  imageUrl  String   @map("image_url")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("product_images")
+}
+
+model CharacteristicTemplate {
+  id        String   @id @default(uuid())
+  vendorId  String   @map("vendor_id")
+  name      String
+  fields    Json     @default("[]")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  vendor Vendor @relation(fields: [vendorId], references: [id])
+
+  @@map("characteristic_templates")
+}

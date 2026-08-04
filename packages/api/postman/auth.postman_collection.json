@@ -1,0 +1,217 @@
+{
+  "info": {
+    "name": "Auth API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000", "type": "string" },
+    { "key": "authToken", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Register Vendor",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();",
+              "if (jsonData.success && jsonData.data && jsonData.data.token) {",
+              "    pm.collectionVariables.set('authToken', jsonData.data.token);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"vendor@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"companyName\": \"Acme Corp\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/register",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "auth", "register"]
+        }
+      },
+      "response": [
+        {
+          "name": "Success",
+          "originalRequest": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/v1/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "register"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"vendor@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"companyName\": \"Acme Corp\"\n}" }
+          },
+          "status": "Created",
+          "code": 201,
+          "body": "{\n  \"success\": true,\n  \"data\": {\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"vendor\": {\n      \"id\": \"uuid\",\n      \"email\": \"vendor@example.com\",\n      \"companyName\": \"Acme Corp\",\n      \"createdAt\": \"2024-01-01T00:00:00.000Z\"\n    }\n  }\n}"
+        },
+        {
+          "name": "Conflict",
+          "originalRequest": {
+             "method": "POST",
+             "url": { "raw": "{{baseUrl}}/api/v1/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "v1", "auth", "register"] },
+             "body": { "mode": "raw", "raw": "{\n  \"email\": \"vendor@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"companyName\": \"Acme Corp\"\n}" }
+          },
+          "status": "Conflict",
+          "code": 409,
+          "body": "{\n  \"message\": \"Email already registered\",\n  \"code\": \"CONFLICT\",\n  \"statusCode\": 409\n}"
+        }
+      ]
+    },
+    {
+      "name": "Login Vendor",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();",
+              "if (jsonData.success && jsonData.data && jsonData.data.token) {",
+              "    pm.collectionVariables.set('authToken', jsonData.data.token);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"vendor@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "auth", "login"]
+        }
+      },
+      "response": [
+        {
+          "name": "Success",
+          "code": 200,
+          "body": "{\n  \"success\": true,\n  \"data\": {\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"vendor\": {\n      \"id\": \"uuid\",\n      \"email\": \"vendor@example.com\",\n      \"companyName\": \"Acme Corp\",\n      \"createdAt\": \"2024-01-01T00:00:00.000Z\"\n    }\n  }\n}"
+        },
+        {
+          "name": "Wrong Credentials",
+          "code": 401,
+          "body": "{\n  \"message\": \"Invalid email or password\",\n  \"code\": \"UNAUTHORIZED\",\n  \"statusCode\": 401\n}"
+        },
+        {
+          "name": "Locked Out",
+          "code": 429,
+          "body": "{\n  \"message\": \"Too many login attempts. Please try again later.\",\n  \"code\": \"TOO_MANY_REQUESTS\",\n  \"statusCode\": 429\n}"
+        }
+      ]
+    },
+    {
+      "name": "Logout",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/logout",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "auth", "logout"]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{authToken}}", "type": "string" }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "Success",
+          "code": 200,
+          "body": "{\n  \"success\": true,\n  \"message\": \"Logged out successfully\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Get Current Vendor",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "auth", "me"]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            { "key": "token", "value": "{{authToken}}", "type": "string" }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "Success",
+          "code": 200,
+          "body": "{\n  \"success\": true,\n  \"data\": {\n    \"vendor\": {\n      \"id\": \"uuid\",\n      \"email\": \"vendor@example.com\",\n      \"companyName\": \"Acme Corp\"\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Forgot Password",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"vendor@example.com\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/forgot-password",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "auth", "forgot-password"]
+        }
+      },
+      "response": [
+        {
+          "name": "Success",
+          "code": 200,
+          "body": "{\n  \"success\": true,\n  \"message\": \"Password reset instructions sent\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Reset Password",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"token\": \"reset-token\",\n  \"password\": \"NewSecurePass123!\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/reset-password",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "auth", "reset-password"]
+        }
+      },
+      "response": [
+        {
+          "name": "Success",
+          "code": 200,
+          "body": "{\n  \"success\": true,\n  \"message\": \"Password reset successfully\"\n}"
+        }
+      ]
+    }
+  ]
+}

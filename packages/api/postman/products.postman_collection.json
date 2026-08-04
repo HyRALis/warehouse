@@ -1,0 +1,221 @@
+{
+  "info": {
+    "name": "Products API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000", "type": "string" },
+    { "key": "authToken", "value": "", "type": "string" },
+    { "key": "productId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "List Products",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/products?page=1&limit=20&search=&status=&categoryId=",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "products"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "20" },
+            { "key": "search", "value": "" },
+            { "key": "status", "value": "" },
+            { "key": "categoryId", "value": "" }
+          ]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+        }
+      },
+      "response": [{ "name": "Success", "code": 200, "body": "{\n  \"success\": true,\n  \"data\": { \"items\": [], \"total\": 0, \"page\": 1, \"limit\": 20 }\n}" }]
+    },
+    {
+      "name": "Get Product by ID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/products/{{productId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "products", "{{productId}}"]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+        }
+      },
+      "response": [
+        { "name": "Success", "code": 200, "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"uuid\",\n    \"sku\": \"SKU-12345\",\n    \"baseName\": \"Sample Product\"\n  }\n}" },
+        { "name": "Not Found", "code": 404, "body": "{\n  \"message\": \"Product not found\",\n  \"code\": \"NOT_FOUND\",\n  \"statusCode\": 404\n}" }
+      ]
+    },
+    {
+      "name": "Create Product",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();",
+              "if (jsonData.success && jsonData.data && jsonData.data.id) {",
+              "    pm.collectionVariables.set('productId', jsonData.data.id);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "categoryId", "value": "uuid-for-category", "type": "text" },
+            { "key": "sku", "value": "SKU-12345", "type": "text" },
+            { "key": "baseName", "value": "Sample Product", "type": "text" },
+            { "key": "barcode", "value": "123456789012", "type": "text" },
+            { "key": "characteristics", "value": "{\"color\":\"red\"}", "type": "text" },
+            { "key": "status", "value": "ACTIVE", "type": "text" },
+            { "key": "image", "type": "file", "src": "image.jpg" }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/products",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "products"]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+        }
+      },
+      "response": [{ "name": "Created", "code": 201, "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"uuid\",\n    \"sku\": \"SKU-12345\",\n    \"baseName\": \"Sample Product\"\n  }\n}" }]
+    },
+    {
+      "name": "Update Product",
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"baseName\": \"Updated Product Name\",\n  \"status\": \"INACTIVE\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/products/{{productId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "products", "{{productId}}"]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+        }
+      },
+      "response": [{ "name": "Success", "code": 200, "body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"uuid\",\n    \"baseName\": \"Updated Product Name\"\n  }\n}" }]
+    },
+    {
+      "name": "Delete Product",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/products/{{productId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "products", "{{productId}}"]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+        }
+      },
+      "response": [{ "name": "Success", "code": 200, "body": "{\n  \"success\": true,\n  \"message\": \"Product deleted successfully\"\n}" }]
+    },
+    {
+      "name": "Upload Additional Image",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "image", "type": "file", "src": "image2.jpg" }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/products/{{productId}}/images",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "products", "{{productId}}", "images"]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+        }
+      },
+      "response": [
+        { "name": "Created", "code": 201, "body": "{\n  \"success\": true,\n  \"data\": { \"id\": \"image-uuid\", \"url\": \"http://example.com/image.jpg\" }\n}" },
+        { "name": "Max Images Reached", "code": 400, "body": "{\n  \"message\": \"Maximum number of images reached\",\n  \"code\": \"BAD_REQUEST\",\n  \"statusCode\": 400\n}" }
+      ]
+    },
+    {
+      "name": "Delete Additional Image",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/products/{{productId}}/images/{{imageId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "products", "{{productId}}", "images", "{{imageId}}"]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+        }
+      },
+      "response": [{ "name": "Success", "code": 200, "body": "{\n  \"success\": true,\n  \"message\": \"Image deleted successfully\"\n}" }]
+    },
+    {
+      "name": "Import Products CSV",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "file", "type": "file", "src": "products.csv" }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/products/import",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "products", "import"]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+        }
+      },
+      "response": [{ "name": "Success", "code": 200, "body": "{\n  \"success\": true,\n  \"data\": {\n    \"imported\": 10,\n    \"failed\": 0\n  }\n}" }]
+    },
+    {
+      "name": "Export Products CSV",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/products/export",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "products", "export"]
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+        }
+      },
+      "response": [{ "name": "Success", "code": 200, "body": "sku,baseName\nSKU-12345,Sample Product" }]
+    }
+  ]
+}
