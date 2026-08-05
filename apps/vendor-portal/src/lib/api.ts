@@ -83,8 +83,8 @@ export const api = {
         return request<any>(`/products${query ? `?${query}` : ''}`);
     },
     getProduct: (id: string) => request<any>(`/products/${id}`),
-    createProduct: (formData: FormData) =>
-        request<any>('/products', { method: 'POST', body: formData }),
+    createProduct: (body: any) =>
+        request<any>('/products', { method: 'POST', body: JSON.stringify(body) }),
     updateProduct: (id: string, body: any) =>
         request<any>(`/products/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     deleteProduct: (id: string) => request<any>(`/products/${id}`, { method: 'DELETE' }),

@@ -4,6 +4,17 @@ import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { Loader2, Plus, FolderTree, Edit, Trash2, ShieldAlert } from 'lucide-react';
+import {
+    Button,
+    Input,
+    Label,
+    Spinner,
+    Badge,
+    Card,
+    CardHeader,
+    CardTitle,
+    CardContent,
+} from '@inventory-system/ui';
 
 interface Category {
     id: string;
@@ -85,7 +96,7 @@ export default function CategoriesPage() {
     if (loading)
         return (
             <div className="flex justify-center p-20">
-                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                <Spinner size={8} />
             </div>
         );
 
@@ -98,64 +109,58 @@ export default function CategoriesPage() {
                         Organize your products with categories
                     </p>
                 </div>
-                <button
-                    onClick={() => setShowForm(!showForm)}
-                    className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-white transition-colors hover:bg-indigo-500"
-                >
-                    <Plus className="h-4 w-4" /> Add Category
-                </button>
+                <Button onClick={() => setShowForm(!showForm)}>
+                    <Plus className="mr-2 h-4 w-4" /> Add Category
+                </Button>
             </div>
 
             {showForm && (
-                <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-                    <h3 className="mb-4 text-lg font-medium text-white">Create New Category</h3>
-                    <form onSubmit={handleSubmit} className="flex items-end gap-4">
-                        <div className="flex-1 space-y-1.5">
-                            <label className="text-sm text-slate-300">Name</label>
-                            <input
-                                type="text"
-                                required
-                                value={formName}
-                                onChange={(e) => setFormName(e.target.value)}
-                                className="w-full rounded-lg border border-slate-800 bg-slate-950 px-4 py-2 text-slate-100 focus:ring-2 focus:ring-indigo-500"
-                                placeholder="Category Name"
-                            />
-                        </div>
-                        <div className="flex-1 space-y-1.5">
-                            <label className="text-sm text-slate-300">
-                                Parent Category (Optional)
-                            </label>
-                            <select
-                                value={formParentId}
-                                onChange={(e) => setFormParentId(e.target.value)}
-                                className="w-full rounded-lg border border-slate-800 bg-slate-950 px-4 py-2 text-slate-100 focus:ring-2 focus:ring-indigo-500"
-                            >
-                                <option value="">None (Top Level)</option>
-                                {categories.map((c) => (
-                                    <option key={c.id} value={c.id}>
-                                        {c.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className="rounded-lg bg-indigo-600 px-6 py-2 font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-                        >
-                            {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Save'}
-                        </button>
-                    </form>
-                </div>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Create New Category</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <form onSubmit={handleSubmit} className="flex items-end gap-4">
+                            <div className="flex-1 space-y-1.5">
+                                <Label>Name</Label>
+                                <Input
+                                    type="text"
+                                    required
+                                    value={formName}
+                                    onChange={(e) => setFormName(e.target.value)}
+                                    placeholder="Category Name"
+                                />
+                            </div>
+                            <div className="flex-1 space-y-1.5">
+                                <Label>Parent Category (Optional)</Label>
+                                <select
+                                    value={formParentId}
+                                    onChange={(e) => setFormParentId(e.target.value)}
+                                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-4 py-2 text-slate-100 focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    <option value="">None (Top Level)</option>
+                                    {categories.map((c) => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting ? <Spinner size={5} /> : 'Save'}
+                            </Button>
+                        </form>
+                    </CardContent>
+                </Card>
             )}
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+                <Card className="overflow-hidden">
                     <div className="flex items-center gap-2 border-b border-slate-800 bg-slate-800/50 p-4">
                         <FolderTree className="h-5 w-5 text-indigo-400" />
                         <h2 className="font-semibold text-white">Your Categories</h2>
                     </div>
-                    <div className="divide-y divide-slate-800">
+                    <CardContent className="divide-y divide-slate-800 p-0">
                         {vendorCategories.length === 0 ? (
                             <div className="p-6 text-center text-sm text-slate-500">
                                 No custom categories created yet.
@@ -175,25 +180,27 @@ export default function CategoriesPage() {
                                         )}
                                     </div>
                                     <div className="flex gap-2">
-                                        <button
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
                                             onClick={() => handleDelete(c.id)}
-                                            className="rounded-md p-2 text-rose-400 transition-colors hover:bg-rose-500/10"
+                                            className="text-rose-400 hover:bg-rose-500/10 hover:text-rose-500"
                                         >
                                             <Trash2 className="h-4 w-4" />
-                                        </button>
+                                        </Button>
                                     </div>
                                 </div>
                             ))
                         )}
-                    </div>
-                </div>
+                    </CardContent>
+                </Card>
 
-                <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900 opacity-80">
+                <Card className="overflow-hidden opacity-80">
                     <div className="flex items-center gap-2 border-b border-slate-800 bg-slate-800/50 p-4">
                         <ShieldAlert className="h-5 w-5 text-slate-400" />
                         <h2 className="font-semibold text-slate-300">System Categories</h2>
                     </div>
-                    <div className="h-96 divide-y divide-slate-800 overflow-y-auto">
+                    <CardContent className="h-96 divide-y divide-slate-800 overflow-y-auto p-0">
                         {systemCategories.map((c) => (
                             <div key={c.id} className="flex items-center justify-between p-4">
                                 <div>
@@ -204,13 +211,11 @@ export default function CategoriesPage() {
                                         </div>
                                     )}
                                 </div>
-                                <span className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-400">
-                                    System
-                                </span>
+                                <Badge variant="outline">System</Badge>
                             </div>
                         ))}
-                    </div>
-                </div>
+                    </CardContent>
+                </Card>
             </div>
         </div>
     );

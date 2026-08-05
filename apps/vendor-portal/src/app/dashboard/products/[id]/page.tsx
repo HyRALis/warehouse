@@ -3,8 +3,18 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { Loader2, ArrowLeft, Trash2, Edit, ImagePlus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
+import { ArrowLeft, Trash2, Edit, ImagePlus, AlertTriangle } from 'lucide-react';
+import {
+    Button,
+    Spinner,
+    Badge,
+    Card,
+    CardHeader,
+    CardTitle,
+    CardContent,
+    Label,
+} from '@inventory-system/ui';
 
 interface ProductImage {
     id: string;
@@ -83,7 +93,7 @@ export default function ProductDetailPage() {
     if (loading) {
         return (
             <div className="flex h-64 items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                <Spinner size="lg" />
             </div>
         );
     }
@@ -124,48 +134,40 @@ export default function ProductDetailPage() {
                 <div>
                     <h1 className="mb-2 text-3xl font-bold text-white">{product.baseName}</h1>
                     <div className="flex flex-wrap items-center gap-3">
-                        <span className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1 font-mono text-sm text-slate-300">
+                        <Badge variant="outline" className="font-mono">
                             SKU: {product.sku}
-                        </span>
-                        <span
-                            className={`rounded-lg border px-3 py-1 text-sm ${
+                        </Badge>
+                        <Badge
+                            variant={
                                 product.status === 'Active'
-                                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                                    ? 'success'
                                     : product.status === 'Draft'
-                                      ? 'border-amber-500/20 bg-amber-500/10 text-amber-400'
-                                      : 'border-rose-500/20 bg-rose-500/10 text-rose-400'
-                            }`}
+                                      ? 'warning'
+                                      : 'danger'
+                            }
                         >
                             {product.status}
-                        </span>
+                        </Badge>
                         {product.category && (
-                            <span className="rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-sm text-violet-400">
+                            <Badge className="border-violet-500/20 bg-violet-500/10 text-violet-400">
                                 {product.category.name}
-                            </span>
+                            </Badge>
                         )}
                     </div>
                 </div>
 
                 <div className="flex w-full items-center gap-3 md:w-auto">
-                    <button
-                        disabled
-                        className="flex flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-slate-300 opacity-50 transition-colors hover:bg-slate-700 hover:text-white md:flex-none"
-                        title="Edit functionality coming soon"
-                    >
-                        <Edit className="h-4 w-4" /> Edit
-                    </button>
-                    <button
-                        onClick={handleDelete}
-                        disabled={isDeleting}
-                        className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-2 text-rose-500 transition-colors hover:border-rose-500 hover:bg-rose-500 hover:text-white disabled:opacity-50 md:flex-none"
-                    >
+                    <Button disabled variant="secondary" title="Edit functionality coming soon">
+                        <Edit className="mr-2 h-4 w-4" /> Edit
+                    </Button>
+                    <Button onClick={handleDelete} disabled={isDeleting} variant="destructive">
                         {isDeleting ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Spinner className="mr-2" />
                         ) : (
-                            <Trash2 className="h-4 w-4" />
-                        )}{' '}
+                            <Trash2 className="mr-2 h-4 w-4" />
+                        )}
                         Delete
-                    </button>
+                    </Button>
                 </div>
             </div>
 
@@ -207,60 +209,68 @@ export default function ProductDetailPage() {
 
                 {/* Details Column */}
                 <div className="space-y-6 lg:col-span-2">
-                    <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-                        <h3 className="mb-4 text-lg font-semibold text-white">Product Details</h3>
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            <div>
-                                <label className="mb-1 block text-sm text-slate-500">Barcode</label>
-                                <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-sm text-slate-200">
-                                    {product.barcode || '-'}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Product Details</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div>
+                                    <Label className="mb-1 block text-slate-500">Barcode</Label>
+                                    <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-sm text-slate-200">
+                                        {product.barcode || '-'}
+                                    </div>
+                                </div>
+                                <div>
+                                    <Label className="mb-1 block text-slate-500">QR Code</Label>
+                                    <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-sm text-slate-200">
+                                        {product.qrCode || '-'}
+                                    </div>
                                 </div>
                             </div>
-                            <div>
-                                <label className="mb-1 block text-sm text-slate-500">QR Code</label>
-                                <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-sm text-slate-200">
-                                    {product.qrCode || '-'}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
 
-                    <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-                        <h3 className="mb-4 text-lg font-semibold text-white">Characteristics</h3>
-                        {product.characteristics && product.characteristics.length > 0 ? (
-                            <div className="overflow-hidden rounded-lg border border-slate-800">
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-slate-950/50 uppercase text-slate-400">
-                                        <tr>
-                                            <th className="px-4 py-3 font-medium">Name</th>
-                                            <th className="px-4 py-3 font-medium">Value</th>
-                                            <th className="px-4 py-3 font-medium">Unit</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-800 bg-slate-900/50 text-slate-300">
-                                        {product.characteristics.map((char) => (
-                                            <tr
-                                                key={char.id}
-                                                className="transition-colors hover:bg-slate-800/50"
-                                            >
-                                                <td className="px-4 py-3 font-medium text-slate-200">
-                                                    {char.name}
-                                                </td>
-                                                <td className="px-4 py-3">{char.value}</td>
-                                                <td className="px-4 py-3 text-slate-400">
-                                                    {char.measurement || '-'}
-                                                </td>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Characteristics</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {product.characteristics && product.characteristics.length > 0 ? (
+                                <div className="overflow-hidden rounded-lg border border-slate-800">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-slate-950/50 uppercase text-slate-400">
+                                            <tr>
+                                                <th className="px-4 py-3 font-medium">Name</th>
+                                                <th className="px-4 py-3 font-medium">Value</th>
+                                                <th className="px-4 py-3 font-medium">Unit</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        ) : (
-                            <p className="text-sm italic text-slate-400">
-                                No characteristics defined for this product.
-                            </p>
-                        )}
-                    </div>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800 bg-slate-900/50 text-slate-300">
+                                            {product.characteristics.map((char) => (
+                                                <tr
+                                                    key={char.id}
+                                                    className="transition-colors hover:bg-slate-800/50"
+                                                >
+                                                    <td className="px-4 py-3 font-medium text-slate-200">
+                                                        {char.name}
+                                                    </td>
+                                                    <td className="px-4 py-3">{char.value}</td>
+                                                    <td className="px-4 py-3 text-slate-400">
+                                                        {char.measurement || '-'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <p className="text-sm italic text-slate-400">
+                                    No characteristics defined for this product.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
         </div>

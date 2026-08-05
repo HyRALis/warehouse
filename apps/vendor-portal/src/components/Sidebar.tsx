@@ -14,6 +14,7 @@ import {
     LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { Button } from '@inventory-system/ui';
 
 const navigation = [
     { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
@@ -78,13 +79,15 @@ export default function Sidebar() {
                         </p>
                         <p className="truncate text-xs text-slate-500">{vendor?.email}</p>
                     </div>
-                    <button
+                    <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => logout()}
                         title="Log Out"
-                        className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-rose-500/10 hover:text-rose-400"
+                        className="text-slate-400 hover:bg-rose-500/10 hover:text-rose-400"
                     >
                         <LogOut className="h-4 w-4" />
-                    </button>
+                    </Button>
                 </div>
             </div>
         </aside>

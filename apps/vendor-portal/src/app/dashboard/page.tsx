@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { Package, CheckCircle2, LayoutGrid, FileText, Plus, Upload, FolderCog } from 'lucide-react';
 import Link from 'next/link';
+import { Card, CardContent } from '@inventory-system/ui';
 
 interface DashboardStats {
     totalProducts: number;
@@ -58,7 +59,7 @@ export default function DashboardOverview() {
                     Welcome back, {vendor?.companyName}
                 </h1>
                 <p className="mt-2 text-slate-400">
-                    Here's what's happening with your inventory today.
+                    Here&apos;s what&apos;s happening with your inventory today.
                 </p>
             </div>
 
@@ -160,14 +161,14 @@ function StatCard({
     borderClass: string;
 }) {
     return (
-        <div
-            className={`relative flex items-start gap-4 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 p-6`}
-        >
-            <div className={`rounded-xl p-3 ${bgClass} ${borderClass} border`}>{icon}</div>
-            <div>
-                <div className="mb-1 text-sm font-medium text-slate-400">{label}</div>
-                <div className="text-3xl font-bold text-white">{value}</div>
-            </div>
-        </div>
+        <Card className="relative overflow-hidden">
+            <CardContent className="flex items-start gap-4 p-6">
+                <div className={`rounded-xl p-3 ${bgClass} ${borderClass} border`}>{icon}</div>
+                <div>
+                    <div className="mb-1 text-sm font-medium text-slate-400">{label}</div>
+                    <div className="text-3xl font-bold text-white">{value}</div>
+                </div>
+            </CardContent>
+        </Card>
     );
 }

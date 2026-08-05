@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { Mail, Lock, Loader2, Package2 } from 'lucide-react';
+import { Mail, Lock, Package2 } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { Button, Input, Label, Spinner } from '@inventory-system/ui';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -61,18 +62,16 @@ export default function LoginPage() {
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-slate-300">
-                                Email Address
-                            </label>
+                            <Label>Email Address</Label>
                             <div className="relative">
                                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                                     <Mail className="h-5 w-5 text-slate-500" />
                                 </div>
-                                <input
+                                <Input
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="block w-full rounded-lg border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-3 text-slate-100 placeholder-slate-500 transition-all focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                                    className="pl-10"
                                     placeholder="vendor@company.com"
                                     required
                                 />
@@ -80,33 +79,25 @@ export default function LoginPage() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-slate-300">Password</label>
+                            <Label>Password</Label>
                             <div className="relative">
                                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                                     <Lock className="h-5 w-5 text-slate-500" />
                                 </div>
-                                <input
+                                <Input
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="block w-full rounded-lg border border-slate-800 bg-slate-950 py-2.5 pl-10 pr-3 text-slate-100 placeholder-slate-500 transition-all focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                                    className="pl-10"
                                     placeholder="••••••••"
                                     required
                                 />
                             </div>
                         </div>
 
-                        <button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className="flex w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 font-medium text-white shadow-lg shadow-indigo-600/20 transition-all hover:bg-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:cursor-not-allowed disabled:opacity-70"
-                        >
-                            {isSubmitting ? (
-                                <Loader2 className="h-5 w-5 animate-spin" />
-                            ) : (
-                                'Sign In'
-                            )}
-                        </button>
+                        <Button type="submit" disabled={isSubmitting} className="w-full">
+                            {isSubmitting ? <Spinner size={5} className="mr-2" /> : 'Sign In'}
+                        </Button>
                     </form>
 
                     <div className="mt-6 text-center text-sm text-slate-400">

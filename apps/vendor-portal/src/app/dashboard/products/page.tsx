@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { Search, Plus, Filter, Loader2, PackageX, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import { Button, Input, Badge, Spinner } from '@inventory-system/ui';
 
 interface Product {
     id: string;
@@ -69,19 +70,6 @@ export default function ProductsPage() {
         setPage(1);
     };
 
-    const getStatusColor = (status: string) => {
-        switch (status.toLowerCase()) {
-            case 'active':
-                return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-            case 'draft':
-                return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-            case 'discontinued':
-                return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
-            default:
-                return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
-        }
-    };
-
     return (
         <div className="mx-auto max-w-7xl space-y-6">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -93,12 +81,12 @@ export default function ProductsPage() {
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                         <Search className="h-5 w-5 text-slate-500" />
                     </div>
-                    <input
+                    <Input
                         type="text"
                         value={search}
                         onChange={handleSearchChange}
                         placeholder="Search by name, SKU..."
-                        className="block w-full rounded-lg border border-slate-800 bg-slate-950 py-2 pl-10 pr-3 text-slate-100 placeholder-slate-500 focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                        className="pl-10"
                     />
                 </div>
 
@@ -125,7 +113,7 @@ export default function ProductsPage() {
 
             {loading ? (
                 <div className="flex justify-center py-20">
-                    <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                    <Spinner size={8} />
                 </div>
             ) : products.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900 py-20 text-center">
@@ -169,11 +157,20 @@ export default function ProductsPage() {
                                             </div>
                                         )}
                                         <div className="absolute right-3 top-3">
-                                            <span
-                                                className={`rounded-md border px-2 py-1 text-xs font-medium backdrop-blur-md ${getStatusColor(product.status)}`}
+                                            <Badge
+                                                variant={
+                                                    product.status.toLowerCase() === 'active'
+                                                        ? 'success'
+                                                        : product.status.toLowerCase() === 'draft'
+                                                          ? 'warning'
+                                                          : product.status.toLowerCase() ===
+                                                              'discontinued'
+                                                            ? 'danger'
+                                                            : 'default'
+                                                }
                                             >
                                                 {product.status}
-                                            </span>
+                                            </Badge>
                                         </div>
                                     </div>
                                     <div className="p-4">
@@ -212,23 +209,25 @@ export default function ProductsPage() {
                                 results
                             </div>
                             <div className="flex items-center gap-2">
-                                <button
+                                <Button
                                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                                     disabled={page === 1}
-                                    className="rounded-lg border border-slate-800 p-2 text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                    variant="outline"
+                                    size="icon"
                                 >
                                     <ChevronLeft className="h-5 w-5" />
-                                </button>
+                                </Button>
                                 <div className="px-4 text-sm font-medium text-slate-300">
                                     Page {page} of {totalPages}
                                 </div>
-                                <button
+                                <Button
                                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                                     disabled={page === totalPages}
-                                    className="rounded-lg border border-slate-800 p-2 text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                    variant="outline"
+                                    size="icon"
                                 >
                                     <ChevronRight className="h-5 w-5" />
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     )}

@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { Loader2, ArrowLeft, Plus, Trash2, Save, UploadCloud } from 'lucide-react';
 import Link from 'next/link';
+import { ArrowLeft, Plus, Trash2, Save, UploadCloud } from 'lucide-react';
+import { Input, Button, Label, Spinner, Card, CardContent } from '@inventory-system/ui';
 
 interface CharacteristicInput {
     name: string;
@@ -177,42 +178,35 @@ export default function NewProductPage() {
                             </h2>
 
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium text-slate-300">
-                                    Product Name *
-                                </label>
-                                <input
+                                <Label>Product Name *</Label>
+                                <Input
                                     type="text"
                                     required
                                     value={baseName}
                                     onChange={(e) => setBaseName(e.target.value)}
-                                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 text-slate-100 focus:ring-2 focus:ring-indigo-500"
                                     placeholder="e.g. Wireless Noise-Cancelling Headphones"
                                 />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-medium text-slate-300">
-                                        SKU *
-                                    </label>
-                                    <input
+                                    <Label>SKU *</Label>
+                                    <Input
                                         type="text"
                                         required
                                         value={sku}
                                         onChange={(e) => setSku(e.target.value)}
-                                        className="w-full rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 font-mono text-slate-100 focus:ring-2 focus:ring-indigo-500"
+                                        className="font-mono"
                                         placeholder="PRD-12345"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-medium text-slate-300">
-                                        Barcode (Optional)
-                                    </label>
-                                    <input
+                                    <Label>Barcode (Optional)</Label>
+                                    <Input
                                         type="text"
                                         value={barcode}
                                         onChange={(e) => setBarcode(e.target.value)}
-                                        className="w-full rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 font-mono text-slate-100 focus:ring-2 focus:ring-indigo-500"
+                                        className="font-mono"
                                         placeholder="812345678901"
                                     />
                                 </div>
@@ -220,9 +214,7 @@ export default function NewProductPage() {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-medium text-slate-300">
-                                        Category *
-                                    </label>
+                                    <Label>Category *</Label>
                                     <select
                                         required
                                         value={categoryId}
@@ -238,9 +230,7 @@ export default function NewProductPage() {
                                     </select>
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-medium text-slate-300">
-                                        Status
-                                    </label>
+                                    <Label>Status</Label>
                                     <select
                                         value={status}
                                         onChange={(e) => setStatus(e.target.value)}
@@ -283,7 +273,7 @@ export default function NewProductPage() {
                                     characteristics.map((char, index) => (
                                         <div key={index} className="flex items-start gap-3">
                                             <div className="flex-1">
-                                                <input
+                                                <Input
                                                     type="text"
                                                     placeholder="Name (e.g. Color)"
                                                     value={char.name}
@@ -294,11 +284,10 @@ export default function NewProductPage() {
                                                             e.target.value
                                                         )
                                                     }
-                                                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:ring-2 focus:ring-indigo-500"
                                                 />
                                             </div>
                                             <div className="flex-1">
-                                                <input
+                                                <Input
                                                     type="text"
                                                     placeholder="Value (e.g. Red)"
                                                     value={char.value}
@@ -309,11 +298,10 @@ export default function NewProductPage() {
                                                             e.target.value
                                                         )
                                                     }
-                                                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:ring-2 focus:ring-indigo-500"
                                                 />
                                             </div>
                                             <div className="w-24">
-                                                <input
+                                                <Input
                                                     type="text"
                                                     placeholder="Unit"
                                                     value={char.measurement}
@@ -324,27 +312,29 @@ export default function NewProductPage() {
                                                             e.target.value
                                                         )
                                                     }
-                                                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:ring-2 focus:ring-indigo-500"
                                                 />
                                             </div>
-                                            <button
+                                            <Button
                                                 type="button"
+                                                variant="ghost"
+                                                size="icon"
                                                 onClick={() => handleRemoveCharacteristic(index)}
-                                                className="rounded-lg border border-transparent p-2 text-rose-500 transition-colors hover:border-rose-500/20 hover:bg-rose-500/10"
+                                                className="text-rose-500 hover:bg-rose-500/10 hover:text-rose-400"
                                             >
                                                 <Trash2 className="h-4 w-4" />
-                                            </button>
+                                            </Button>
                                         </div>
                                     ))
                                 )}
 
-                                <button
+                                <Button
                                     type="button"
+                                    variant="link"
                                     onClick={handleAddCharacteristic}
-                                    className="flex items-center gap-2 py-2 text-sm font-medium text-indigo-400 hover:text-indigo-300"
+                                    className="px-0"
                                 >
-                                    <Plus className="h-4 w-4" /> Add Characteristic
-                                </button>
+                                    <Plus className="mr-2 h-4 w-4" /> Add Characteristic
+                                </Button>
                             </div>
                         </div>
                     </div>
@@ -391,18 +381,14 @@ export default function NewProductPage() {
                         </div>
 
                         <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-3 font-medium text-white shadow-lg shadow-indigo-600/20 transition-all hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-70"
-                            >
+                            <Button type="submit" disabled={loading} className="w-full">
                                 {loading ? (
-                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                    <Spinner size={5} className="mr-2" />
                                 ) : (
-                                    <Save className="h-5 w-5" />
+                                    <Save className="mr-2 h-5 w-5" />
                                 )}
                                 Save Product
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 </div>
