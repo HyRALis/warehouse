@@ -1,19 +1,18 @@
-import type { Metadata } from "next";
-import "./globals.css";
+import './globals.css';
+import { AuthProvider } from '@/context/AuthContext';
+import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: "Vendor Portal",
-  description: "Manage your inventory",
+    title: 'OmniStock - Vendor Portal',
+    description: 'Manage your inventory with OmniStock',
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+    return (
+        <html lang="en">
+            <body>
+                <AuthProvider>{children}</AuthProvider>
+            </body>
+        </html>
+    );
 }
