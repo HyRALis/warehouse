@@ -4,13 +4,19 @@ export interface Characteristic {
     measurement?: string;
 }
 
+export enum ProductStatus {
+    DRAFT = 'DRAFT',
+    ACTIVE = 'ACTIVE',
+    DISCONTINUED = 'DISCONTINUED',
+}
+
 export interface CreateProductRequest {
     categoryId: string;
     sku: string;
     baseName: string;
     barcode?: string;
     characteristics: Characteristic[];
-    status?: 'DRAFT' | 'ACTIVE' | 'DISCONTINUED';
+    status?: ProductStatus;
 }
 
 export interface UpdateProductRequest extends Partial<CreateProductRequest> {}
@@ -24,7 +30,7 @@ export interface ProductResponse {
     imageUrl: string;
     barcode?: string | null;
     qrCodeUrl?: string | null;
-    status: 'DRAFT' | 'ACTIVE' | 'DISCONTINUED';
+    status: ProductStatus;
     characteristics: Characteristic[];
     createdAt: Date | string;
     updatedAt: Date | string;
@@ -39,6 +45,6 @@ export interface ProductListQuery {
     page?: number;
     limit?: number;
     search?: string;
-    status?: 'DRAFT' | 'ACTIVE' | 'DISCONTINUED';
+    status?: ProductStatus;
     categoryId?: string;
 }

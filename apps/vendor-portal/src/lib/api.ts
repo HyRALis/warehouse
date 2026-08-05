@@ -1,5 +1,7 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
+import type { CreateProductRequest, UpdateProductRequest } from '@inventory-system/shared-types';
+
 export class ApiError extends Error {
     statusCode: number;
     code?: string;
@@ -83,9 +85,9 @@ export const api = {
         return request<any>(`/products${query ? `?${query}` : ''}`);
     },
     getProduct: (id: string) => request<any>(`/products/${id}`),
-    createProduct: (body: any) =>
+    createProduct: (body: CreateProductRequest) =>
         request<any>('/products', { method: 'POST', body: JSON.stringify(body) }),
-    updateProduct: (id: string, body: any) =>
+    updateProduct: (id: string, body: UpdateProductRequest) =>
         request<any>(`/products/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     deleteProduct: (id: string) => request<any>(`/products/${id}`, { method: 'DELETE' }),
     uploadProductImage: (id: string, formData: FormData) =>

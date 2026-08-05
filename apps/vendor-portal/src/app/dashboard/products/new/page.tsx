@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import Link from 'next/link';
 import { ArrowLeft, Plus, Trash2, Save, UploadCloud } from 'lucide-react';
 import { Input, Button, Label, Spinner, Card, CardContent } from '@inventory-system/ui';
+import { ProductStatus } from '@inventory-system/shared-types';
 
 interface CharacteristicInput {
     name: string;
@@ -27,7 +28,7 @@ export default function NewProductPage() {
     const [sku, setSku] = useState('');
     const [barcode, setBarcode] = useState('');
     const [categoryId, setCategoryId] = useState('');
-    const [status, setStatus] = useState('Draft');
+    const [status, setStatus] = useState<ProductStatus>(ProductStatus.DRAFT);
     const [characteristics, setCharacteristics] = useState<CharacteristicInput[]>([]);
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState('');
@@ -233,11 +234,11 @@ export default function NewProductPage() {
                                     <Label>Status</Label>
                                     <select
                                         value={status}
-                                        onChange={(e) => setStatus(e.target.value)}
+                                        onChange={(e) => setStatus(e.target.value as ProductStatus)}
                                         className="w-full rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 text-slate-100 focus:ring-2 focus:ring-indigo-500"
                                     >
-                                        <option value="Draft">Draft</option>
-                                        <option value="Active">Active</option>
+                                        <option value={ProductStatus.DRAFT}>Draft</option>
+                                        <option value={ProductStatus.ACTIVE}>Active</option>
                                     </select>
                                 </div>
                             </div>

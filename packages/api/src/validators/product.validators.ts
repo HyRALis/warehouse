@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ProductStatus } from '@inventory-system/shared-types';
 
 export const characteristicSchema = z.object({
     name: z.string(),
@@ -13,7 +14,7 @@ export const createProductSchema = z.object({
         baseName: z.string(),
         barcode: z.string().optional(),
         characteristics: z.array(characteristicSchema),
-        status: z.enum(['DRAFT', 'ACTIVE', 'DISCONTINUED']).optional(),
+        status: z.nativeEnum(ProductStatus).optional(),
     }),
 });
 
@@ -24,6 +25,6 @@ export const updateProductSchema = z.object({
         baseName: z.string().optional(),
         barcode: z.string().optional(),
         characteristics: z.array(characteristicSchema).optional(),
-        status: z.enum(['DRAFT', 'ACTIVE', 'DISCONTINUED']).optional(),
+        status: z.nativeEnum(ProductStatus).optional(),
     }),
 });
