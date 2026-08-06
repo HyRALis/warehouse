@@ -1,4 +1,5 @@
 import { Response, NextFunction } from 'express';
+import fs from 'fs';
 import { parse } from 'csv-parse/sync';
 import { stringify } from 'csv-stringify/sync';
 import prisma from '@inventory-system/database';
@@ -108,6 +109,7 @@ export class ProductController {
                         characteristics: parsedCharacteristics,
                         status: status || 'DRAFT',
                         vendorId,
+                        
                     },
                 });
 
@@ -130,7 +132,7 @@ export class ProductController {
                     await tx.productImage.create({
                         data: {
                             productId: newProduct.id,
-                            url: imageUrl,
+                            imageUrl,
                             sortOrder: 0,
                         },
                     });
@@ -253,7 +255,7 @@ export class ProductController {
             const productImage = await prisma.productImage.create({
                 data: {
                     productId: id,
-                    url: imageUrl,
+                    imageUrl,
                     sortOrder: product.images.length,
                 },
             });
@@ -289,7 +291,7 @@ export class ProductController {
                 return;
             }
 
-            const filename = productImage.url.split('/').pop() as string;
+            const filename = productImage.imageUrl.split('/').pop() as string;
             await StorageService.deleteFile(filename);
 
             await prisma.productImage.delete({ where: { id: imageId } });
@@ -310,7 +312,7 @@ export class ProductController {
                 return;
             }
 
-            const fileContent = req.file.buffer.toString('utf-8');
+            const fileContent = fs.readFileSync(req.file.path, 'utf-8');
             const records = parse(fileContent, {
                 columns: true,
                 skip_empty_lines: true,
@@ -340,11 +342,16 @@ export class ProductController {
                         continue;
                     }
 
+                    if (!row.categoryId) {
+                        errors.push(`Row ${i + 1}: categoryId is required`);
+                        continue;
+                    }
+
                     await prisma.product.create({
                         data: {
                             sku: row.sku,
                             baseName: row.baseName,
-                            categoryId: row.categoryId || null,
+                            categoryId: row.categoryId,
                             barcode: row.barcode || null,
                             status: row.status || 'DRAFT',
                             characteristics,
