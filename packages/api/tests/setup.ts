@@ -1,19 +1,24 @@
 import jwt from 'jsonwebtoken';
 
-process.env.JWT_SECRET = 'test-secret';
+process.env.JWT_SECRET = 'test-secret-that-is-at-least-32-characters-long';
 process.env.NODE_ENV = 'test';
+process.env.CORS_ORIGINS = 'http://localhost:3000';
+process.env.API_PUBLIC_URL = 'http://localhost:4000';
 
 export const mockPrisma = {
     vendor: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
         count: jest.fn(),
+        updateMany: jest.fn(),
     },
     category: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
@@ -22,6 +27,7 @@ export const mockPrisma = {
     },
     product: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
@@ -30,6 +36,7 @@ export const mockPrisma = {
     },
     productImage: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
@@ -38,22 +45,33 @@ export const mockPrisma = {
     },
     characteristicTemplate: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         findMany: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
         count: jest.fn(),
     },
-    $transaction: jest.fn((callback) => callback(mockPrisma)),
+    $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
 };
+
+mockPrisma.$transaction.mockImplementation((callback: (client: any) => unknown): unknown =>
+    callback(mockPrisma)
+);
 
 jest.mock('@inventory-system/database', () => ({
     __esModule: true,
     default: mockPrisma,
+    ProductStatus: {
+        DRAFT: 'DRAFT',
+        ACTIVE: 'ACTIVE',
+        DISCONTINUED: 'DISCONTINUED',
+    },
 }));
 
-export const generateTestToken = (vendorId: string) => {
-    return jwt.sign({ id: vendorId }, process.env.JWT_SECRET as string, {
+export const generateTestToken = (vendorId: string, tokenVersion = 0) => {
+    return jwt.sign({ id: vendorId, tokenVersion }, process.env.JWT_SECRET as string, {
         expiresIn: '1h',
     });
 };

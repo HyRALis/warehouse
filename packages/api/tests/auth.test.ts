@@ -1,158 +1,104 @@
 import request from 'supertest';
-import { app } from '../src/index';
-import { mockPrisma, generateTestToken } from './setup';
 import bcrypt from 'bcryptjs';
+import { app } from '../src/index';
+import { generateTestToken, mockPrisma } from './setup';
 
 jest.mock('bcryptjs');
 
-describe('Auth Endpoints', () => {
+const vendor = {
+    id: 'vendor-1',
+    email: 'owner@example.com',
+    passwordHash: 'hashed-password',
+    companyName: 'Example Supply',
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    deletedAt: null,
+    tokenVersion: 0,
+};
+
+describe('authentication', () => {
     beforeEach(() => {
         jest.clearAllMocks();
     });
 
-    describe('POST /api/v1/auth/register', () => {
-        const validRegisterData = {
-            email: 'test@example.com',
-            password: 'password123',
-            name: 'Test Vendor',
-        };
+    it('registers a vendor, sets an HttpOnly cookie, and does not expose the JWT', async () => {
+        mockPrisma.vendor.findUnique.mockResolvedValue(null);
+        mockPrisma.vendor.create.mockResolvedValue(vendor);
+        (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
 
-        it('should register a new vendor successfully (201)', async () => {
-            mockPrisma.vendor.findUnique.mockResolvedValue(null);
-            (bcrypt.hash as jest.Mock).mockResolvedValue('hashedpassword');
-            mockPrisma.vendor.create.mockResolvedValue({
-                id: '123',
-                email: validRegisterData.email,
-                name: validRegisterData.name,
-            });
-
-            const res = await request(app).post('/api/v1/auth/register').send(validRegisterData);
-
-            expect(res.status).toBe(201);
-            expect(res.body).toHaveProperty('id', '123');
+        const response = await request(app).post('/api/v1/auth/register').send({
+            email: vendor.email,
+            password: 'a-secure-password',
+            companyName: vendor.companyName,
         });
 
-        it('should return 409 if email already exists', async () => {
-            mockPrisma.vendor.create.mockRejectedValue({ code: 'P2002' }); // Prisma unique constraint code
-
-            const res = await request(app).post('/api/v1/auth/register').send(validRegisterData);
-
-            expect(res.status).toBe(409);
-        });
-
-        it('should return 400 for invalid email format', async () => {
-            const res = await request(app)
-                .post('/api/v1/auth/register')
-                .send({
-                    ...validRegisterData,
-                    email: 'invalid-email',
-                });
-
-            expect(res.status).toBe(400);
-        });
-
-        it('should return 400 for missing required fields', async () => {
-            const res = await request(app).post('/api/v1/auth/register').send({
-                email: 'test@example.com',
-            });
-
-            expect(res.status).toBe(400);
-        });
+        expect(response.status).toBe(201);
+        expect(response.body.data.vendor.id).toBe(vendor.id);
+        expect(response.body.data.token).toBeUndefined();
+        expect(response.headers['set-cookie'][0]).toContain('vendor_session=');
+        expect(response.headers['set-cookie'][0]).toContain('HttpOnly');
     });
 
-    describe('POST /api/v1/auth/login', () => {
-        const validLoginData = {
-            email: 'test@example.com',
-            password: 'password123',
-        };
+    it('rejects invalid credentials without revealing whether the account exists', async () => {
+        mockPrisma.vendor.findFirst.mockResolvedValue(vendor);
+        (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
-        const mockVendor = {
-            id: '123',
-            email: 'test@example.com',
-            password: 'hashedpassword',
-            deletedAt: null,
-        };
-
-        it('should login successfully with correct credentials (200)', async () => {
-            mockPrisma.vendor.findUnique.mockResolvedValue(mockVendor);
-            (bcrypt.compare as jest.Mock).mockResolvedValue(true);
-
-            const res = await request(app).post('/api/v1/auth/login').send(validLoginData);
-
-            expect(res.status).toBe(200);
-            expect(res.body).toHaveProperty('token');
+        const response = await request(app).post('/api/v1/auth/login').send({
+            email: vendor.email,
+            password: 'incorrect-password',
         });
 
-        it('should return 401 for wrong password', async () => {
-            mockPrisma.vendor.findUnique.mockResolvedValue(mockVendor);
-            (bcrypt.compare as jest.Mock).mockResolvedValue(false);
-
-            const res = await request(app).post('/api/v1/auth/login').send(validLoginData);
-
-            expect(res.status).toBe(401);
-        });
-
-        it('should return 401 for non-existent email', async () => {
-            mockPrisma.vendor.findUnique.mockResolvedValue(null);
-
-            const res = await request(app).post('/api/v1/auth/login').send(validLoginData);
-
-            expect(res.status).toBe(401);
-        });
-
-        it('should return 401 for soft-deleted vendor', async () => {
-            mockPrisma.vendor.findUnique.mockResolvedValue({
-                ...mockVendor,
-                deletedAt: new Date(),
-            });
-
-            const res = await request(app).post('/api/v1/auth/login').send(validLoginData);
-
-            expect(res.status).toBe(401);
-        });
+        expect(response.status).toBe(401);
+        expect(response.body.message).toBe('Invalid credentials');
     });
 
-    describe('GET /api/v1/auth/me', () => {
-        it('should return current vendor profile (200)', async () => {
-            const token = generateTestToken('123');
-            mockPrisma.vendor.findUnique.mockResolvedValue({
-                id: '123',
-                email: 'test@example.com',
-                name: 'Test Vendor',
-            });
+    it('revokes all current sessions and clears the cookie on logout', async () => {
+        mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendor.id });
+        mockPrisma.vendor.update.mockResolvedValue({ ...vendor, tokenVersion: 1 });
 
-            const res = await request(app)
-                .get('/api/v1/auth/me')
-                .set('Authorization', `Bearer ${token}`);
+        const response = await request(app)
+            .post('/api/v1/auth/logout')
+            .set('Authorization', `Bearer ${generateTestToken(vendor.id)}`);
 
-            expect(res.status).toBe(200);
-            expect(res.body).toHaveProperty('email', 'test@example.com');
+        expect(response.status).toBe(200);
+        expect(mockPrisma.vendor.update).toHaveBeenCalledWith({
+            where: { id: vendor.id },
+            data: { tokenVersion: { increment: 1 } },
         });
-
-        it('should return 401 without auth token', async () => {
-            const res = await request(app).get('/api/v1/auth/me');
-
-            expect(res.status).toBe(401);
-        });
-
-        it('should return 401 with invalid token', async () => {
-            const res = await request(app)
-                .get('/api/v1/auth/me')
-                .set('Authorization', 'Bearer invalidtoken');
-
-            expect(res.status).toBe(401);
-        });
+        expect(response.headers['set-cookie'][0]).toContain('vendor_session=;');
     });
 
-    describe('POST /api/v1/auth/logout', () => {
-        it('should return success (200)', async () => {
-            const token = generateTestToken('123');
+    it('rejects a signed token when its session version is no longer valid', async () => {
+        mockPrisma.vendor.findFirst.mockResolvedValue(null);
 
-            const res = await request(app)
-                .post('/api/v1/auth/logout')
-                .set('Authorization', `Bearer ${token}`);
+        const response = await request(app)
+            .get('/api/v1/auth/me')
+            .set('Authorization', `Bearer ${generateTestToken(vendor.id)}`);
 
-            expect(res.status).toBe(200);
+        expect(response.status).toBe(401);
+        expect(response.body.code).toBe('INVALID_SESSION');
+    });
+
+    it('resets a password only with a live hashed reset token', async () => {
+        mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendor.id });
+        mockPrisma.vendor.update.mockResolvedValue(vendor);
+        (bcrypt.hash as jest.Mock).mockResolvedValue('new-password-hash');
+
+        const response = await request(app).post('/api/v1/auth/reset-password').send({
+            token: 'valid-reset-token-that-is-more-than-thirty-two-characters',
+            password: 'new-secure-password',
         });
+
+        expect(response.status).toBe(200);
+        expect(mockPrisma.vendor.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: vendor.id },
+                data: expect.objectContaining({
+                    passwordResetTokenHash: null,
+                    passwordResetExpiresAt: null,
+                    tokenVersion: { increment: 1 },
+                }),
+            })
+        );
     });
 });

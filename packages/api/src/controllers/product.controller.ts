@@ -1,8 +1,7 @@
 import { Response, NextFunction } from 'express';
-import fs from 'fs';
 import { parse } from 'csv-parse/sync';
 import { stringify } from 'csv-stringify/sync';
-import prisma from '@inventory-system/database';
+import prisma, { Prisma, ProductStatus } from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
 import { StorageService } from '../services/storage.service';
 import { QRCodeService } from '../services/qrcode.service';
@@ -14,12 +13,17 @@ export class ProductController {
     static async list(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const page = Math.max(1, parseInt(req.query.page as string) || 1);
-            const limit = Math.max(1, parseInt(req.query.limit as string) || 20);
+            const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
             const search = req.query.search as string | undefined;
-            const status = req.query.status as any | undefined;
+            const status = req.query.status as ProductStatus | undefined;
             const categoryId = req.query.categoryId as string | undefined;
 
-            const where: any = {
+            if (status && !Object.values(ProductStatus).includes(status)) {
+                res.status(400).json({ success: false, message: 'Invalid product status' });
+                return;
+            }
+
+            const where: Prisma.ProductWhereInput = {
                 vendorId: req.vendorId,
                 deletedAt: null,
             };
@@ -91,7 +95,20 @@ export class ProductController {
             const { categoryId, sku, baseName, barcode, characteristics, status } = req.body;
             const vendorId = req.vendorId!;
 
-            let parsedCharacteristics = {};
+            const category = await prisma.category.findFirst({
+                where: {
+                    id: categoryId,
+                    OR: [{ vendorId: null }, { vendorId }],
+                },
+                select: { id: true },
+            });
+
+            if (!category) {
+                res.status(400).json({ success: false, message: 'Category is not available' });
+                return;
+            }
+
+            let parsedCharacteristics: Prisma.InputJsonValue = [];
             if (characteristics) {
                 parsedCharacteristics =
                     typeof characteristics === 'string'
@@ -99,7 +116,7 @@ export class ProductController {
                         : characteristics;
             }
 
-            const product = await prisma.$transaction(async (tx) => {
+            const product = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 const newProduct = await tx.product.create({
                     data: {
                         categoryId,
@@ -109,7 +126,6 @@ export class ProductController {
                         characteristics: parsedCharacteristics,
                         status: status || 'DRAFT',
                         vendorId,
-                        
                     },
                 });
 
@@ -127,20 +143,9 @@ export class ProductController {
                     });
                 }
 
-                if (req.file) {
-                    const imageUrl = await StorageService.uploadFile(req.file);
-                    await tx.productImage.create({
-                        data: {
-                            productId: newProduct.id,
-                            imageUrl,
-                            sortOrder: 0,
-                        },
-                    });
-                }
-
                 return tx.product.findUnique({
                     where: { id: newProduct.id },
-                    include: { images: true },
+                    include: { images: true, category: true },
                 });
             });
 
@@ -157,14 +162,30 @@ export class ProductController {
         try {
             const { id } = req.params;
             const { categoryId, sku, baseName, barcode, characteristics, status } = req.body;
+            const vendorId = req.vendorId!;
 
             const product = await prisma.product.findFirst({
-                where: { id, vendorId: req.vendorId, deletedAt: null },
+                where: { id, vendorId, deletedAt: null },
             });
 
             if (!product) {
                 res.status(404).json({ success: false, message: 'Product not found' });
                 return;
+            }
+
+            if (categoryId !== undefined) {
+                const category = await prisma.category.findFirst({
+                    where: {
+                        id: categoryId,
+                        OR: [{ vendorId: null }, { vendorId }],
+                    },
+                    select: { id: true },
+                });
+
+                if (!category) {
+                    res.status(400).json({ success: false, message: 'Category is not available' });
+                    return;
+                }
             }
 
             let parsedCharacteristics = characteristics;
@@ -184,7 +205,7 @@ export class ProductController {
                     }),
                     ...(status !== undefined && { status }),
                 },
-                include: { images: true },
+                include: { images: true, category: true },
             });
 
             res.status(200).json({ success: true, data: updatedProduct });
@@ -240,7 +261,7 @@ export class ProductController {
             if (product.images.length >= 4) {
                 res.status(400).json({
                     success: false,
-                    message: 'Maximum of 4 additional images allowed',
+                    message: 'Maximum of 4 product images allowed',
                 });
                 return;
             }
@@ -291,8 +312,7 @@ export class ProductController {
                 return;
             }
 
-            const filename = productImage.imageUrl.split('/').pop() as string;
-            await StorageService.deleteFile(filename);
+            await StorageService.deleteFile(productImage.imageUrl);
 
             await prisma.productImage.delete({ where: { id: imageId } });
 
@@ -312,11 +332,19 @@ export class ProductController {
                 return;
             }
 
-            const fileContent = fs.readFileSync(req.file.path, 'utf-8');
-            const records = parse(fileContent, {
+            const records = parse(req.file.buffer.toString('utf-8'), {
                 columns: true,
                 skip_empty_lines: true,
-            });
+                trim: true,
+            }) as Record<string, string>[];
+
+            if (records.length > 1000) {
+                res.status(400).json({
+                    success: false,
+                    message: 'A CSV import is limited to 1,000 products',
+                });
+                return;
+            }
 
             let imported = 0;
             const errors: string[] = [];
@@ -324,43 +352,65 @@ export class ProductController {
             for (let i = 0; i < records.length; i++) {
                 const row = records[i];
                 try {
-                    if (row.categoryId) {
-                        const category = await prisma.category.findUnique({
-                            where: { id: row.categoryId },
-                        });
-                        if (!category) {
-                            errors.push(`Row ${i + 1}: Category ID ${row.categoryId} not found`);
-                            continue;
-                        }
+                    if (!row.sku || !row.baseName || !row.categoryId) {
+                        errors.push(`Row ${i + 2}: sku, baseName, and categoryId are required`);
+                        continue;
                     }
 
-                    let characteristics = {};
+                    const category = await prisma.category.findFirst({
+                        where: {
+                            id: row.categoryId,
+                            OR: [{ vendorId: null }, { vendorId: req.vendorId }],
+                        },
+                        select: { id: true },
+                    });
+                    if (!category) {
+                        errors.push(`Row ${i + 2}: Category is not available`);
+                        continue;
+                    }
+
+                    const status = (row.status || ProductStatus.DRAFT) as ProductStatus;
+                    if (!Object.values(ProductStatus).includes(status)) {
+                        errors.push(`Row ${i + 2}: Invalid product status`);
+                        continue;
+                    }
+
+                    let characteristics: Prisma.InputJsonValue = [];
                     try {
                         if (row.characteristics) characteristics = JSON.parse(row.characteristics);
-                    } catch (e) {
-                        errors.push(`Row ${i + 1}: Invalid JSON in characteristics`);
+                    } catch {
+                        errors.push(`Row ${i + 2}: Invalid JSON in characteristics`);
                         continue;
                     }
 
-                    if (!row.categoryId) {
-                        errors.push(`Row ${i + 1}: categoryId is required`);
-                        continue;
-                    }
-
-                    await prisma.product.create({
+                    const product = await prisma.product.create({
                         data: {
                             sku: row.sku,
                             baseName: row.baseName,
                             categoryId: row.categoryId,
                             barcode: row.barcode || null,
-                            status: row.status || 'DRAFT',
+                            status,
                             characteristics,
                             vendorId: req.vendorId!,
                         },
                     });
+
+                    try {
+                        const qrCodeUrl = await QRCodeService.generateQRCode(product.id);
+                        await prisma.product.update({
+                            where: { id: product.id },
+                            data: { qrCodeUrl },
+                        });
+                    } catch {
+                        // The product remains usable if optional QR rendering fails.
+                    }
                     imported++;
-                } catch (e: any) {
-                    errors.push(`Row ${i + 1}: ${e.message}`);
+                } catch (error) {
+                    const message =
+                        (error as { code?: string }).code === 'P2002'
+                            ? 'A product with this SKU already exists'
+                            : 'Could not import this row';
+                    errors.push(`Row ${i + 2}: ${message}`);
                 }
             }
 
@@ -383,16 +433,16 @@ export class ProductController {
                 include: { category: true },
             });
 
-            const csvData = products.map((p) => ({
-                id: p.id,
-                sku: p.sku,
-                baseName: p.baseName,
-                categoryId: p.categoryId,
-                categoryName: p.category?.name || '',
-                barcode: p.barcode,
-                status: p.status,
-                characteristics: JSON.stringify(p.characteristics),
-                createdAt: p.createdAt.toISOString(),
+            const csvData = products.map((product) => ({
+                id: product.id,
+                sku: product.sku,
+                baseName: product.baseName,
+                categoryId: product.categoryId,
+                categoryName: product.category?.name || '',
+                barcode: product.barcode,
+                status: product.status,
+                characteristics: JSON.stringify(product.characteristics),
+                createdAt: product.createdAt.toISOString(),
             }));
 
             const csvString = stringify(csvData, { header: true });

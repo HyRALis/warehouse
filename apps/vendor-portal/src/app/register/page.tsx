@@ -108,7 +108,7 @@ export default function RegisterPage() {
                                     className="pl-10"
                                     placeholder="••••••••"
                                     required
-                                    minLength={8}
+                                    minLength={12}
                                 />
                             </div>
                         </div>

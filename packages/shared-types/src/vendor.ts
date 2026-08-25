@@ -1,13 +1,12 @@
 export interface RegisterVendorRequest {
     email: string;
-    passwordHash?: string; // Often hashed before this point or sent as plain password
-    password?: string;
+    password: string;
     companyName: string;
 }
 
 export interface LoginVendorRequest {
     email: string;
-    password?: string;
+    password: string;
 }
 
 export interface VendorResponse {
@@ -18,6 +17,5 @@ export interface VendorResponse {
 }
 
 export interface AuthResponse {
-    token: string;
     vendor: VendorResponse;
 }

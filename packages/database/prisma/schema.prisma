@@ -21,6 +21,9 @@ model Vendor {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
+  tokenVersion Int       @default(0) @map("token_version")
+  passwordResetTokenHash String?   @unique @map("password_reset_token_hash")
+  passwordResetExpiresAt DateTime? @map("password_reset_expires_at")
 
   products               Product[]
   categories             Category[]
@@ -36,19 +39,21 @@ model Category {
   vendorId  String?   @map("vendor_id")
   createdAt DateTime  @default(now()) @map("created_at")
 
-  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children Category[] @relation("CategoryHierarchy")
-  vendor   Vendor?    @relation(fields: [vendorId], references: [id])
+  vendor   Vendor?    @relation(fields: [vendorId], references: [id], onDelete: Restrict)
   products Product[]
 
   @@map("categories")
+  @@index([vendorId])
+  @@index([parentId])
 }
 
 model Product {
   id              String        @id @default(uuid())
   vendorId        String        @map("vendor_id")
   categoryId      String        @map("category_id")
-  sku             String        @unique
+  sku             String
   baseName        String        @map("base_name")
   imageUrl        String?       @map("image_url")
   barcode         String?
@@ -59,11 +64,14 @@ model Product {
   updatedAt       DateTime      @updatedAt @map("updated_at")
   deletedAt       DateTime?     @map("deleted_at")
 
-  vendor   Vendor         @relation(fields: [vendorId], references: [id])
-  category Category       @relation(fields: [categoryId], references: [id])
+  vendor   Vendor         @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  category Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   images   ProductImage[]
 
   @@map("products")
+  @@unique([vendorId, sku])
+  @@index([vendorId, deletedAt])
+  @@index([categoryId])
 }
 
 model ProductImage {
@@ -73,9 +81,10 @@ model ProductImage {
   sortOrder Int      @default(0) @map("sort_order")
   createdAt DateTime @default(now()) @map("created_at")
 
-  product Product @relation(fields: [productId], references: [id])
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("product_images")
+  @@index([productId])
 }
 
 model CharacteristicTemplate {
@@ -85,7 +94,8 @@ model CharacteristicTemplate {
   fields    Json     @default("[]")
   createdAt DateTime @default(now()) @map("created_at")
 
-  vendor Vendor @relation(fields: [vendorId], references: [id])
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
 
   @@map("characteristic_templates")
+  @@index([vendorId])
 }

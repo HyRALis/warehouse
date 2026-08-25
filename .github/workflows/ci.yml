@@ -1,0 +1,83 @@
+name: CI
+
+on:
+    pull_request:
+    push:
+        branches: [main]
+
+permissions:
+    contents: read
+
+jobs:
+    verify:
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        env:
+            NODE_ENV: test
+            DATABASE_URL: postgresql://inventory:inventory@localhost:5432/inventory?schema=public
+            JWT_SECRET: test-secret-that-is-at-least-32-characters-long
+            CORS_ORIGINS: http://localhost:3000
+            API_PUBLIC_URL: http://localhost:4000
+            ALLOW_LOCAL_STORAGE_IN_PRODUCTION: 'true'
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: inventory
+                    POSTGRES_PASSWORD: inventory
+                    POSTGRES_DB: inventory
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd "pg_isready -U inventory -d inventory"
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
+
+            - name: Install exact dependency graph
+              run: npm ci
+
+            - name: Generate Prisma client
+              run: npm run generate --workspace @inventory-system/database
+
+            - name: Apply database migrations
+              run: npm run migrate:deploy --workspace @inventory-system/database
+
+            - name: Build
+              run: npm run build
+
+            - name: Test
+              run: npm test
+
+            - name: Lint
+              run: npm run lint
+
+            - name: Smoke primary API flows
+              shell: bash
+              env:
+                  NODE_ENV: production
+              run: |
+                  npm start --workspace @inventory-system/api >/tmp/inventory-api.log 2>&1 &
+                  api_pid=$!
+                  trap 'kill $api_pid' EXIT
+                  for attempt in {1..20}; do
+                    if curl --fail --silent http://localhost:4000/ready >/dev/null; then
+                      break
+                    fi
+                    if [ "$attempt" = 20 ]; then
+                      cat /tmp/inventory-api.log
+                      exit 1
+                    fi
+                    sleep 1
+                  done
+                  node tools/smoke-api.mjs
+
+            - name: Audit production dependencies
+              run: npm run audit:prod

@@ -1,10 +1,29 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import prisma from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
+import { config } from '../config';
+import {
+    clearSessionCookie,
+    setSessionCookie,
+    signSession,
+} from '../services/session.service';
 
-const loginAttempts = new Map<string, { attempts: number; lockUntil: number }>();
+const publicVendor = (vendor: {
+    id: string;
+    email: string;
+    companyName: string;
+    createdAt: Date;
+}) => ({
+    id: vendor.id,
+    email: vendor.email,
+    companyName: vendor.companyName,
+    createdAt: vendor.createdAt,
+});
+
+const hashResetToken = (token: string): string =>
+    crypto.createHash('sha256').update(token).digest('hex');
 
 export class AuthController {
     /**
@@ -20,7 +39,7 @@ export class AuthController {
                 return;
             }
 
-            const passwordHash = await bcrypt.hash(password, 10);
+            const passwordHash = await bcrypt.hash(password, 12);
 
             const vendor = await prisma.vendor.create({
                 data: {
@@ -30,22 +49,13 @@ export class AuthController {
                 },
             });
 
-            const token = jwt.sign(
-                { id: vendor.id },
-                process.env.JWT_SECRET || 'super_secret_development_key',
-                { expiresIn: '7d' }
-            );
+            const token = signSession(vendor.id, vendor.tokenVersion);
+            setSessionCookie(res, token);
 
             res.status(201).json({
                 success: true,
                 data: {
-                    token,
-                    vendor: {
-                        id: vendor.id,
-                        email: vendor.email,
-                        companyName: vendor.companyName,
-                        createdAt: vendor.createdAt,
-                    },
+                    vendor: publicVendor(vendor),
                 },
             });
         } catch (error) {
@@ -59,16 +69,6 @@ export class AuthController {
     static async login(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
             const { email, password } = req.body;
-            const attempt = loginAttempts.get(email);
-
-            if (attempt && attempt.lockUntil > Date.now()) {
-                res.status(401).json({
-                    success: false,
-                    message: 'Account locked. Try again later.',
-                });
-                return;
-            }
-
             const vendor = await prisma.vendor.findFirst({
                 where: { email, deletedAt: null },
             });
@@ -81,38 +81,17 @@ export class AuthController {
             const isPasswordValid = await bcrypt.compare(password, vendor.passwordHash);
 
             if (!isPasswordValid) {
-                const attempts = (attempt?.attempts || 0) + 1;
-                if (attempts >= 5) {
-                    loginAttempts.set(email, { attempts, lockUntil: Date.now() + 15 * 60 * 1000 });
-                    res.status(401).json({
-                        success: false,
-                        message: 'Account locked. Try again later.',
-                    });
-                } else {
-                    loginAttempts.set(email, { attempts, lockUntil: 0 });
-                    res.status(401).json({ success: false, message: 'Invalid credentials' });
-                }
+                res.status(401).json({ success: false, message: 'Invalid credentials' });
                 return;
             }
 
-            loginAttempts.delete(email);
-
-            const token = jwt.sign(
-                { id: vendor.id },
-                process.env.JWT_SECRET || 'super_secret_development_key',
-                { expiresIn: '7d' }
-            );
+            const token = signSession(vendor.id, vendor.tokenVersion);
+            setSessionCookie(res, token);
 
             res.status(200).json({
                 success: true,
                 data: {
-                    token,
-                    vendor: {
-                        id: vendor.id,
-                        email: vendor.email,
-                        companyName: vendor.companyName,
-                        createdAt: vendor.createdAt,
-                    },
+                    vendor: publicVendor(vendor),
                 },
             });
         } catch (error) {
@@ -125,6 +104,11 @@ export class AuthController {
      */
     static async logout(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
+            await prisma.vendor.update({
+                where: { id: req.vendorId! },
+                data: { tokenVersion: { increment: 1 } },
+            });
+            clearSessionCookie(res);
             res.status(200).json({ success: true, message: 'Logged out successfully' });
         } catch (error) {
             next(error);
@@ -137,11 +121,27 @@ export class AuthController {
     static async forgotPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
             const { email } = req.body;
-            console.log(`Password reset requested for: ${email}`);
-            // TODO: implement email provider
+            const vendor = await prisma.vendor.findFirst({
+                where: { email, deletedAt: null },
+                select: { id: true },
+            });
+
+            let resetToken: string | undefined;
+            if (vendor) {
+                resetToken = crypto.randomBytes(32).toString('hex');
+                await prisma.vendor.update({
+                    where: { id: vendor.id },
+                    data: {
+                        passwordResetTokenHash: hashResetToken(resetToken),
+                        passwordResetExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+                    },
+                });
+            }
+
             res.status(200).json({
                 success: true,
                 message: 'If the email exists, a reset link has been sent.',
+                ...(config.nodeEnv !== 'production' && resetToken ? { resetToken } : {}),
             });
         } catch (error) {
             next(error);
@@ -153,8 +153,32 @@ export class AuthController {
      */
     static async resetPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
-            console.log('Password reset executed');
-            // TODO: implement token verification and password update
+            const { token, password } = req.body;
+            const vendor = await prisma.vendor.findFirst({
+                where: {
+                    passwordResetTokenHash: hashResetToken(token),
+                    passwordResetExpiresAt: { gt: new Date() },
+                    deletedAt: null,
+                },
+                select: { id: true },
+            });
+
+            if (!vendor) {
+                res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
+                return;
+            }
+
+            const passwordHash = await bcrypt.hash(password, 12);
+            await prisma.vendor.update({
+                where: { id: vendor.id },
+                data: {
+                    passwordHash,
+                    passwordResetTokenHash: null,
+                    passwordResetExpiresAt: null,
+                    tokenVersion: { increment: 1 },
+                },
+            });
+            clearSessionCookie(res);
             res.status(200).json({
                 success: true,
                 message: 'Password has been reset successfully.',

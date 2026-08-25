@@ -1,6 +1,19 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
-import type { CreateProductRequest, UpdateProductRequest } from '@inventory-system/shared-types';
+import type {
+    AuthResponse,
+    CreateProductRequest,
+    LoginVendorRequest,
+    RegisterVendorRequest,
+    UpdateProductRequest,
+} from '@inventory-system/shared-types';
+
+interface ApiResponse<T> {
+    success: boolean;
+    data: T;
+    message?: string;
+    meta?: { total: number; page: number; limit: number; totalPages: number };
+}
 
 export class ApiError extends Error {
     statusCode: number;
@@ -14,32 +27,10 @@ export class ApiError extends Error {
     }
 }
 
-export function getAuthToken(): string | null {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('vendor_auth_token');
-}
-
-export function setAuthToken(token: string): void {
-    if (typeof window !== 'undefined') {
-        localStorage.setItem('vendor_auth_token', token);
-    }
-}
-
-export function removeAuthToken(): void {
-    if (typeof window !== 'undefined') {
-        localStorage.removeItem('vendor_auth_token');
-    }
-}
-
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const token = getAuthToken();
     const headers: Record<string, string> = {
         ...(options.headers as Record<string, string>),
     };
-
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
 
     if (!(options.body instanceof FormData) && !headers['Content-Type']) {
         headers['Content-Type'] = 'application/json';
@@ -48,10 +39,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         ...options,
         headers,
+        credentials: 'include',
     });
 
     if (response.status === 401 && !endpoint.includes('/auth/login')) {
-        removeAuthToken();
         if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
             window.location.href = '/login';
         }
@@ -72,10 +63,16 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
     // Auth
-    register: (body: any) =>
-        request<any>('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
-    login: (body: any) =>
-        request<any>('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+    register: (body: RegisterVendorRequest) =>
+        request<ApiResponse<AuthResponse>>('/auth/register', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        }),
+    login: (body: LoginVendorRequest) =>
+        request<ApiResponse<AuthResponse>>('/auth/login', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        }),
     logout: () => request<any>('/auth/logout', { method: 'POST' }),
     getMe: () => request<any>('/auth/me'),
 
@@ -120,5 +117,16 @@ export const api = {
     // Bulk Operations
     importCSV: (formData: FormData) =>
         request<any>('/products/import', { method: 'POST', body: formData }),
-    exportCSVUrl: () => `${API_BASE_URL}/products/export`,
+    exportCSV: async () => {
+        const response = await fetch(`${API_BASE_URL}/products/export`, {
+            credentials: 'include',
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new ApiError(data.message || 'Export failed', response.status, data.code);
+        }
+
+        return response.blob();
+    },
 };

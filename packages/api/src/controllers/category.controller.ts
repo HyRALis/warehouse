@@ -31,6 +31,25 @@ export class CategoryController {
     static async create(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const { name, parentId } = req.body;
+
+            if (parentId) {
+                const parent = await prisma.category.findFirst({
+                    where: {
+                        id: parentId,
+                        OR: [{ vendorId: null }, { vendorId: req.vendorId }],
+                    },
+                    select: { id: true },
+                });
+
+                if (!parent) {
+                    res.status(400).json({
+                        success: false,
+                        message: 'Parent category is not available',
+                    });
+                    return;
+                }
+            }
+
             const category = await prisma.category.create({
                 data: {
                     name,

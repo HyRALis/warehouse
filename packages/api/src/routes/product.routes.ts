@@ -3,12 +3,12 @@ import { ProductController } from '../controllers/product.controller';
 import { validate } from '../middleware/validate';
 import { createProductSchema, updateProductSchema } from '../validators/product.validators';
 import { verifyAuth } from '../middleware/auth';
-import { uploadImageMiddleware } from '../middleware/upload';
+import { uploadCsvMiddleware, uploadImageMiddleware } from '../middleware/upload';
 
 const router = Router();
 router.use(verifyAuth);
 
-router.post('/import', uploadImageMiddleware.single('file'), ProductController.importCSV);
+router.post('/import', uploadCsvMiddleware.single('file'), ProductController.importCSV);
 router.get('/export', ProductController.exportCSV);
 
 router.get('/', ProductController.list);

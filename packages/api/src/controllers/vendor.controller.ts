@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import prisma from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
+import { clearSessionCookie } from '../services/session.service';
 
 export class VendorController {
     /**
@@ -52,9 +53,10 @@ export class VendorController {
 
             await prisma.vendor.update({
                 where: { id: vendorId },
-                data: { deletedAt: new Date() },
+                data: { deletedAt: new Date(), tokenVersion: { increment: 1 } },
             });
 
+            clearSessionCookie(res);
             res.status(200).json({ success: true, message: 'Account deleted successfully' });
         } catch (error) {
             next(error);

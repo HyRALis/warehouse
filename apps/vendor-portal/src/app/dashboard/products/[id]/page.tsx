@@ -18,8 +18,8 @@ import {
 
 interface ProductImage {
     id: string;
-    url: string;
-    isPrimary: boolean;
+    imageUrl: string;
+    sortOrder: number;
 }
 
 interface Characteristic {
@@ -34,7 +34,7 @@ interface Product {
     baseName: string;
     sku: string;
     barcode?: string;
-    qrCode?: string;
+    qrCodeUrl?: string;
     status: string;
     categoryId: string;
     category?: { name: string };
@@ -72,7 +72,7 @@ export default function ProductDetailPage() {
     }, [params.id]);
 
     const handleDelete = async () => {
-        if (!confirm('Are you sure you want to delete this product? This action cannot be undone.'))
+        if (!confirm('Remove this product from your active catalog?'))
             return;
 
         setIsDeleting(true);
@@ -93,7 +93,7 @@ export default function ProductDetailPage() {
     if (loading) {
         return (
             <div className="flex h-64 items-center justify-center">
-                <Spinner size="lg" />
+                <Spinner size={8} />
             </div>
         );
     }
@@ -114,8 +114,8 @@ export default function ProductDetailPage() {
         );
     }
 
-    const primaryImage = product.images.find((img) => img.isPrimary) || product.images[0];
-    const secondaryImages = product.images.filter((img) => img !== primaryImage);
+    const primaryImage = product.images[0];
+    const secondaryImages = product.images.slice(1);
 
     return (
         <div className="mx-auto max-w-5xl space-y-6">
@@ -139,9 +139,9 @@ export default function ProductDetailPage() {
                         </Badge>
                         <Badge
                             variant={
-                                product.status === 'Active'
+                                product.status === 'ACTIVE'
                                     ? 'success'
-                                    : product.status === 'Draft'
+                                    : product.status === 'DRAFT'
                                       ? 'warning'
                                       : 'danger'
                             }
@@ -177,7 +177,7 @@ export default function ProductDetailPage() {
                     <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
                         {primaryImage ? (
                             <img
-                                src={primaryImage.url}
+                                src={primaryImage.imageUrl}
                                 alt="Primary"
                                 className="h-full w-full object-cover"
                             />
@@ -197,7 +197,7 @@ export default function ProductDetailPage() {
                                     className="aspect-square overflow-hidden rounded-lg border border-slate-700 bg-slate-800"
                                 >
                                     <img
-                                        src={img.url}
+                                        src={img.imageUrl}
                                         alt="Secondary"
                                         className="h-full w-full cursor-pointer object-cover opacity-80 transition-opacity hover:opacity-100"
                                     />
@@ -224,7 +224,15 @@ export default function ProductDetailPage() {
                                 <div>
                                     <Label className="mb-1 block text-slate-500">QR Code</Label>
                                     <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-sm text-slate-200">
-                                        {product.qrCode || '-'}
+                                        {product.qrCodeUrl ? (
+                                            <img
+                                                src={product.qrCodeUrl}
+                                                alt="Product QR code"
+                                                className="h-24 w-24"
+                                            />
+                                        ) : (
+                                            '-'
+                                        )}
                                     </div>
                                 </div>
                             </div>

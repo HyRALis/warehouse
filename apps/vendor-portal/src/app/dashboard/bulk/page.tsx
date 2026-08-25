@@ -6,7 +6,6 @@ import {
     UploadCloud,
     DownloadCloud,
     FileSpreadsheet,
-    Loader2,
     CheckCircle2,
     AlertTriangle,
 } from 'lucide-react';
@@ -15,6 +14,7 @@ import { Button, Spinner, Card, CardHeader, CardTitle, CardContent } from '@inve
 export default function BulkOperationsPage() {
     const [file, setFile] = useState<File | null>(null);
     const [importing, setImporting] = useState(false);
+    const [exporting, setExporting] = useState(false);
     const [result, setResult] = useState<any>(null);
 
     const handleImport = async () => {
@@ -31,6 +31,27 @@ export default function BulkOperationsPage() {
         } finally {
             setImporting(false);
             setFile(null);
+        }
+    };
+
+    const handleExport = async () => {
+        setExporting(true);
+        setResult(null);
+        try {
+            const blob = await api.exportCSV();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'products.csv';
+            link.click();
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            setResult({
+                success: false,
+                message: error instanceof Error ? error.message : 'Export failed',
+            });
+        } finally {
+            setExporting(false);
         }
     };
 
@@ -126,11 +147,19 @@ export default function BulkOperationsPage() {
                             include product details, SKUs, and characteristics.
                         </p>
 
-                        <a href={api.exportCSVUrl()} target="_blank" rel="noreferrer">
-                            <Button variant="secondary" className="w-full">
-                                <DownloadCloud className="mr-2 h-5 w-5" /> Export All Products
-                            </Button>
-                        </a>
+                        <Button
+                            variant="secondary"
+                            className="w-full"
+                            onClick={handleExport}
+                            disabled={exporting}
+                        >
+                            {exporting ? (
+                                <Spinner size={5} className="mr-2" />
+                            ) : (
+                                <DownloadCloud className="mr-2 h-5 w-5" />
+                            )}
+                            Export All Products
+                        </Button>
                     </CardContent>
                 </Card>
             </div>

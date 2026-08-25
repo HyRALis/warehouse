@@ -34,7 +34,7 @@ export default function DashboardOverview() {
                 ]);
 
                 const products = productsRes.data || [];
-                const active = products.filter((p: any) => p.status === 'Active').length;
+                const active = products.filter((p: any) => p.status === 'ACTIVE').length;
 
                 setStats({
                     totalProducts: productsRes.meta?.total || products.length,

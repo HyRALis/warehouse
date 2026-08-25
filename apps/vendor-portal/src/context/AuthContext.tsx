@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { api, setAuthToken, removeAuthToken, getAuthToken } from '@/lib/api';
+import { api } from '@/lib/api';
+import type { AuthResponse } from '@inventory-system/shared-types';
 
 interface Vendor {
     id: string;
@@ -13,7 +14,7 @@ interface Vendor {
 interface AuthContextType {
     vendor: Vendor | null;
     loading: boolean;
-    login: (data: { token: string; vendor: Vendor }) => void;
+    login: (data: AuthResponse) => void;
     logout: () => Promise<void>;
     refreshProfile: () => Promise<void>;
 }
@@ -31,23 +32,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState<boolean>(true);
 
     const refreshProfile = async () => {
-        const token = getAuthToken();
-        if (!token) {
-            setVendor(null);
-            setLoading(false);
-            return;
-        }
-
         try {
             const res = await api.getMe();
             if (res.success && res.data) {
                 setVendor(res.data);
             } else {
-                removeAuthToken();
                 setVendor(null);
             }
         } catch {
-            removeAuthToken();
             setVendor(null);
         } finally {
             setLoading(false);
@@ -58,9 +50,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshProfile();
     }, []);
 
-    const login = (data: { token: string; vendor: Vendor }) => {
-        setAuthToken(data.token);
-        setVendor(data.vendor);
+    const login = (data: AuthResponse) => {
+        setVendor(data.vendor as Vendor);
     };
 
     const logout = async () => {
@@ -69,7 +60,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (e) {
             console.error(e);
         } finally {
-            removeAuthToken();
             setVendor(null);
             window.location.href = '/login';
         }

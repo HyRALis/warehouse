@@ -1,69 +1,65 @@
 import request from 'supertest';
 import { app } from '../src/index';
-import { mockPrisma, generateTestToken } from './setup';
+import { generateTestToken, mockPrisma } from './setup';
 
-describe('Bulk Endpoints', () => {
-    let token: string;
-    const vendorId = 'vendor123';
+jest.mock('../src/services/qrcode.service', () => ({
+    QRCodeService: { generateQRCode: jest.fn().mockResolvedValue('data:image/png;base64,qr') },
+}));
 
+const vendorId = 'vendor-1';
+const token = generateTestToken(vendorId);
+const categoryId = '32dbce22-6db5-4e2c-9b59-06ed5460a7e3';
+
+describe('bulk product operations', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        token = generateTestToken(vendorId);
+        mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendorId });
     });
 
-    describe('POST /api/v1/products/import', () => {
-        it('should import valid CSV data (200)', async () => {
-            // Mocking specific bulk insert behavior if needed
-            mockPrisma.$transaction.mockImplementation(async (cb) => cb(mockPrisma));
+    it('imports a valid CSV through the dedicated CSV upload path', async () => {
+        mockPrisma.category.findFirst.mockResolvedValue({ id: categoryId });
+        mockPrisma.product.create.mockResolvedValue({ id: 'product-1' });
+        mockPrisma.product.update.mockResolvedValue({ id: 'product-1' });
+        const csv = `sku,baseName,categoryId,status\nSKU-1,Imported product,${categoryId},ACTIVE`;
 
-            const csvData = Buffer.from('name,sku,price,categoryId\nProd1,SKU1,100,cat1');
+        const response = await request(app)
+            .post('/api/v1/products/import')
+            .set('Authorization', `Bearer ${token}`)
+            .attach('file', Buffer.from(csv), { filename: 'products.csv', contentType: 'text/csv' });
 
-            const res = await request(app)
-                .post('/api/v1/products/import')
-                .set('Authorization', `Bearer ${token}`)
-                .attach('file', csvData, 'import.csv');
-
-            // The status depends on the implementation, but usually 200/201 for bulk
-            expect([200, 201]).toContain(res.status);
-        });
-
-        it('should report errors for invalid rows', async () => {
-            const csvData = Buffer.from('name,sku,price,categoryId\n,SKU1,,cat1');
-
-            const res = await request(app)
-                .post('/api/v1/products/import')
-                .set('Authorization', `Bearer ${token}`)
-                .attach('file', csvData, 'import.csv');
-
-            // Generally 400 or a 200 with error report
-            expect(res.status).toBeGreaterThanOrEqual(200);
-            expect(res.body).toHaveProperty('errors');
-        });
+        expect(response.status).toBe(200);
+        expect(response.body.data.imported).toBe(1);
+        expect(mockPrisma.product.create).toHaveBeenCalledWith(
+            expect.objectContaining({ data: expect.objectContaining({ vendorId, status: 'ACTIVE' }) })
+        );
     });
 
-    describe('GET /api/v1/products/export', () => {
-        it('should export products as CSV download (200)', async () => {
-            mockPrisma.product.findMany.mockResolvedValue([
-                { id: '1', name: 'Prod1', sku: 'SKU1', price: 100 },
-            ]);
+    it('reports a row error instead of importing into another vendor’s category', async () => {
+        mockPrisma.category.findFirst.mockResolvedValue(null);
+        const csv = `sku,baseName,categoryId\nSKU-1,Imported product,${categoryId}`;
 
-            const res = await request(app)
-                .get('/api/v1/products/export')
-                .set('Authorization', `Bearer ${token}`);
+        const response = await request(app)
+            .post('/api/v1/products/import')
+            .set('Authorization', `Bearer ${token}`)
+            .attach('file', Buffer.from(csv), { filename: 'products.csv', contentType: 'text/csv' });
 
-            expect(res.status).toBe(200);
-            expect(res.headers['content-type']).toMatch(/text\/csv/);
-            expect(res.headers['content-disposition']).toMatch(/attachment/);
-        });
+        expect(response.status).toBe(200);
+        expect(response.body.data.imported).toBe(0);
+        expect(response.body.data.errors[0]).toContain('Category is not available');
+        expect(mockPrisma.product.create).not.toHaveBeenCalled();
+    });
 
-        it('should set correct Content-Type header', async () => {
-            mockPrisma.product.findMany.mockResolvedValue([]);
+    it('exports only the authenticated vendor’s products', async () => {
+        mockPrisma.product.findMany.mockResolvedValue([]);
 
-            const res = await request(app)
-                .get('/api/v1/products/export')
-                .set('Authorization', `Bearer ${token}`);
+        const response = await request(app)
+            .get('/api/v1/products/export')
+            .set('Authorization', `Bearer ${token}`);
 
-            expect(res.headers['content-type']).toContain('text/csv');
-        });
+        expect(response.status).toBe(200);
+        expect(response.headers['content-type']).toContain('text/csv');
+        expect(mockPrisma.product.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({ where: { vendorId, deletedAt: null } })
+        );
     });
 });

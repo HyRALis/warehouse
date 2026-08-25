@@ -3,8 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import { Loader2, Save, Trash2, Building, Mail } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Save, Trash2, Building, Mail } from 'lucide-react';
 import {
     Button,
     Input,
@@ -18,8 +17,6 @@ import {
 
 export default function SettingsPage() {
     const { vendor, refreshProfile, logout } = useAuth();
-    const router = useRouter();
-
     const [companyName, setCompanyName] = useState(vendor?.companyName || '');
     const [email, setEmail] = useState(vendor?.email || '');
     const [saving, setSaving] = useState(false);
@@ -46,15 +43,14 @@ export default function SettingsPage() {
 
     const handleDeleteAccount = async () => {
         const confirmName = prompt(
-            `Type "${vendor?.companyName}" to confirm account deletion. This will delete all products and categories.`
+            `Type "${vendor?.companyName}" to deactivate this vendor account.`
         );
         if (confirmName === vendor?.companyName) {
             try {
                 await api.deleteAccount();
-                logout();
-                router.push('/login');
+                await logout();
             } catch (err) {
-                alert('Failed to delete account');
+                alert('Failed to deactivate account');
             }
         }
     };
@@ -129,11 +125,11 @@ export default function SettingsPage() {
                 </CardHeader>
                 <CardContent>
                     <p className="mb-4 text-sm text-slate-400">
-                        Permanently delete your account and all associated data, including products,
-                        categories, and templates.
+                        Deactivate this vendor account and immediately end its sessions. Catalog
+                        data is retained until the documented retention and purge process runs.
                     </p>
                     <Button onClick={handleDeleteAccount} variant="destructive">
-                        <Trash2 className="mr-2 h-4 w-4" /> Delete Account
+                        <Trash2 className="mr-2 h-4 w-4" /> Deactivate Account
                     </Button>
                 </CardContent>
             </Card>

@@ -27,7 +27,7 @@ export interface ProductResponse {
     categoryId: string;
     sku: string;
     baseName: string;
-    imageUrl: string;
+    imageUrl: string | null;
     barcode?: string | null;
     qrCodeUrl?: string | null;
     status: ProductStatus;
@@ -39,6 +39,10 @@ export interface ProductResponse {
         imageUrl: string;
         sortOrder: number;
     }[];
+    category?: {
+        id: string;
+        name: string;
+    };
 }
 
 export interface ProductListQuery {

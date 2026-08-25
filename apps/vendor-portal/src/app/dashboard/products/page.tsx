@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { Search, Plus, Filter, Loader2, PackageX, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, Filter, PackageX, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { Button, Input, Badge, Spinner } from '@inventory-system/ui';
 
@@ -12,7 +12,7 @@ interface Product {
     sku: string;
     status: string;
     categoryId: string;
-    images: { url: string; isPrimary: boolean }[];
+    images: { id: string; imageUrl: string; sortOrder: number }[];
     category?: { name: string };
 }
 
@@ -58,7 +58,7 @@ export default function ProductsPage() {
         }, 300);
 
         return () => clearTimeout(delayDebounceFn);
-    }, [search, status, page]);
+    }, [fetchProducts]);
 
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearch(e.target.value);
@@ -98,9 +98,9 @@ export default function ProductsPage() {
                         className="rounded-lg border border-slate-800 bg-slate-950 py-2 pl-3 pr-8 text-slate-200 focus:ring-2 focus:ring-indigo-500"
                     >
                         <option value="">All Statuses</option>
-                        <option value="Draft">Draft</option>
-                        <option value="Active">Active</option>
-                        <option value="Discontinued">Discontinued</option>
+                        <option value="DRAFT">Draft</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="DISCONTINUED">Discontinued</option>
                     </select>
                 </div>
             </div>
@@ -133,8 +133,7 @@ export default function ProductsPage() {
                 <>
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {products.map((product) => {
-                            const primaryImage =
-                                product.images?.find((img) => img.isPrimary) || product.images?.[0];
+                            const primaryImage = product.images?.[0];
                             return (
                                 <Link
                                     key={product.id}
@@ -144,7 +143,7 @@ export default function ProductsPage() {
                                     <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-slate-950">
                                         {primaryImage ? (
                                             <img
-                                                src={primaryImage.url}
+                                                src={primaryImage.imageUrl}
                                                 alt={product.baseName}
                                                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                                             />
