@@ -5,62 +5,25 @@ process.env.NODE_ENV = 'test';
 process.env.CORS_ORIGINS = 'http://localhost:3000';
 process.env.API_PUBLIC_URL = 'http://localhost:4000';
 
+const modelMock = () => ({
+    findUnique: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    createMany: jest.fn(),
+    update: jest.fn(),
+    updateMany: jest.fn(),
+    delete: jest.fn(),
+    count: jest.fn(),
+});
+
 export const mockPrisma = {
-    vendor: {
-        findUnique: jest.fn(),
-        findFirst: jest.fn(),
-        findMany: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-        count: jest.fn(),
-        updateMany: jest.fn(),
-    },
-    category: {
-        findUnique: jest.fn(),
-        findFirst: jest.fn(),
-        findMany: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-        count: jest.fn(),
-    },
-    product: {
-        findUnique: jest.fn(),
-        findFirst: jest.fn(),
-        findMany: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-        count: jest.fn(),
-    },
-    productVersion: {
-        findUnique: jest.fn(),
-        findFirst: jest.fn(),
-        findMany: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-        count: jest.fn(),
-    },
-    productImage: {
-        findUnique: jest.fn(),
-        findFirst: jest.fn(),
-        findMany: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-        count: jest.fn(),
-    },
-    characteristicTemplate: {
-        findUnique: jest.fn(),
-        findFirst: jest.fn(),
-        findMany: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-        count: jest.fn(),
-    },
+    vendor: modelMock(),
+    category: modelMock(),
+    product: modelMock(),
+    productVersion: modelMock(),
+    productImage: modelMock(),
+    characteristicTemplate: modelMock(),
     $transaction: jest.fn(),
     $queryRaw: jest.fn(),
 };
@@ -76,6 +39,9 @@ jest.mock('@inventory-system/database', () => ({
         DRAFT: 'DRAFT',
         ACTIVE: 'ACTIVE',
         DISCONTINUED: 'DISCONTINUED',
+    },
+    Prisma: {
+        TransactionIsolationLevel: { Serializable: 'Serializable' },
     },
 }));
 

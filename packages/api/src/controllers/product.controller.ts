@@ -17,12 +17,33 @@ const productInclude = {
     _count: { select: { versions: { where: { deletedAt: null } } } },
 };
 
-const serializeProduct = <T extends { versions?: Array<{ isPrimary: boolean }>; _count?: { versions: number } }>(
-    product: T
-) => {
-    const versions = product.versions || [];
+const getEffectiveStatus = (productStatus: ProductStatus, versionStatus: ProductStatus) => {
+    if (
+        productStatus === ProductStatus.DISCONTINUED ||
+        versionStatus === ProductStatus.DISCONTINUED
+    ) {
+        return ProductStatus.DISCONTINUED;
+    }
+    return productStatus === ProductStatus.ACTIVE && versionStatus === ProductStatus.ACTIVE
+        ? ProductStatus.ACTIVE
+        : ProductStatus.DRAFT;
+};
+
+const serializeProduct = <
+    T extends {
+        status: ProductStatus;
+        versions?: Array<{ isPrimary: boolean; status: ProductStatus }>;
+        _count?: { versions: number };
+    },
+>(product: T) => {
+    const versions = (product.versions || []).map((version) => ({
+        ...version,
+        effectiveStatus: getEffectiveStatus(product.status, version.status),
+        canDelete: !version.isPrimary,
+    }));
     return {
         ...product,
+        versions,
         versionCount: product._count?.versions ?? versions.length,
         primaryVersion: versions.find((version) => version.isPrimary) || versions[0] || null,
     };
@@ -414,9 +435,29 @@ export class ProductController {
                 return;
             }
 
-            await StorageService.deleteFile(productImage.imageUrl);
-
             await prisma.productImage.delete({ where: { id: imageId } });
+
+            const remainingReferences = await prisma.productImage.count({
+                where: { imageUrl: productImage.imageUrl },
+            });
+            if (remainingReferences === 0) {
+                await StorageService.deleteFile(productImage.imageUrl);
+            }
+
+            if (product.imageUrl === productImage.imageUrl) {
+                const nextPrimaryImage = await prisma.productImage.findFirst({
+                    where: {
+                        productId: id,
+                        productVersion: { isPrimary: true, deletedAt: null },
+                    },
+                    orderBy: { sortOrder: 'asc' },
+                    select: { imageUrl: true },
+                });
+                await prisma.product.update({
+                    where: { id },
+                    data: { imageUrl: nextPrimaryImage?.imageUrl || null },
+                });
+            }
 
             res.status(200).json({ success: true, message: 'Image deleted successfully' });
         } catch (error) {
