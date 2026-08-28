@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
-import { ShieldCheck, Plus } from 'lucide-react';
-import { Badge, Button } from '@inventory-system/ui';
+import { ShieldCheck } from 'lucide-react';
+import { Badge } from '@inventory-system/ui';
+import QuickCreateMenu from './QuickCreateMenu';
 
 export default function Header() {
     return (
@@ -12,14 +12,7 @@ export default function Header() {
                 Portal Auth Verified
             </Badge>
 
-            <div className="flex items-center gap-4">
-                <Link href="/dashboard/products/new">
-                    <Button className="gap-2">
-                        <Plus className="h-4 w-4" />
-                        Add New Product
-                    </Button>
-                </Link>
-            </div>
+            <QuickCreateMenu variant="header" className="hidden md:block" />
         </header>
     );
 }

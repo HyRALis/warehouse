@@ -34,6 +34,9 @@ export default function TemplatesPage() {
 
     useEffect(() => {
         fetchTemplates();
+        if (new URLSearchParams(window.location.search).get('create') === 'true') {
+            setShowForm(true);
+        }
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {

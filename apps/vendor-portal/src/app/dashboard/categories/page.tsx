@@ -51,6 +51,9 @@ export default function CategoriesPage() {
 
     useEffect(() => {
         fetchCategories();
+        if (new URLSearchParams(window.location.search).get('create') === 'true') {
+            setShowForm(true);
+        }
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
