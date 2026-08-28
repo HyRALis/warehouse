@@ -16,13 +16,26 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@inventory-system/ui';
 
-const navigation = [
-    { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Products Catalog', href: '/dashboard/products', icon: Package },
-    { name: 'Categories', href: '/dashboard/categories', icon: FolderTree },
-    { name: 'Field Templates', href: '/dashboard/templates', icon: Sliders },
-    { name: 'Bulk CSV Ops', href: '/dashboard/bulk', icon: FileSpreadsheet },
-    { name: 'Store Settings', href: '/dashboard/settings', icon: Settings },
+export const navigationGroups = [
+    {
+        label: 'Inventory',
+        items: [
+            { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
+            { name: 'Products Catalog', href: '/dashboard/products', icon: Package },
+        ],
+    },
+    {
+        label: 'Advanced setup',
+        items: [
+            { name: 'Categories', href: '/dashboard/categories', icon: FolderTree },
+            { name: 'Field Templates', href: '/dashboard/templates', icon: Sliders },
+            { name: 'Bulk CSV Ops', href: '/dashboard/bulk', icon: FileSpreadsheet },
+        ],
+    },
+    {
+        label: 'Workspace',
+        items: [{ name: 'Store Settings', href: '/dashboard/settings', icon: Settings }],
+    },
 ];
 
 export default function Sidebar() {
@@ -30,7 +43,7 @@ export default function Sidebar() {
     const { vendor, logout } = useAuth();
 
     return (
-        <aside className="sticky top-0 flex h-screen w-64 flex-col border-r border-slate-800 bg-slate-900 text-slate-300">
+        <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-slate-800 bg-slate-900 text-slate-300 md:flex">
             {/* Brand Header */}
             <div className="flex items-center gap-3 border-b border-slate-800 p-6">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white shadow-lg shadow-indigo-500/30">
@@ -45,29 +58,36 @@ export default function Sidebar() {
             </div>
 
             {/* Navigation Menu */}
-            <nav className="flex-1 space-y-1.5 overflow-y-auto px-4 py-6">
-                {navigation.map((item) => {
-                    const isActive =
-                        pathname === item.href ||
-                        (item.href !== '/dashboard' && pathname.startsWith(item.href));
-                    const Icon = item.icon;
-                    return (
-                        <Link
-                            key={item.name}
-                            href={item.href}
-                            className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${
-                                isActive
-                                    ? 'bg-indigo-600 font-semibold text-white shadow-lg shadow-indigo-600/30'
-                                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
-                            }`}
-                        >
-                            <Icon
-                                className={`h-5 w-5 ${isActive ? 'text-white' : 'text-slate-400'}`}
-                            />
-                            <span>{item.name}</span>
-                        </Link>
-                    );
-                })}
+            <nav className="flex-1 space-y-6 overflow-y-auto px-4 py-6" aria-label="Vendor portal">
+                {navigationGroups.map((group) => (
+                    <div key={group.label}>
+                        <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-600">
+                            {group.label}
+                        </p>
+                        <div className="space-y-1.5">
+                            {group.items.map((item) => {
+                                const isActive =
+                                    pathname === item.href ||
+                                    (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                                const Icon = item.icon;
+                                return (
+                                    <Link
+                                        key={item.name}
+                                        href={item.href}
+                                        className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${
+                                            isActive
+                                                ? 'bg-indigo-600 font-semibold text-white shadow-lg shadow-indigo-600/30'
+                                                : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                                        }`}
+                                    >
+                                        <Icon className={`h-5 w-5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                                        <span>{item.name}</span>
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
             </nav>
 
             {/* Vendor Profile Footer */}
