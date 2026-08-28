@@ -12,10 +12,15 @@ export enum ProductStatus {
 
 export interface CreateProductRequest {
     categoryId: string;
-    sku: string;
+    sku?: string;
     baseName: string;
     barcode?: string;
-    characteristics: Characteristic[];
+    characteristics?: Characteristic[];
+    designNotes?: string;
+    generateQrCode?: boolean;
+    productStatus?: ProductStatus;
+    versionStatus?: ProductStatus;
+    /** @deprecated Use productStatus. Retained during the version migration. */
     status?: ProductStatus;
 }
 
@@ -32,6 +37,9 @@ export interface ProductResponse {
     qrCodeUrl?: string | null;
     status: ProductStatus;
     characteristics: Characteristic[];
+    versionCount?: number;
+    primaryVersion?: ProductVersionResponse | null;
+    versions?: ProductVersionResponse[];
     createdAt: Date | string;
     updatedAt: Date | string;
     images?: {
@@ -43,6 +51,28 @@ export interface ProductResponse {
         id: string;
         name: string;
     };
+}
+
+export interface ProductVersionResponse {
+    id: string;
+    productId: string;
+    vendorId: string;
+    versionNumber: number;
+    label: string;
+    sku: string;
+    barcode?: string | null;
+    qrCodeUrl?: string | null;
+    status: ProductStatus;
+    characteristics: Characteristic[];
+    designNotes?: string | null;
+    isPrimary: boolean;
+    createdAt: Date | string;
+    updatedAt: Date | string;
+    images?: {
+        id: string;
+        imageUrl: string;
+        sortOrder: number;
+    }[];
 }
 
 export interface ProductListQuery {

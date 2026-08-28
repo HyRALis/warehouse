@@ -15,6 +15,12 @@ export interface CategoryResponse {
     parentId?: string | null;
     vendorId?: string | null;
     defaultTemplateId?: string | null;
+    defaultTemplate?: {
+        id: string;
+        key?: string | null;
+        name: string;
+        fields: Array<{ name: string; measurement?: string }>;
+    } | null;
     createdAt: Date | string;
     updatedAt?: Date | string;
     children?: CategoryResponse[];

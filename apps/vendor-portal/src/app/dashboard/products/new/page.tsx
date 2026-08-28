@@ -29,8 +29,11 @@ export default function NewProductPage() {
     const [sku, setSku] = useState('');
     const [barcode, setBarcode] = useState('');
     const [categoryId, setCategoryId] = useState('');
-    const [status, setStatus] = useState<ProductStatus>(ProductStatus.DRAFT);
+    const [productStatus, setProductStatus] = useState<ProductStatus>(ProductStatus.DRAFT);
+    const [versionStatus, setVersionStatus] = useState<ProductStatus>(ProductStatus.DRAFT);
     const [characteristics, setCharacteristics] = useState<CharacteristicInput[]>([]);
+    const [designNotes, setDesignNotes] = useState('');
+    const [generateQrCode, setGenerateQrCode] = useState(true);
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState('');
 
@@ -87,6 +90,36 @@ export default function NewProductPage() {
         e.target.value = '';
     };
 
+    const handleCategoryChange = (nextCategoryId: string) => {
+        const exactCategory = categories.find((category) => category.id === nextCategoryId);
+        const defaultTemplate = exactCategory?.defaultTemplate;
+
+        if (categoryId && characteristics.length > 0) {
+            const preserve = window.confirm(
+                'Keep the characteristics you already entered? Select Cancel to replace them with the new category defaults.'
+            );
+            if (!preserve) {
+                setCharacteristics(
+                    (defaultTemplate?.fields || []).map((field: any) => ({
+                        name: field.name,
+                        value: '',
+                        measurement: field.measurement || '',
+                    }))
+                );
+            }
+        } else if (defaultTemplate?.fields) {
+            setCharacteristics(
+                defaultTemplate.fields.map((field: any) => ({
+                    name: field.name,
+                    value: '',
+                    measurement: field.measurement || '',
+                }))
+            );
+        }
+
+        setCategoryId(nextCategoryId);
+    };
+
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
@@ -117,11 +150,14 @@ export default function NewProductPage() {
             // 1. Create Product
             const productData = {
                 baseName,
-                sku,
+                sku: sku.trim() || undefined,
                 barcode: barcode || undefined,
                 categoryId,
-                status,
-                characteristics: characteristics.filter((c) => c.name && c.value),
+                productStatus,
+                versionStatus,
+                designNotes: designNotes.trim() || undefined,
+                generateQrCode,
+                characteristics: characteristics.filter((c) => c.name),
             };
 
             const res = await api.createProduct(productData);
@@ -137,7 +173,15 @@ export default function NewProductPage() {
                 const formData = new FormData();
                 formData.append('image', imageFile);
                 formData.append('isPrimary', 'true');
-                await api.uploadProductImage(newProductId, formData);
+                try {
+                    await api.uploadProductImage(newProductId, formData);
+                } catch (uploadError: any) {
+                    sessionStorage.setItem(
+                        'productCreationNotice',
+                        uploadError?.message ||
+                            'The product was created, but its image could not be uploaded. You can add it from the product page.'
+                    );
+                }
             }
 
             router.push('/dashboard/products');
@@ -192,14 +236,13 @@ export default function NewProductPage() {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <Label>SKU *</Label>
+                                    <Label>SKU (Optional)</Label>
                                     <Input
                                         type="text"
-                                        required
                                         value={sku}
                                         onChange={(e) => setSku(e.target.value)}
                                         className="font-mono"
-                                        placeholder="PRD-12345"
+                                        placeholder="Leave blank to generate"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -220,20 +263,63 @@ export default function NewProductPage() {
                                     <SearchableCategorySelect
                                         categories={categories as CategoryOption[]}
                                         value={categoryId}
-                                        onChange={(id) => setCategoryId(id)}
+                                        onChange={handleCategoryChange}
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label>Status</Label>
+                                    <Label>Product Status</Label>
                                     <select
-                                        value={status}
-                                        onChange={(e) => setStatus(e.target.value as ProductStatus)}
+                                        aria-label="Product status"
+                                        value={productStatus}
+                                        onChange={(e) =>
+                                            setProductStatus(e.target.value as ProductStatus)
+                                        }
                                         className="w-full rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 text-slate-100 focus:ring-2 focus:ring-indigo-500"
                                     >
                                         <option value={ProductStatus.DRAFT}>Draft</option>
                                         <option value={ProductStatus.ACTIVE}>Active</option>
+                                        <option value={ProductStatus.DISCONTINUED}>Discontinued</option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div className="space-y-1.5">
+                                    <Label>Initial Version Status</Label>
+                                    <select
+                                        aria-label="Initial version status"
+                                        value={versionStatus}
+                                        onChange={(e) =>
+                                            setVersionStatus(e.target.value as ProductStatus)
+                                        }
+                                        className="w-full rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 text-slate-100 focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value={ProductStatus.DRAFT}>Draft</option>
+                                        <option value={ProductStatus.ACTIVE}>Active</option>
+                                        <option value={ProductStatus.DISCONTINUED}>Discontinued</option>
+                                    </select>
+                                </div>
+                                <label className="flex items-center gap-3 self-end rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm text-slate-300">
+                                    <input
+                                        type="checkbox"
+                                        checked={generateQrCode}
+                                        onChange={(event) => setGenerateQrCode(event.target.checked)}
+                                        className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-indigo-500"
+                                    />
+                                    Generate a QR code
+                                </label>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label>Design Notes (Optional)</Label>
+                                <textarea
+                                    value={designNotes}
+                                    onChange={(event) => setDesignNotes(event.target.value)}
+                                    maxLength={5000}
+                                    rows={4}
+                                    placeholder="Describe packaging, materials, artwork, or other version-specific details."
+                                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 text-slate-100 placeholder:text-slate-600 focus:ring-2 focus:ring-indigo-500"
+                                />
                             </div>
                         </div>
 

@@ -14,6 +14,9 @@ export class CategoryController {
                 },
                 include: {
                     children: true,
+                    defaultTemplate: {
+                        select: { id: true, key: true, name: true, fields: true },
+                    },
                 },
                 orderBy: {
                     name: 'asc',
