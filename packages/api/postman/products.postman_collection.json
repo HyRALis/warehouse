@@ -248,7 +248,7 @@
                 {
                     "name": "Success",
                     "code": 200,
-                    "body": "{\n  \"success\": true,\n  \"data\": {\n    \"imported\": 10,\n    \"failed\": 0\n  }\n}"
+                    "body": "{\n  \"success\": true,\n  \"message\": \"Import completed with row errors\",\n  \"data\": {\n    \"imported\": 2,\n    \"importedProducts\": 2,\n    \"importedVersions\": 3,\n    \"failedRows\": 1,\n    \"errors\": [\n      {\n        \"row\": 4,\n        \"code\": \"INVALID_VERSION_STATUS\",\n        \"field\": \"versionStatus\",\n        \"value\": \"INACTIVE\",\n        \"message\": \"Version status must be DRAFT, ACTIVE, or DISCONTINUED\"\n      }\n    ]\n  }\n}"
                 }
             ]
         },
@@ -268,7 +268,7 @@
                 }
             },
             "response": [
-                { "name": "Success", "code": 200, "body": "sku,baseName\nSKU-12345,Sample Product" }
+                { "name": "Success", "code": 200, "body": "productReference,productName,categoryCode,categoryName,productStatus,versionLabel,versionStatus,sku,barcode,characteristics,designNotes,isPrimary\nproduct-uuid,Creator Hoodie,creator-merchandise,Creator Merchandise,ACTIVE,Black,ACTIVE,HOODIE-BLK-001,123456789012,[],Launch color,true\nproduct-uuid,Creator Hoodie,creator-merchandise,Creator Merchandise,ACTIVE,White,DRAFT,HOODIE-WHT-001,123456789013,[],Secondary color,false" }
             ]
         }
     ]

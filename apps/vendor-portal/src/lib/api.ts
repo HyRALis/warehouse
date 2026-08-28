@@ -3,6 +3,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/a
 import type {
     AuthResponse,
     CreateProductRequest,
+    CsvImportResult,
     LoginVendorRequest,
     RegisterVendorRequest,
     UpdateProductRequest,
@@ -170,7 +171,7 @@ export const api = {
 
     // Bulk Operations
     importCSV: (formData: FormData) =>
-        request<any>('/products/import', { method: 'POST', body: formData }),
+        request<ApiResponse<CsvImportResult>>('/products/import', { method: 'POST', body: formData }),
     exportCSV: async () => {
         const response = await fetch(`${API_BASE_URL}/products/export`, {
             credentials: 'include',

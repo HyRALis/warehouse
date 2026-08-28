@@ -1,0 +1,3 @@
+productReference,productName,categoryCode,categoryName,productStatus,versionLabel,versionStatus,sku,barcode,characteristics,designNotes,isPrimary
+creator-hoodie,Creator Hoodie,creator-merchandise,,DRAFT,Black,DRAFT,HOODIE-BLK-001,123456789012,"[]",Launch color,true
+creator-hoodie,Creator Hoodie,creator-merchandise,,DRAFT,White,DRAFT,HOODIE-WHT-001,123456789013,"[]",Secondary color,false
