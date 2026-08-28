@@ -9,8 +9,8 @@ export class TemplateController {
     static async list(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const templates = await prisma.characteristicTemplate.findMany({
-                where: { vendorId: req.vendorId },
-                orderBy: { createdAt: 'desc' },
+                where: { OR: [{ vendorId: null }, { vendorId: req.vendorId }] },
+                orderBy: [{ vendorId: 'asc' }, { name: 'asc' }],
             });
             res.status(200).json({ success: true, data: templates });
         } catch (error) {

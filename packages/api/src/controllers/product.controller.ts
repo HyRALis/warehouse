@@ -6,6 +6,59 @@ import { AuthRequest } from '../middleware/auth';
 import { StorageService } from '../services/storage.service';
 import { QRCodeService } from '../services/qrcode.service';
 
+const productInclude = {
+    images: { orderBy: { sortOrder: 'asc' as const } },
+    category: true,
+    versions: {
+        where: { deletedAt: null },
+        orderBy: { versionNumber: 'asc' as const },
+        include: { images: { orderBy: { sortOrder: 'asc' as const } } },
+    },
+    _count: { select: { versions: { where: { deletedAt: null } } } },
+};
+
+const serializeProduct = <T extends { versions?: Array<{ isPrimary: boolean }>; _count?: { versions: number } }>(
+    product: T
+) => {
+    const versions = product.versions || [];
+    return {
+        ...product,
+        versionCount: product._count?.versions ?? versions.length,
+        primaryVersion: versions.find((version) => version.isPrimary) || versions[0] || null,
+    };
+};
+
+const buildSearchText = (...values: Array<string | null | undefined>) =>
+    values.filter(Boolean).join(' ').trim().toLowerCase();
+
+const generateSku = async (vendorId: string, baseName: string): Promise<string> => {
+    const prefix =
+        baseName
+            .normalize('NFKD')
+            .replace(/[^a-zA-Z0-9]+/g, '-')
+            .replace(/^-|-$/g, '')
+            .slice(0, 12)
+            .toUpperCase() || 'PRODUCT';
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+        const suffix = Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, '0');
+        const candidate = `${prefix}-${suffix}`;
+        const [product, version] = await Promise.all([
+            prisma.product.findFirst({ where: { vendorId, sku: candidate }, select: { id: true } }),
+            prisma.productVersion.findFirst({
+                where: { vendorId, sku: candidate },
+                select: { id: true },
+            }),
+        ]);
+        if (!product && !version) return candidate;
+    }
+
+    throw Object.assign(new Error('Could not generate a unique SKU. Please enter one manually.'), {
+        statusCode: 409,
+        code: 'SKU_GENERATION_FAILED',
+    });
+};
+
 export class ProductController {
     /**
      * List products with pagination and filtering
@@ -51,13 +104,13 @@ export class ProductController {
                 where,
                 skip,
                 take: limit,
-                include: { images: true, category: true },
+                include: productInclude,
                 orderBy: { createdAt: 'desc' },
             });
 
             res.status(200).json({
                 success: true,
-                data: products,
+                data: products.map(serializeProduct),
                 meta: { total, page, limit, totalPages },
             });
         } catch (error) {
@@ -73,7 +126,7 @@ export class ProductController {
             const { id } = req.params;
             const product = await prisma.product.findFirst({
                 where: { id, vendorId: req.vendorId, deletedAt: null },
-                include: { images: true, category: true },
+                include: productInclude,
             });
 
             if (!product) {
@@ -81,7 +134,7 @@ export class ProductController {
                 return;
             }
 
-            res.status(200).json({ success: true, data: product });
+            res.status(200).json({ success: true, data: serializeProduct(product) });
         } catch (error) {
             next(error);
         }
@@ -92,7 +145,18 @@ export class ProductController {
      */
     static async create(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
-            const { categoryId, sku, baseName, barcode, characteristics, status } = req.body;
+            const {
+                categoryId,
+                sku,
+                baseName,
+                barcode,
+                characteristics = [],
+                designNotes,
+                generateQrCode = true,
+                productStatus,
+                versionStatus,
+                status,
+            } = req.body;
             const vendorId = req.vendorId!;
 
             const category = await prisma.category.findFirst({
@@ -100,7 +164,7 @@ export class ProductController {
                     id: categoryId,
                     OR: [{ vendorId: null }, { vendorId }],
                 },
-                select: { id: true },
+                select: { id: true, name: true },
             });
 
             if (!category) {
@@ -108,49 +172,79 @@ export class ProductController {
                 return;
             }
 
-            let parsedCharacteristics: Prisma.InputJsonValue = [];
-            if (characteristics) {
-                parsedCharacteristics =
-                    typeof characteristics === 'string'
-                        ? JSON.parse(characteristics)
-                        : characteristics;
-            }
+            const parsedCharacteristics: Prisma.InputJsonValue =
+                typeof characteristics === 'string' ? JSON.parse(characteristics) : characteristics;
+            const resolvedSku = sku?.trim() || (await generateSku(vendorId, baseName));
+            const resolvedProductStatus: ProductStatus = productStatus || status || ProductStatus.DRAFT;
+            const resolvedVersionStatus: ProductStatus = versionStatus || ProductStatus.DRAFT;
+            const searchText = buildSearchText(baseName, resolvedSku, barcode, category.name);
 
-            const product = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 const newProduct = await tx.product.create({
                     data: {
                         categoryId,
-                        sku,
+                        sku: resolvedSku,
                         baseName,
                         barcode,
                         characteristics: parsedCharacteristics,
-                        status: status || 'DRAFT',
+                        status: resolvedProductStatus,
+                        searchText,
                         vendorId,
                     },
                 });
 
-                let qrCodeUrl = null;
-                try {
-                    qrCodeUrl = await QRCodeService.generateQRCode(newProduct.id);
-                } catch (e) {
-                    console.error('Failed to generate QR code', e);
-                }
-
-                if (qrCodeUrl) {
-                    await tx.product.update({
-                        where: { id: newProduct.id },
-                        data: { qrCodeUrl },
-                    });
-                }
-
-                return tx.product.findUnique({
-                    where: { id: newProduct.id },
-                    include: { images: true, category: true },
+                const initialVersion = await tx.productVersion.create({
+                    data: {
+                        productId: newProduct.id,
+                        vendorId,
+                        versionNumber: 1,
+                        label: 'Original',
+                        sku: resolvedSku,
+                        barcode,
+                        characteristics: parsedCharacteristics,
+                        designNotes: designNotes?.trim() || null,
+                        status: resolvedVersionStatus,
+                        isPrimary: true,
+                        searchText,
+                    },
                 });
+
+                return { productId: newProduct.id, versionId: initialVersion.id };
             });
 
-            res.status(201).json({ success: true, data: product });
+            if (generateQrCode) {
+                try {
+                    const qrCodeUrl = await QRCodeService.generateQRCode(created.versionId);
+                    await Promise.all([
+                        prisma.product.update({
+                            where: { id: created.productId },
+                            data: { qrCodeUrl },
+                        }),
+                        prisma.productVersion.update({
+                            where: { id: created.versionId },
+                            data: { qrCodeUrl },
+                        }),
+                    ]);
+                } catch (error) {
+                    console.error('Failed to generate optional QR code', error);
+                }
+            }
+
+            const product = await prisma.product.findUnique({
+                where: { id: created.productId },
+                include: productInclude,
+            });
+
+            res.status(201).json({ success: true, data: product && serializeProduct(product) });
         } catch (error) {
+            if ((error as { code?: string }).code === 'P2002') {
+                res.status(409).json({
+                    success: false,
+                    code: 'IDENTIFIER_CONFLICT',
+                    message: 'That SKU or barcode is already used by one of your products.',
+                });
+                return;
+            }
             next(error);
         }
     }
@@ -250,7 +344,14 @@ export class ProductController {
 
             const product = await prisma.product.findFirst({
                 where: { id, vendorId: req.vendorId, deletedAt: null },
-                include: { images: true },
+                include: {
+                    images: true,
+                    versions: {
+                        where: { isPrimary: true, deletedAt: null },
+                        take: 1,
+                        select: { id: true },
+                    },
+                },
             });
 
             if (!product) {
@@ -276,6 +377,7 @@ export class ProductController {
             const productImage = await prisma.productImage.create({
                 data: {
                     productId: id,
+                    productVersionId: product.versions[0]?.id,
                     imageUrl,
                     sortOrder: product.images.length,
                 },

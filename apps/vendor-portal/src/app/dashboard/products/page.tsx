@@ -14,12 +14,31 @@ interface Product {
     categoryId: string;
     images: { id: string; imageUrl: string; sortOrder: number }[];
     category?: { name: string };
+    versionCount?: number;
+    primaryVersion?: {
+        id: string;
+        sku: string;
+        status: string;
+        images?: { id: string; imageUrl: string; sortOrder: number }[];
+    } | null;
 }
+
+const statusVariant = (
+    status: string
+): 'success' | 'warning' | 'danger' | 'default' =>
+    status.toLowerCase() === 'active'
+        ? 'success'
+        : status.toLowerCase() === 'draft'
+          ? 'warning'
+          : status.toLowerCase() === 'discontinued'
+            ? 'danger'
+            : 'default';
 
 export default function ProductsPage() {
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [creationNotice, setCreationNotice] = useState('');
 
     // Filters & Pagination
     const [search, setSearch] = useState('');
@@ -51,6 +70,14 @@ export default function ProductsPage() {
             setLoading(false);
         }
     }, [page, search, status]);
+
+    useEffect(() => {
+        const notice = sessionStorage.getItem('productCreationNotice');
+        if (notice) {
+            setCreationNotice(notice);
+            sessionStorage.removeItem('productCreationNotice');
+        }
+    }, []);
 
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => {
@@ -111,6 +138,22 @@ export default function ProductsPage() {
                 </div>
             )}
 
+            {creationNotice && (
+                <div
+                    role="status"
+                    className="flex items-start justify-between gap-4 rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200"
+                >
+                    <span>{creationNotice}</span>
+                    <button
+                        type="button"
+                        onClick={() => setCreationNotice('')}
+                        className="font-medium text-amber-100 hover:text-white"
+                    >
+                        Dismiss
+                    </button>
+                </div>
+            )}
+
             {loading ? (
                 <div className="flex justify-center py-20">
                     <Spinner size={8} />
@@ -133,7 +176,9 @@ export default function ProductsPage() {
                 <>
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {products.map((product) => {
-                            const primaryImage = product.images?.[0];
+                            const primaryImage =
+                                product.primaryVersion?.images?.[0] || product.images?.[0];
+                            const primarySku = product.primaryVersion?.sku || product.sku;
                             return (
                                 <Link
                                     key={product.id}
@@ -157,18 +202,9 @@ export default function ProductsPage() {
                                         )}
                                         <div className="absolute right-3 top-3">
                                             <Badge
-                                                variant={
-                                                    product.status.toLowerCase() === 'active'
-                                                        ? 'success'
-                                                        : product.status.toLowerCase() === 'draft'
-                                                          ? 'warning'
-                                                          : product.status.toLowerCase() ===
-                                                              'discontinued'
-                                                            ? 'danger'
-                                                            : 'default'
-                                                }
+                                                variant={statusVariant(product.status)}
                                             >
-                                                {product.status}
+                                                Product: {product.status}
                                             </Badge>
                                         </div>
                                     </div>
@@ -179,12 +215,28 @@ export default function ProductsPage() {
                                         >
                                             {product.baseName}
                                         </h3>
-                                        <div className="mt-2 flex items-center justify-between">
+                                        <div className="mt-2 flex items-center justify-between gap-2">
                                             <span className="font-mono text-sm text-slate-500">
-                                                {product.sku}
+                                                {primarySku}
                                             </span>
                                             <span className="max-w-[120px] truncate rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-400">
                                                 {product.category?.name || 'Uncategorized'}
+                                            </span>
+                                        </div>
+                                        <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-800 pt-3">
+                                            <Badge
+                                                variant={statusVariant(
+                                                    product.primaryVersion?.status || product.status
+                                                )}
+                                            >
+                                                Version:{' '}
+                                                {product.primaryVersion?.status || product.status}
+                                            </Badge>
+                                            <span className="text-xs text-slate-500">
+                                                {product.versionCount || 1}{' '}
+                                                {(product.versionCount || 1) === 1
+                                                    ? 'version'
+                                                    : 'versions'}
                                             </span>
                                         </div>
                                     </div>

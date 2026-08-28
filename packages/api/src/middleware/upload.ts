@@ -10,11 +10,11 @@ export const uploadImageMiddleware = multer({
     storage: memoryStorage,
     limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
     fileFilter: (req, file, cb) => {
-        const allowedMimeTypes = ['image/jpeg', 'image/webp'];
+        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
         if (allowedMimeTypes.includes(file.mimetype)) {
             cb(null, true);
         } else {
-            cb(new Error('Invalid file type. Only JPEG, JPG, and WEBP are allowed.'));
+            cb(new Error('Invalid file type. Only JPEG, PNG, and WEBP are allowed.'));
         }
     },
 });

@@ -34,6 +34,15 @@ export const mockPrisma = {
         delete: jest.fn(),
         count: jest.fn(),
     },
+    productVersion: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+        count: jest.fn(),
+    },
     productImage: {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
