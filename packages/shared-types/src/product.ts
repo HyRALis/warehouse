@@ -24,7 +24,40 @@ export interface CreateProductRequest {
     status?: ProductStatus;
 }
 
-export interface UpdateProductRequest extends Partial<CreateProductRequest> {}
+export interface UpdateProductRequest {
+    categoryId?: string;
+    sku?: string;
+    baseName?: string;
+    barcode?: string;
+    characteristics?: Characteristic[];
+    status?: ProductStatus;
+}
+
+export type ProductVersionCreateMode = 'BLANK' | 'COPY';
+
+export interface CreateProductVersionRequest {
+    label: string;
+    mode: ProductVersionCreateMode;
+    sourceVersionId?: string;
+    sku?: string;
+    barcode?: string;
+    status?: ProductStatus;
+    characteristics?: Characteristic[];
+    designNotes?: string;
+    generateQrCode?: boolean;
+    copyImages?: boolean;
+    setAsPrimary?: boolean;
+}
+
+export interface UpdateProductVersionRequest {
+    label?: string;
+    sku?: string;
+    barcode?: string | null;
+    status?: ProductStatus;
+    characteristics?: Characteristic[];
+    designNotes?: string | null;
+    generateQrCode?: boolean;
+}
 
 export interface ProductResponse {
     id: string;
@@ -66,6 +99,8 @@ export interface ProductVersionResponse {
     characteristics: Characteristic[];
     designNotes?: string | null;
     isPrimary: boolean;
+    effectiveStatus?: ProductStatus;
+    canDelete?: boolean;
     createdAt: Date | string;
     updatedAt: Date | string;
     images?: {
@@ -73,6 +108,16 @@ export interface ProductVersionResponse {
         imageUrl: string;
         sortOrder: number;
     }[];
+}
+
+export interface ProductVersionComparisonResponse {
+    left: ProductVersionResponse;
+    right: ProductVersionResponse;
+    differences: Array<{
+        field: 'label' | 'sku' | 'barcode' | 'status' | 'designNotes' | 'characteristics';
+        left: unknown;
+        right: unknown;
+    }>;
 }
 
 export interface ProductListQuery {

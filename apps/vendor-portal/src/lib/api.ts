@@ -91,6 +91,35 @@ export const api = {
         request<any>(`/products/${id}/images`, { method: 'POST', body: formData }),
     deleteProductImage: (id: string, imageId: string) =>
         request<any>(`/products/${id}/images/${imageId}`, { method: 'DELETE' }),
+    getProductVersions: (productId: string) =>
+        request<any>(`/products/${productId}/versions`),
+    getProductVersion: (productId: string, versionId: string) =>
+        request<any>(`/products/${productId}/versions/${versionId}`),
+    createProductVersion: (productId: string, body: any) =>
+        request<any>(`/products/${productId}/versions`, {
+            method: 'POST',
+            body: JSON.stringify(body),
+        }),
+    updateProductVersion: (productId: string, versionId: string, body: any) =>
+        request<any>(`/products/${productId}/versions/${versionId}`, {
+            method: 'PUT',
+            body: JSON.stringify(body),
+        }),
+    setPrimaryProductVersion: (productId: string, versionId: string) =>
+        request<any>(`/products/${productId}/versions/${versionId}/primary`, {
+            method: 'POST',
+        }),
+    deleteProductVersion: (productId: string, versionId: string) =>
+        request<any>(`/products/${productId}/versions/${versionId}`, { method: 'DELETE' }),
+    compareProductVersions: (productId: string, leftId: string, rightId: string) => {
+        const query = new URLSearchParams({ leftId, rightId });
+        return request<any>(`/products/${productId}/versions/compare?${query.toString()}`);
+    },
+    uploadProductVersionImage: (productId: string, versionId: string, formData: FormData) =>
+        request<any>(`/products/${productId}/versions/${versionId}/images`, {
+            method: 'POST',
+            body: formData,
+        }),
 
     // Categories
     getCategories: () => request<any>('/categories'),
