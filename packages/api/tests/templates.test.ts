@@ -11,7 +11,7 @@ describe('templates', () => {
         mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendorId });
     });
 
-    it('scopes templates to the authenticated vendor', async () => {
+    it('lists system templates and templates owned by the authenticated vendor', async () => {
         mockPrisma.characteristicTemplate.findMany.mockResolvedValue([]);
 
         const response = await request(app)
@@ -20,7 +20,7 @@ describe('templates', () => {
 
         expect(response.status).toBe(200);
         expect(mockPrisma.characteristicTemplate.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({ where: { vendorId } })
+            expect.objectContaining({ where: { OR: [{ vendorId: null }, { vendorId }] } })
         );
     });
 });

@@ -27,6 +27,25 @@ const product = {
     images: [],
 };
 
+const version = {
+    id: '4a48cdb1-b253-4c6d-bd51-2dfb24dd4b51',
+    productId,
+    vendorId,
+    versionNumber: 1,
+    label: 'Original',
+    sku: 'SKU-1',
+    barcode: null,
+    qrCodeUrl: null,
+    status: 'DRAFT',
+    characteristics: [],
+    designNotes: null,
+    isPrimary: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    deletedAt: null,
+    images: [],
+};
+
 describe('products', () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -53,7 +72,13 @@ describe('products', () => {
         mockPrisma.category.findFirst.mockResolvedValue({ id: categoryId });
         mockPrisma.product.create.mockResolvedValue(product);
         mockPrisma.product.update.mockResolvedValue(product);
-        mockPrisma.product.findUnique.mockResolvedValue(product);
+        mockPrisma.productVersion.create.mockResolvedValue(version);
+        mockPrisma.productVersion.update.mockResolvedValue(version);
+        mockPrisma.product.findUnique.mockResolvedValue({
+            ...product,
+            versions: [version],
+            _count: { versions: 1 },
+        });
 
         const response = await request(app)
             .post('/api/v1/products')
@@ -68,7 +93,68 @@ describe('products', () => {
         expect(response.status).toBe(201);
         expect(mockPrisma.category.findFirst).toHaveBeenCalledWith({
             where: { id: categoryId, OR: [{ vendorId: null }, { vendorId }] },
-            select: { id: true },
+            select: { id: true, name: true },
+        });
+        expect(mockPrisma.productVersion.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+                productId,
+                vendorId,
+                label: 'Original',
+                versionNumber: 1,
+                sku: product.sku,
+                status: 'DRAFT',
+                isPrimary: true,
+            }),
+        });
+        expect(response.body.data.versionCount).toBe(1);
+        expect(response.body.data.primaryVersion.label).toBe('Original');
+    });
+
+    it('generates an SKU and keeps independent product and version statuses', async () => {
+        mockPrisma.category.findFirst.mockResolvedValue({ id: categoryId, name: 'Electronics' });
+        mockPrisma.product.findFirst.mockResolvedValue(null);
+        mockPrisma.productVersion.findFirst.mockResolvedValue(null);
+        mockPrisma.product.create.mockImplementation(async ({ data }: any) => ({
+            ...product,
+            sku: data.sku,
+            status: data.status,
+        }));
+        mockPrisma.productVersion.create.mockImplementation(async ({ data }: any) => ({
+            ...version,
+            sku: data.sku,
+            status: data.status,
+        }));
+        mockPrisma.product.findUnique.mockResolvedValue({
+            ...product,
+            status: 'ACTIVE',
+            versions: [{ ...version, sku: 'TEST-PRODUCT-ABC123' }],
+            _count: { versions: 1 },
+        });
+
+        const response = await request(app)
+            .post('/api/v1/products')
+            .set('Authorization', `Bearer ${token}`)
+            .send({
+                categoryId,
+                baseName: 'Test Product',
+                characteristics: [],
+                productStatus: 'ACTIVE',
+                versionStatus: 'DISCONTINUED',
+                generateQrCode: false,
+            });
+
+        expect(response.status).toBe(201);
+        expect(mockPrisma.product.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+                sku: expect.stringMatching(/^TEST-PRODUCT-[A-Z0-9]{6}$/),
+                status: 'ACTIVE',
+            }),
+        });
+        expect(mockPrisma.productVersion.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+                sku: expect.stringMatching(/^TEST-PRODUCT-[A-Z0-9]{6}$/),
+                status: 'DISCONTINUED',
+            }),
         });
     });
 
@@ -87,6 +173,24 @@ describe('products', () => {
 
         expect(response.status).toBe(400);
         expect(mockPrisma.product.create).not.toHaveBeenCalled();
+    });
+
+    it('returns a conflict for a duplicate SKU or barcode', async () => {
+        mockPrisma.category.findFirst.mockResolvedValue({ id: categoryId, name: 'Electronics' });
+        mockPrisma.product.create.mockRejectedValue({ code: 'P2002' });
+
+        const response = await request(app)
+            .post('/api/v1/products')
+            .set('Authorization', `Bearer ${token}`)
+            .send({
+                categoryId,
+                sku: product.sku,
+                baseName: product.baseName,
+                characteristics: [],
+            });
+
+        expect(response.status).toBe(409);
+        expect(response.body.code).toBe('IDENTIFIER_CONFLICT');
     });
 
     it('does not return a product owned by a different vendor', async () => {
