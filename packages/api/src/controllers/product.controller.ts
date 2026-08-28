@@ -281,6 +281,7 @@ export class ProductController {
 
             const product = await prisma.product.findFirst({
                 where: { id, vendorId, deletedAt: null },
+                include: { category: { select: { name: true } } },
             });
 
             if (!product) {
@@ -288,19 +289,21 @@ export class ProductController {
                 return;
             }
 
+            let categoryName = product.category.name;
             if (categoryId !== undefined) {
                 const category = await prisma.category.findFirst({
                     where: {
                         id: categoryId,
                         OR: [{ vendorId: null }, { vendorId }],
                     },
-                    select: { id: true },
+                    select: { id: true, name: true },
                 });
 
                 if (!category) {
                     res.status(400).json({ success: false, message: 'Category is not available' });
                     return;
                 }
+                categoryName = category.name;
             }
 
             let parsedCharacteristics = characteristics;
@@ -319,6 +322,12 @@ export class ProductController {
                         characteristics: parsedCharacteristics,
                     }),
                     ...(status !== undefined && { status }),
+                    searchText: buildSearchText(
+                        baseName ?? product.baseName,
+                        sku ?? product.sku,
+                        barcode === undefined ? product.barcode : barcode,
+                        categoryName
+                    ),
                 },
                 include: { images: true, category: true },
             });
@@ -505,7 +514,7 @@ export class ProductController {
                             id: row.categoryId,
                             OR: [{ vendorId: null }, { vendorId: req.vendorId }],
                         },
-                        select: { id: true },
+                        select: { id: true, name: true },
                     });
                     if (!category) {
                         errors.push(`Row ${i + 2}: Category is not available`);
@@ -535,6 +544,12 @@ export class ProductController {
                             status,
                             characteristics,
                             vendorId: req.vendorId!,
+                            searchText: buildSearchText(
+                                row.baseName,
+                                row.sku,
+                                row.barcode,
+                                category.name
+                            ),
                         },
                     });
 

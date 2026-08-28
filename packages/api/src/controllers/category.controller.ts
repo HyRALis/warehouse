@@ -2,6 +2,8 @@ import { Response, NextFunction } from 'express';
 import prisma from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
 
+const categorySearchText = (name: string): string => name.trim().toLocaleLowerCase();
+
 export class CategoryController {
     /**
      * List categories
@@ -58,6 +60,7 @@ export class CategoryController {
                     name,
                     parentId,
                     vendorId: req.vendorId!,
+                    searchText: categorySearchText(name),
                 },
             });
             res.status(201).json({ success: true, data: category });
@@ -91,7 +94,7 @@ export class CategoryController {
 
             const updatedCategory = await prisma.category.update({
                 where: { id },
-                data: { name },
+                data: { name, searchText: categorySearchText(name) },
             });
 
             res.status(200).json({ success: true, data: updatedCategory });
