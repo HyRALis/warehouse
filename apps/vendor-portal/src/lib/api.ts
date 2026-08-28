@@ -6,6 +6,7 @@ import type {
     LoginVendorRequest,
     RegisterVendorRequest,
     UpdateProductRequest,
+    UniversalSearchResponse,
 } from '@inventory-system/shared-types';
 
 interface ApiResponse<T> {
@@ -62,6 +63,25 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+    universalSearch: (
+        params: {
+            q: string;
+            mode?: 'suggestions' | 'results';
+            types?: string;
+            page?: number;
+            limit?: number;
+        },
+        signal?: AbortSignal
+    ) => {
+        const query = new URLSearchParams(
+            Object.entries(params).reduce<Record<string, string>>((result, [key, value]) => {
+                if (value !== undefined && value !== '') result[key] = String(value);
+                return result;
+            }, {})
+        );
+        return request<UniversalSearchResponse>(`/search?${query.toString()}`, { signal });
+    },
+
     // Auth
     register: (body: RegisterVendorRequest) =>
         request<ApiResponse<AuthResponse>>('/auth/register', {
