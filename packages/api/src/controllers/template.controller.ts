@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import prisma from '@inventory-system/database';
+import prisma, { Prisma } from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
 
 const templateSearchText = (name: string, fields: unknown): string =>
@@ -13,6 +13,7 @@ export class TemplateController {
         try {
             const templates = await prisma.characteristicTemplate.findMany({
                 where: { OR: [{ vendorId: null }, { vendorId: req.vendorId }] },
+                include: { _count: { select: { defaultForCategories: true } } },
                 orderBy: [{ vendorId: 'asc' }, { name: 'asc' }],
             });
             res.status(200).json({ success: true, data: templates });
@@ -28,7 +29,8 @@ export class TemplateController {
         try {
             const { id } = req.params;
             const template = await prisma.characteristicTemplate.findFirst({
-                where: { id, vendorId: req.vendorId },
+                where: { id, OR: [{ vendorId: null }, { vendorId: req.vendorId }] },
+                include: { _count: { select: { defaultForCategories: true } } },
             });
 
             if (!template) {
@@ -37,6 +39,32 @@ export class TemplateController {
             }
 
             res.status(200).json({ success: true, data: template });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    /** Duplicate an available system template into the vendor's editable catalog. */
+    static async duplicate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+        try {
+            const source = await prisma.characteristicTemplate.findFirst({
+                where: { id: req.params.id, vendorId: null },
+            });
+            if (!source) {
+                res.status(404).json({ success: false, message: 'System template not found' });
+                return;
+            }
+
+            const name = req.body.name || `${source.name} copy`;
+            const template = await prisma.characteristicTemplate.create({
+                data: {
+                    vendorId: req.vendorId!,
+                    name,
+                    fields: source.fields as Prisma.InputJsonValue,
+                    searchText: templateSearchText(name, source.fields),
+                },
+            });
+            res.status(201).json({ success: true, data: template });
         } catch (error) {
             next(error);
         }
@@ -70,18 +98,27 @@ export class TemplateController {
             const { id } = req.params;
             const { name, fields } = req.body;
 
-            const template = await prisma.characteristicTemplate.findFirst({
-                where: { id, vendorId: req.vendorId },
-            });
+            const template = await prisma.characteristicTemplate.findUnique({ where: { id } });
 
             if (!template) {
                 res.status(404).json({ success: false, message: 'Template not found' });
                 return;
             }
+            if (template.vendorId !== req.vendorId || template.vendorId === null) {
+                res.status(403).json({ success: false, message: 'Cannot edit this template' });
+                return;
+            }
+
+            const nextName = name ?? template.name;
+            const nextFields = fields ?? template.fields;
 
             const updatedTemplate = await prisma.characteristicTemplate.update({
                 where: { id },
-                data: { name, fields, searchText: templateSearchText(name, fields) },
+                data: {
+                    ...(name !== undefined && { name }),
+                    ...(fields !== undefined && { fields }),
+                    searchText: templateSearchText(nextName, nextFields),
+                },
             });
 
             res.status(200).json({ success: true, data: updatedTemplate });
@@ -97,12 +134,28 @@ export class TemplateController {
         try {
             const { id } = req.params;
 
-            const template = await prisma.characteristicTemplate.findFirst({
-                where: { id, vendorId: req.vendorId },
-            });
+            const template = await prisma.characteristicTemplate.findUnique({ where: { id } });
 
             if (!template) {
                 res.status(404).json({ success: false, message: 'Template not found' });
+                return;
+            }
+
+            if (template.vendorId !== req.vendorId || template.vendorId === null) {
+                res.status(403).json({ success: false, message: 'Cannot delete this template' });
+                return;
+            }
+
+            const categoriesCount = await prisma.category.count({
+                where: { defaultTemplateId: id },
+            });
+            if (categoriesCount > 0) {
+                res.status(409).json({
+                    success: false,
+                    code: 'TEMPLATE_IN_USE',
+                    message: 'Choose another default template for linked categories before deleting',
+                    details: { categoriesCount },
+                });
                 return;
             }
 

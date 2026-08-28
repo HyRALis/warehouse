@@ -1,219 +1,168 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { api } from '@/lib/api';
-import { Loader2, Plus, FileText, Trash2, ChevronDown } from 'lucide-react';
-import {
-    Button,
-    Input,
-    Label,
-    Spinner,
-    Badge,
-    Card,
-    CardHeader,
-    CardTitle,
-    CardContent,
-} from '@inventory-system/ui';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { api, ApiError } from '@/lib/api';
+import { Copy, Edit3, FileText, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-react';
+import { Badge, Button, Card, CardContent, Input, Label, Spinner } from '@inventory-system/ui';
+
+interface TemplateField { name: string; measurement?: string }
+interface CharacteristicTemplate {
+    id: string;
+    key?: string | null;
+    name: string;
+    fields: TemplateField[];
+    vendorId?: string | null;
+    _count?: { defaultForCategories: number };
+}
+
+const emptyField = (): TemplateField => ({ name: '', measurement: '' });
+
+function TemplateCard({ template, onEdit, onDelete, onDuplicate }: {
+    template: CharacteristicTemplate;
+    onEdit: (template: CharacteristicTemplate) => void;
+    onDelete: (template: CharacteristicTemplate) => void;
+    onDuplicate: (template: CharacteristicTemplate) => void;
+}) {
+    const editable = Boolean(template.vendorId);
+    const usage = template._count?.defaultForCategories ?? 0;
+    return (
+        <Card className="h-full transition-colors hover:border-slate-700">
+            <CardContent className="flex h-full flex-col p-5">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <div className="rounded-lg bg-amber-500/10 p-2 text-amber-400"><FileText className="h-5 w-5" /></div>
+                        <div className="min-w-0"><h3 className="truncate font-medium text-white">{template.name}</h3>{template.key && <p className="truncate font-mono text-xs text-slate-600">{template.key}</p>}</div>
+                    </div>
+                    <Badge variant="outline">{editable ? 'Custom' : 'System'}</Badge>
+                </div>
+                <div className="mb-3 flex gap-4 text-xs text-slate-500"><span>{template.fields?.length || 0} fields</span><span>Default for {usage} categories</span></div>
+                <div className="mb-5 flex flex-wrap gap-2">
+                    {template.fields?.slice(0, 4).map((field, index) => <Badge key={`${field.name}-${index}`} variant="outline">{field.name}{field.measurement ? ` (${field.measurement})` : ''}</Badge>)}
+                    {template.fields?.length > 4 && <span className="py-1 text-xs text-slate-500">+{template.fields.length - 4} more</span>}
+                </div>
+                <div className="mt-auto flex items-center justify-between border-t border-slate-800 pt-3">
+                    {editable ? (
+                        <><Button variant="ghost" size="sm" onClick={() => onEdit(template)}><Edit3 className="mr-2 h-4 w-4" /> Edit</Button><Button variant="ghost" size="icon" aria-label={`Delete ${template.name}`} onClick={() => onDelete(template)} className="text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"><Trash2 className="h-4 w-4" /></Button></>
+                    ) : (
+                        <><span className="flex items-center gap-1 text-xs text-slate-600"><ShieldCheck className="h-4 w-4" /> Read only</span><Button variant="outline" size="sm" onClick={() => onDuplicate(template)}><Copy className="mr-2 h-4 w-4" /> Duplicate as custom</Button></>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
 
 export default function TemplatesPage() {
-    const [templates, setTemplates] = useState<any[]>([]);
+    const [templates, setTemplates] = useState<CharacteristicTemplate[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [query, setQuery] = useState('');
     const [showForm, setShowForm] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [name, setName] = useState('');
-    const [fields, setFields] = useState([{ name: '', measurement: '' }]);
+    const [fields, setFields] = useState<TemplateField[]>([emptyField()]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
-    const fetchTemplates = async () => {
+    const fetchTemplates = useCallback(async () => {
+        setError('');
         try {
-            const res = await api.getTemplates();
-            if (res.success) setTemplates(res.data || []);
+            const response = await api.getTemplates();
+            setTemplates(response.data || []);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to load field templates');
         } finally {
             setLoading(false);
         }
-    };
-
-    useEffect(() => {
-        fetchTemplates();
-        if (new URLSearchParams(window.location.search).get('create') === 'true') {
-            setShowForm(true);
-        }
     }, []);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    useEffect(() => {
+        void fetchTemplates();
+        if (new URLSearchParams(window.location.search).get('create') === 'true') setShowForm(true);
+    }, [fetchTemplates]);
+
+    const startCreate = () => { setEditingId(null); setName(''); setFields([emptyField()]); setError(''); setShowForm(true); };
+    const startEdit = (template: CharacteristicTemplate) => { setEditingId(template.id); setName(template.name); setFields(template.fields.length ? template.fields : [emptyField()]); setError(''); setShowForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+    const closeForm = () => { setShowForm(false); setEditingId(null); setName(''); setFields([emptyField()]); };
+
+    const updateField = (index: number, key: keyof TemplateField, value: string) => setFields((current) => current.map((field, fieldIndex) => fieldIndex === index ? { ...field, [key]: value } : field));
+    const removeField = (index: number) => setFields((current) => current.length === 1 ? [emptyField()] : current.filter((_, fieldIndex) => fieldIndex !== index));
+
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
         setIsSubmitting(true);
+        setError('');
+        const validFields = fields.filter((field) => field.name.trim()).map((field) => ({ name: field.name.trim(), ...(field.measurement?.trim() && { measurement: field.measurement.trim() }) }));
         try {
-            const validFields = fields.filter((f) => f.name.trim() !== '');
-            const res = await api.createTemplate({ name, fields: validFields });
-            if (res.success) {
-                setShowForm(false);
-                setName('');
-                setFields([{ name: '', measurement: '' }]);
-                fetchTemplates();
-            }
+            if (editingId) await api.updateTemplate(editingId, { name: name.trim(), fields: validFields }); else await api.createTemplate({ name: name.trim(), fields: validFields });
+            closeForm();
+            await fetchTemplates();
         } catch (err) {
-            alert('Error creating template');
+            setError(err instanceof Error ? err.message : 'Could not save template');
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Delete this template?')) return;
+    const handleDuplicate = async (template: CharacteristicTemplate) => {
+        setDuplicatingId(template.id);
+        setError('');
         try {
-            const res = await api.deleteTemplate(id);
-            if (res.success) fetchTemplates();
+            await api.duplicateTemplate(template.id);
+            await fetchTemplates();
         } catch (err) {
-            alert('Error deleting template');
+            setError(err instanceof Error ? err.message : 'Could not duplicate template');
+        } finally {
+            setDuplicatingId(null);
         }
     };
 
-    if (loading)
-        return (
-            <div className="flex justify-center p-20">
-                <Spinner size={8} />
-            </div>
-        );
+    const handleDelete = async (template: CharacteristicTemplate) => {
+        if (!window.confirm(`Delete “${template.name}”?`)) return;
+        setError('');
+        try {
+            await api.deleteTemplate(template.id);
+            await fetchTemplates();
+        } catch (err) {
+            setError(err instanceof ApiError ? err.message : 'Could not delete template');
+        }
+    };
+
+    const filtered = useMemo(() => {
+        const needle = query.trim().toLocaleLowerCase();
+        if (!needle) return templates;
+        return templates.filter((template) => [template.name, template.key, ...template.fields.map((field) => field.name)].filter(Boolean).some((value) => String(value).toLocaleLowerCase().includes(needle)));
+    }, [templates, query]);
+    const customTemplates = filtered.filter((template) => template.vendorId);
+    const systemTemplates = filtered.filter((template) => !template.vendorId);
+
+    if (loading) return <div className="flex justify-center p-20"><Spinner size={8} /></div>;
 
     return (
-        <div className="mx-auto max-w-5xl space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-white">Characteristic Templates</h1>
-                    <p className="mt-1 text-sm text-slate-400">
-                        Create reusable sets of characteristics for faster product entry
-                    </p>
-                </div>
-                <Button onClick={() => setShowForm(!showForm)}>
-                    <Plus className="mr-2 h-4 w-4" /> Create Template
-                </Button>
-            </div>
+        <div className="mx-auto max-w-6xl space-y-6">
+            <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div><div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-400"><FileText className="h-4 w-4" /> Advanced setup</div><h1 className="text-2xl font-bold text-white">Field templates</h1><p className="mt-1 text-sm text-slate-400">Reuse product characteristics. Start with a system template and customize only what you need.</p></div>
+                <Button onClick={startCreate}><Plus className="mr-2 h-4 w-4" /> Create custom template</Button>
+            </header>
+
+            {error && <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</div>}
 
             {showForm && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>New Template</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <Label>Template Name</Label>
-                                <Input
-                                    type="text"
-                                    required
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    placeholder="e.g. Laptops"
-                                    className="mt-1"
-                                />
-                            </div>
-
-                            <div>
-                                <Label className="mb-2 block">Fields</Label>
-                                {fields.map((field, idx) => (
-                                    <div key={idx} className="mb-2 flex gap-2">
-                                        <Input
-                                            type="text"
-                                            placeholder="Field Name (e.g. RAM)"
-                                            value={field.name}
-                                            onChange={(e) => {
-                                                const newF = [...fields];
-                                                newF[idx].name = e.target.value;
-                                                setFields(newF);
-                                            }}
-                                            className="flex-1"
-                                        />
-                                        <Input
-                                            type="text"
-                                            placeholder="Unit (e.g. GB)"
-                                            value={field.measurement}
-                                            onChange={(e) => {
-                                                const newF = [...fields];
-                                                newF[idx].measurement = e.target.value;
-                                                setFields(newF);
-                                            }}
-                                            className="w-32"
-                                        />
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() =>
-                                                setFields(fields.filter((_, i) => i !== idx))
-                                            }
-                                            className="text-rose-500 hover:bg-rose-500/10 hover:text-rose-500"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                ))}
-                                <Button
-                                    type="button"
-                                    variant="link"
-                                    onClick={() =>
-                                        setFields([...fields, { name: '', measurement: '' }])
-                                    }
-                                    className="mt-2 px-0"
-                                >
-                                    + Add Field
-                                </Button>
-                            </div>
-
-                            <div className="mt-2 flex justify-end border-t border-slate-800 pt-4">
-                                <Button type="submit" disabled={isSubmitting}>
-                                    {isSubmitting ? <Spinner className="mr-2" /> : 'Save Template'}
-                                </Button>
-                            </div>
-                        </form>
-                    </CardContent>
-                </Card>
+                <Card><CardContent className="p-5">
+                    <div className="mb-4 flex items-center justify-between"><h2 className="font-semibold text-white">{editingId ? 'Edit custom template' : 'New custom template'}</h2><Button variant="ghost" size="icon" aria-label="Close template form" onClick={closeForm}><X className="h-4 w-4" /></Button></div>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="space-y-1.5"><Label htmlFor="template-name">Template name</Label><Input id="template-name" required value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Handmade candles" /></div>
+                        <fieldset><legend className="mb-2 text-sm font-medium text-slate-200">Fields</legend><div className="space-y-2">{fields.map((field, index) => <div key={index} className="flex gap-2"><Input aria-label={`Field ${index + 1} name`} required={index === 0} value={field.name} onChange={(event) => updateField(index, 'name', event.target.value)} placeholder="e.g. Burn time" className="flex-1" /><Input aria-label={`Field ${index + 1} unit`} value={field.measurement ?? ''} onChange={(event) => updateField(index, 'measurement', event.target.value)} placeholder="Unit, e.g. hours" className="w-40" /><Button type="button" variant="ghost" size="icon" aria-label={`Remove field ${index + 1}`} onClick={() => removeField(index)}><Trash2 className="h-4 w-4" /></Button></div>)}</div><Button type="button" variant="link" className="mt-2 px-0" onClick={() => setFields((current) => [...current, emptyField()])}>+ Add field</Button></fieldset>
+                        <div className="flex justify-end gap-2 border-t border-slate-800 pt-4"><Button type="button" variant="ghost" onClick={closeForm}>Cancel</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? <Spinner size={5} /> : editingId ? 'Save changes' : 'Create template'}</Button></div>
+                    </form>
+                </CardContent></Card>
             )}
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                {templates.map((t) => (
-                    <Card
-                        key={t.id}
-                        className="group relative transition-colors hover:border-slate-700"
-                    >
-                        <CardContent className="p-5">
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDelete(t.id)}
-                                className="absolute right-4 top-4 text-slate-500 opacity-0 transition-all hover:bg-rose-500/10 hover:text-rose-400 group-hover:opacity-100"
-                            >
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                            <div className="mb-4 flex items-center gap-3">
-                                <div className="rounded-lg bg-amber-500/10 p-2 text-amber-400">
-                                    <FileText className="h-5 w-5" />
-                                </div>
-                                <h3 className="font-medium text-white">{t.name}</h3>
-                            </div>
-                            <div className="mb-3 text-sm text-slate-400">
-                                {t.fields?.length || 0} fields defined
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                {t.fields?.slice(0, 3).map((f: any, i: number) => (
-                                    <Badge key={i} variant="outline">
-                                        {f.name}
-                                    </Badge>
-                                ))}
-                                {t.fields?.length > 3 && (
-                                    <span className="py-1 text-xs text-slate-500">
-                                        +{t.fields.length - 3} more
-                                    </span>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-                {templates.length === 0 && !loading && (
-                    <div className="col-span-3 rounded-xl border border-dashed border-slate-800 bg-slate-900/50 py-12 text-center text-slate-500">
-                        No templates created yet.
-                    </div>
-                )}
-            </div>
+            <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" /><Input aria-label="Search templates" value={query} onChange={(event) => setQuery(event.target.value)} className="pl-10" placeholder="Search template or field name…" /></div>
+
+            <section aria-labelledby="custom-templates-heading"><div className="mb-2 flex items-center justify-between"><h2 id="custom-templates-heading" className="font-semibold text-white">Your custom templates</h2><span className="text-xs text-slate-500">{customTemplates.length} shown</span></div>{customTemplates.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{customTemplates.map((template) => <TemplateCard key={template.id} template={template} onEdit={startEdit} onDelete={handleDelete} onDuplicate={handleDuplicate} />)}</div> : <Card><CardContent className="p-6 text-center text-sm text-slate-500">{query ? 'No custom templates match your search.' : 'Duplicate a system template or create one from scratch.'}</CardContent></Card>}</section>
+
+            <section aria-labelledby="system-templates-heading"><div className="mb-2 flex items-center justify-between"><h2 id="system-templates-heading" className="font-semibold text-white">Built-in templates</h2><span className="text-xs text-slate-500">Managed by OmniStock · {systemTemplates.length} shown</span></div>{systemTemplates.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{systemTemplates.map((template) => <div key={template.id} className={duplicatingId === template.id ? 'pointer-events-none opacity-60' : ''}><TemplateCard template={template} onEdit={startEdit} onDelete={handleDelete} onDuplicate={handleDuplicate} /></div>)}</div> : <Card><CardContent className="p-6 text-center text-sm text-slate-500">No system templates match your search.</CardContent></Card>}</section>
         </div>
     );
 }

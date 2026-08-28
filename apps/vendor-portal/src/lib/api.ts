@@ -154,6 +154,11 @@ export const api = {
     getTemplate: (id: string) => request<any>(`/templates/${id}`),
     createTemplate: (body: any) =>
         request<any>('/templates', { method: 'POST', body: JSON.stringify(body) }),
+    duplicateTemplate: (id: string, body: { name?: string } = {}) =>
+        request<any>(`/templates/${id}/duplicate`, {
+            method: 'POST',
+            body: JSON.stringify(body),
+        }),
     updateTemplate: (id: string, body: any) =>
         request<any>(`/templates/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     deleteTemplate: (id: string) => request<any>(`/templates/${id}`, { method: 'DELETE' }),

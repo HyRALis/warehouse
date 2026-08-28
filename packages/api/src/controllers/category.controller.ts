@@ -2,7 +2,14 @@ import { Response, NextFunction } from 'express';
 import prisma from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
 
-const categorySearchText = (name: string): string => name.trim().toLocaleLowerCase();
+const categorySearchText = (name: string, aliases: string[] = [], parentName?: string): string =>
+    [name, ...aliases, parentName].filter(Boolean).join(' ').trim().toLocaleLowerCase();
+
+const findAvailableTemplate = (id: string, vendorId: string) =>
+    prisma.characteristicTemplate.findFirst({
+        where: { id, OR: [{ vendorId: null }, { vendorId }] },
+        select: { id: true },
+    });
 
 export class CategoryController {
     /**
@@ -15,10 +22,11 @@ export class CategoryController {
                     OR: [{ vendorId: null }, { vendorId: req.vendorId }],
                 },
                 include: {
-                    children: true,
+                    parent: { select: { id: true, name: true } },
                     defaultTemplate: {
                         select: { id: true, key: true, name: true, fields: true },
                     },
+                    _count: { select: { products: true, children: true } },
                 },
                 orderBy: {
                     name: 'asc',
@@ -35,7 +43,8 @@ export class CategoryController {
      */
     static async create(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
-            const { name, parentId } = req.body;
+            const { name, parentId, defaultTemplateId, aliases = [] } = req.body;
+            let parentName: string | undefined;
 
             if (parentId) {
                 const parent = await prisma.category.findFirst({
@@ -43,7 +52,7 @@ export class CategoryController {
                         id: parentId,
                         OR: [{ vendorId: null }, { vendorId: req.vendorId }],
                     },
-                    select: { id: true },
+                    select: { id: true, name: true },
                 });
 
                 if (!parent) {
@@ -53,14 +62,26 @@ export class CategoryController {
                     });
                     return;
                 }
+                parentName = parent.name;
+            }
+
+            if (defaultTemplateId && !(await findAvailableTemplate(defaultTemplateId, req.vendorId!))) {
+                res.status(400).json({
+                    success: false,
+                    code: 'TEMPLATE_NOT_AVAILABLE',
+                    message: 'Default template is not available',
+                });
+                return;
             }
 
             const category = await prisma.category.create({
                 data: {
                     name,
                     parentId,
+                    defaultTemplateId,
+                    aliases,
                     vendorId: req.vendorId!,
-                    searchText: categorySearchText(name),
+                    searchText: categorySearchText(name, aliases, parentName),
                 },
             });
             res.status(201).json({ success: true, data: category });
@@ -75,7 +96,7 @@ export class CategoryController {
     static async update(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const { id } = req.params;
-            const { name } = req.body;
+            const { name, parentId, defaultTemplateId, aliases } = req.body;
 
             const category = await prisma.category.findUnique({ where: { id } });
 
@@ -92,9 +113,58 @@ export class CategoryController {
                 return;
             }
 
+            if (parentId === id) {
+                res.status(400).json({ success: false, message: 'A category cannot be its own parent' });
+                return;
+            }
+
+            let parentName: string | undefined;
+            if (parentId) {
+                let parent = await prisma.category.findFirst({
+                    where: { id: parentId, OR: [{ vendorId: null }, { vendorId: req.vendorId }] },
+                    select: { id: true, name: true, parentId: true },
+                });
+                if (!parent) {
+                    res.status(400).json({ success: false, message: 'Parent category is not available' });
+                    return;
+                }
+                parentName = parent.name;
+                while (parent) {
+                    if (parent.id === id) {
+                        res.status(400).json({ success: false, message: 'A category cannot be moved below one of its subcategories' });
+                        return;
+                    }
+                    if (!parent.parentId) break;
+                    parent = await prisma.category.findFirst({
+                        where: { id: parent.parentId, OR: [{ vendorId: null }, { vendorId: req.vendorId }] },
+                        select: { id: true, name: true, parentId: true },
+                    });
+                }
+            } else if (parentId === undefined && category.parentId) {
+                const currentParent = await prisma.category.findUnique({
+                    where: { id: category.parentId },
+                    select: { name: true },
+                });
+                parentName = currentParent?.name;
+            }
+
+            if (defaultTemplateId && !(await findAvailableTemplate(defaultTemplateId, req.vendorId!))) {
+                res.status(400).json({ success: false, message: 'Default template is not available' });
+                return;
+            }
+
+            const nextName = name ?? category.name;
+            const nextAliases = aliases ?? category.aliases;
+
             const updatedCategory = await prisma.category.update({
                 where: { id },
-                data: { name, searchText: categorySearchText(name) },
+                data: {
+                    ...(name !== undefined && { name }),
+                    ...(parentId !== undefined && { parentId }),
+                    ...(defaultTemplateId !== undefined && { defaultTemplateId }),
+                    ...(aliases !== undefined && { aliases }),
+                    searchText: categorySearchText(nextName, nextAliases, parentName),
+                },
             });
 
             res.status(200).json({ success: true, data: updatedCategory });
@@ -125,11 +195,16 @@ export class CategoryController {
                 return;
             }
 
-            const productsCount = await prisma.product.count({ where: { categoryId: id } });
-            if (productsCount > 0) {
-                res.status(400).json({
+            const [productsCount, childrenCount] = await Promise.all([
+                prisma.product.count({ where: { categoryId: id } }),
+                prisma.category.count({ where: { parentId: id } }),
+            ]);
+            if (productsCount > 0 || childrenCount > 0) {
+                res.status(409).json({
                     success: false,
-                    message: 'Cannot delete category with associated products',
+                    code: 'CATEGORY_IN_USE',
+                    message: 'Move linked products and subcategories before deleting this category',
+                    details: { productsCount, childrenCount },
                 });
                 return;
             }
