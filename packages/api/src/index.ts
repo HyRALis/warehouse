@@ -7,6 +7,7 @@ import productRoutes from './routes/product.routes';
 import categoryRoutes from './routes/category.routes';
 import templateRoutes from './routes/template.routes';
 import vendorRoutes from './routes/vendor.routes';
+import searchRoutes from './routes/search.routes';
 import { errorHandler } from './middleware/error-handler';
 import { generalLimiter } from './middleware/rate-limit';
 import { requestContext } from './middleware/request-context';
@@ -62,6 +63,7 @@ app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/categories', categoryRoutes);
 app.use('/api/v1/templates', templateRoutes);
 app.use('/api/v1/vendors', vendorRoutes);
+app.use('/api/v1/search', searchRoutes);
 
 // Error handler
 app.use(errorHandler);

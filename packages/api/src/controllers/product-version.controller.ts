@@ -345,6 +345,11 @@ export class ProductVersionController {
                                 barcode: version.barcode,
                                 qrCodeUrl: version.qrCodeUrl,
                                 characteristics: version.characteristics as Prisma.InputJsonValue,
+                                searchText: buildSearchText(
+                                    existing.product.baseName,
+                                    version.sku,
+                                    version.barcode
+                                ),
                             },
                         });
                     }

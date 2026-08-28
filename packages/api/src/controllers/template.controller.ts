@@ -2,6 +2,9 @@ import { Response, NextFunction } from 'express';
 import prisma from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
 
+const templateSearchText = (name: string, fields: unknown): string =>
+    `${name} ${JSON.stringify(fields)}`.trim().toLocaleLowerCase();
+
 export class TemplateController {
     /**
      * List templates
@@ -50,6 +53,7 @@ export class TemplateController {
                     name,
                     fields,
                     vendorId: req.vendorId!,
+                    searchText: templateSearchText(name, fields),
                 },
             });
             res.status(201).json({ success: true, data: template });
@@ -77,7 +81,7 @@ export class TemplateController {
 
             const updatedTemplate = await prisma.characteristicTemplate.update({
                 where: { id },
-                data: { name, fields },
+                data: { name, fields, searchText: templateSearchText(name, fields) },
             });
 
             res.status(200).json({ success: true, data: updatedTemplate });

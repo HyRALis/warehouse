@@ -25,3 +25,18 @@ export const authLimiter = rateLimit({
         statusCode: 429,
     },
 });
+
+/**
+ * Tighter limiter for interactive universal search traffic.
+ */
+export const searchLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: {
+        message: 'Too many search requests, please slow down.',
+        code: 'SEARCH_RATE_LIMIT_EXCEEDED',
+        statusCode: 429,
+    },
+});
