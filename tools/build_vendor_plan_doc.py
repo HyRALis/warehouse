@@ -104,6 +104,13 @@ def set_repeat_header(row):
     tr_pr.append(header)
 
 
+def set_row_cant_split(row):
+    tr_pr = row._tr.get_or_add_trPr()
+    cant_split = OxmlElement("w:cantSplit")
+    cant_split.set(qn("w:val"), "true")
+    tr_pr.append(cant_split)
+
+
 def style_paragraph(paragraph, size=11, color="000000", before=0, after=8, line=1.15, bold=False):
     fmt = paragraph.paragraph_format
     fmt.space_before = Pt(before)
@@ -143,6 +150,7 @@ def add_list(doc, text, ordered=False):
     p.paragraph_format.first_line_indent = Inches(-0.25)
     p.paragraph_format.space_after = Pt(4)
     p.paragraph_format.line_spacing = 1.15
+    p.paragraph_format.keep_together = True
     add_inline(p, text)
     return p
 
@@ -176,6 +184,7 @@ def add_table(doc, rows):
     set_table_borders(table)
     set_repeat_header(table.rows[0])
     for ridx, row in enumerate(rows):
+        set_row_cant_split(table.rows[ridx])
         for cidx, value in enumerate(row):
             cell = table.cell(ridx, cidx)
             cell.text = ""

@@ -14,39 +14,48 @@ enum ProductStatus {
 }
 
 model Vendor {
-  id           String    @id @default(uuid())
-  email        String    @unique
-  passwordHash String    @map("password_hash")
-  companyName  String    @map("company_name")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  deletedAt    DateTime? @map("deleted_at")
-  tokenVersion Int       @default(0) @map("token_version")
+  id                     String    @id @default(uuid())
+  email                  String    @unique
+  passwordHash           String    @map("password_hash")
+  companyName            String    @map("company_name")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+  deletedAt              DateTime? @map("deleted_at")
+  tokenVersion           Int       @default(0) @map("token_version")
   passwordResetTokenHash String?   @unique @map("password_reset_token_hash")
   passwordResetExpiresAt DateTime? @map("password_reset_expires_at")
 
-  products               Product[]
-  categories             Category[]
+  products                Product[]
+  productVersions         ProductVersion[]
+  categories              Category[]
   characteristicTemplates CharacteristicTemplate[]
 
   @@map("vendors")
 }
 
 model Category {
-  id        String    @id @default(uuid())
-  name      String
-  parentId  String?   @map("parent_id")
-  vendorId  String?   @map("vendor_id")
-  createdAt DateTime  @default(now()) @map("created_at")
+  id                String   @id @default(uuid())
+  code              String?  @unique
+  name              String
+  aliases           String[] @default([])
+  searchText        String   @default("") @map("search_text")
+  parentId          String?  @map("parent_id")
+  vendorId          String?  @map("vendor_id")
+  defaultTemplateId String?  @map("default_template_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
 
-  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children Category[] @relation("CategoryHierarchy")
-  vendor   Vendor?    @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  products Product[]
+  parent          Category?               @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children        Category[]              @relation("CategoryHierarchy")
+  vendor          Vendor?                 @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  defaultTemplate CharacteristicTemplate? @relation("CategoryDefaultTemplate", fields: [defaultTemplateId], references: [id], onDelete: SetNull)
+  products        Product[]
 
-  @@map("categories")
   @@index([vendorId])
   @@index([parentId])
+  @@index([defaultTemplateId])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "categories_search_text_trgm_idx")
+  @@map("categories")
 }
 
 model Product {
@@ -60,42 +69,84 @@ model Product {
   qrCodeUrl       String?       @map("qr_code_url")
   status          ProductStatus @default(DRAFT)
   characteristics Json          @default("[]")
+  searchText      String        @default("") @map("search_text")
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt       DateTime      @updatedAt @map("updated_at")
   deletedAt       DateTime?     @map("deleted_at")
 
-  vendor   Vendor         @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  category Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  vendor   Vendor           @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  category Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   images   ProductImage[]
+  versions ProductVersion[]
 
-  @@map("products")
   @@unique([vendorId, sku])
   @@index([vendorId, deletedAt])
   @@index([categoryId])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "products_search_text_trgm_idx")
+  @@map("products")
+}
+
+model ProductVersion {
+  id              String        @id @default(uuid())
+  productId       String        @map("product_id")
+  vendorId        String        @map("vendor_id")
+  versionNumber   Int           @map("version_number")
+  label           String
+  sku             String
+  barcode         String?
+  qrCodeUrl       String?       @map("qr_code_url")
+  status          ProductStatus @default(DRAFT)
+  characteristics Json          @default("[]")
+  designNotes     String?       @map("design_notes")
+  isPrimary       Boolean       @default(false) @map("is_primary")
+  searchText      String        @default("") @map("search_text")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  deletedAt       DateTime?     @map("deleted_at")
+
+  product Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  vendor  Vendor         @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  images  ProductImage[]
+
+  @@unique([productId, versionNumber])
+  @@unique([vendorId, sku])
+  @@unique([vendorId, barcode])
+  @@index([productId, deletedAt])
+  @@index([vendorId, deletedAt])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "product_versions_search_text_trgm_idx")
+  @@map("product_versions")
 }
 
 model ProductImage {
-  id        String   @id @default(uuid())
-  productId String   @map("product_id")
-  imageUrl  String   @map("image_url")
-  sortOrder Int      @default(0) @map("sort_order")
-  createdAt DateTime @default(now()) @map("created_at")
+  id               String   @id @default(uuid())
+  productId        String   @map("product_id")
+  productVersionId String?  @map("product_version_id")
+  imageUrl         String   @map("image_url")
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at")
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productVersion ProductVersion? @relation(fields: [productVersionId], references: [id], onDelete: Cascade)
 
-  @@map("product_images")
   @@index([productId])
+  @@index([productVersionId])
+  @@map("product_images")
 }
 
 model CharacteristicTemplate {
-  id        String   @id @default(uuid())
-  vendorId  String   @map("vendor_id")
-  name      String
-  fields    Json     @default("[]")
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String   @id @default(uuid())
+  vendorId   String?  @map("vendor_id")
+  key        String?  @unique
+  name       String
+  fields     Json     @default("[]")
+  searchText String   @default("") @map("search_text")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
 
-  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  vendor               Vendor?    @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  defaultForCategories Category[] @relation("CategoryDefaultTemplate")
 
-  @@map("characteristic_templates")
   @@index([vendorId])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "characteristic_templates_search_text_trgm_idx")
+  @@map("characteristic_templates")
 }
