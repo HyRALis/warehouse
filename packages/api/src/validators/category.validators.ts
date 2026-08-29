@@ -1,14 +1,13 @@
 import { z } from 'zod';
+import {
+    createCategoryRequestSchema,
+    updateCategoryRequestSchema,
+} from '@inventory-system/contracts';
 
 export const createCategorySchema = z.object({
-    body: z.object({
-        name: z.string().min(1),
-        parentId: z.string().uuid().optional(),
-    }),
+    body: createCategoryRequestSchema,
 });
 
 export const updateCategorySchema = z.object({
-    body: z.object({
-        name: z.string().min(1),
-    }),
+    body: updateCategoryRequestSchema,
 });

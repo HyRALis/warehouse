@@ -27,6 +27,7 @@ export const errorHandler = (
     const code = err instanceof multer.MulterError ? 'UPLOAD_ERROR' : err.code || 'INTERNAL_SERVER_ERROR';
 
     res.status(statusCode).json({
+        success: false,
         message,
         code,
         statusCode,

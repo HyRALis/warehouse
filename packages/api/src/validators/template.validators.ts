@@ -1,27 +1,13 @@
 import { z } from 'zod';
+import {
+    createTemplateRequestSchema,
+    updateTemplateRequestSchema,
+} from '@inventory-system/contracts';
 
 export const createTemplateSchema = z.object({
-    body: z.object({
-        name: z.string().min(1),
-        fields: z.array(
-            z.object({
-                name: z.string(),
-                measurement: z.string().optional(),
-            })
-        ),
-    }),
+    body: createTemplateRequestSchema,
 });
 
 export const updateTemplateSchema = z.object({
-    body: z.object({
-        name: z.string().min(1).optional(),
-        fields: z
-            .array(
-                z.object({
-                    name: z.string(),
-                    measurement: z.string().optional(),
-                })
-            )
-            .optional(),
-    }),
+    body: updateTemplateRequestSchema,
 });
