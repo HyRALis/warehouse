@@ -5,3 +5,4 @@ dist
 .turbo
 .next
 coverage
+packages/database/src/generated/prisma

@@ -2,12 +2,21 @@
     "name": "inventory-system",
     "private": true,
     "packageManager": "npm@11.2.0",
+    "engines": {
+        "node": ">=22 <25",
+        "npm": ">=11"
+    },
     "workspaces": [
         "apps/*",
         "packages/*"
     ],
     "devDependencies": {
+        "prisma": "7.10.0",
         "turbo": "2.10.8"
+    },
+    "overrides": {
+        "deepmerge-ts": "8.0.2",
+        "mysql2": "3.24.2"
     },
     "scripts": {
         "dev": "turbo run dev",

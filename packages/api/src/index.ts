@@ -1,7 +1,7 @@
 import express, { Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import prisma from '@inventory-system/database';
+import prisma, { disconnectDatabase } from '@inventory-system/database';
 import authRoutes from './routes/auth.routes';
 import productRoutes from './routes/product.routes';
 import categoryRoutes from './routes/category.routes';
@@ -69,9 +69,30 @@ app.use('/api/v1/search', searchRoutes);
 app.use(errorHandler);
 
 if (config.nodeEnv !== 'test') {
-    app.listen(config.port, () => {
+    const server = app.listen(config.port, () => {
         console.log(`Server is running on port ${config.port}`);
     });
+
+    let shuttingDown = false;
+    const shutdown = (signal: NodeJS.Signals) => {
+        if (shuttingDown) return;
+        shuttingDown = true;
+        console.log(`${signal} received; closing the API and database pool`);
+
+        server.close((serverError) => {
+            void disconnectDatabase()
+                .then(() => {
+                    process.exitCode = serverError ? 1 : 0;
+                })
+                .catch((databaseError) => {
+                    console.error('Failed to close the database pool', databaseError);
+                    process.exitCode = 1;
+                });
+        });
+    };
+
+    process.once('SIGTERM', shutdown);
+    process.once('SIGINT', shutdown);
 }
 
 export { app };

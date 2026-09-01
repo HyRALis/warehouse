@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../src/index.js';
 import { SYSTEM_CATEGORIES, SYSTEM_TEMPLATES, validateSystemCatalog } from './system-catalog';
-
-const prisma = new PrismaClient();
 
 async function main(): Promise<void> {
     validateSystemCatalog();

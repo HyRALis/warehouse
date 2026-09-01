@@ -1,24 +1,30 @@
 {
     "name": "@inventory-system/database",
     "version": "1.0.0",
-    "main": "src/index.ts",
-    "types": "src/index.ts",
+    "private": true,
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
     "scripts": {
-        "generate": "prisma generate",
-        "migrate:dev": "prisma migrate dev",
-        "migrate:deploy": "prisma migrate deploy",
-        "seed": "tsx prisma/seed.ts",
+        "build": "npm run generate && tsc -p tsconfig.json",
+        "test": "tsx --test tests/prisma-migrations.test.ts",
+        "test:integration": "cross-env RUN_DATABASE_INTEGRATION=true tsx --test tests/prisma-migrations.test.ts",
+        "test:integration:local": "cross-env RUN_DATABASE_INTEGRATION=local tsx --test tests/prisma-migrations.test.ts",
+        "generate": "prisma generate --config ../../prisma.config.ts",
+        "migrate:dev": "prisma migrate dev --config ../../prisma.config.ts",
+        "migrate:deploy": "prisma migrate deploy --config ../../prisma.config.ts",
+        "seed": "prisma db seed --config ../../prisma.config.ts",
         "seed:verify": "tsx prisma/verify-system-catalog.ts"
     },
-    "prisma": {
-        "seed": "tsx prisma/seed.ts"
-    },
     "dependencies": {
-        "@prisma/client": "^5.0.0"
+        "@prisma/adapter-pg": "7.10.0",
+        "@prisma/client": "7.10.0",
+        "dotenv": "^17.4.2"
     },
     "devDependencies": {
-        "prisma": "^5.0.0",
+        "@testcontainers/postgresql": "^11.11.0",
+        "cross-env": "^10.1.0",
         "tsx": "^4.23.12",
-        "typescript": "^5.0.0"
+        "typescript": "^5.9.2"
     }
 }
