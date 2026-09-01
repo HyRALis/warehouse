@@ -3,10 +3,12 @@
     "tasks": {
         "build": {
             "dependsOn": ["^build"],
+            "env": ["DATABASE_URL"],
             "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
         },
         "test": {
             "dependsOn": ["build"],
+            "env": ["DATABASE_URL", "RUN_DATABASE_INTEGRATION"],
             "outputs": []
         },
         "lint": {
