@@ -16,7 +16,7 @@ Product roadmap stages 00 through 09 have delivered four core capabilities on th
 3. Sellable product versions with independent characteristics, designs, media, identifiers, and lifecycle states.
 4. Universal search across products, versions, categories, and templates.
 
-The remaining release scope reconciles the merged vendor history with the newer frontend architecture, upgrades Prisma 5 to Prisma 7, replaces the handwritten authentication system with Better Auth, separates users and organizations from the vendor profile, adds organization-owned portal subscriptions and member portal access, and completes release hardening. Draft, Active, and Discontinued remain explicit states for both products and versions.
+The remaining release scope upgrades Prisma 5 to Prisma 7, replaces the handwritten authentication system with Better Auth, separates users and organizations from the vendor profile, adds organization-owned portal subscriptions and member portal access, and completes release hardening. Draft, Active, and Discontinued remain explicit states for both products and versions.
 
 The Inventory Portal is strategically important but is not part of this implementation run. It will begin in a separate chat only after this Vendor Portal release is complete.
 
@@ -70,11 +70,10 @@ The Inventory Portal is strategically important but is not part of this implemen
 
 Phase 0 already provides aligned portal/API contracts, cookie sessions with revocation, validated runtime configuration, tenant-scoped category writes, dedicated image/CSV middleware, Cloudflare R2 and local storage drivers, probes, request IDs, CI, repaired tests, and setup documentation. Product roadmap stages 00 through 09 are merged on the remote `develop` branch.
 
-Two newer frontend architecture commits on `main` add TanStack Query, TanStack Form, shared Zod contracts, smaller feature components, a same-origin Next.js BFF, and Storybook. The final release begins by reconciling those commits with the merged vendor history. The unfinished Stage 10 worktree is preserved as evidence but is not treated as completed release work.
+The remote `develop` branch is the authoritative implementation base for this release. Work from `main` is intentionally excluded for now and may be evaluated separately after the Vendor Portal release. The unfinished Stage 10 worktree is preserved as evidence but is not treated as completed release work.
 
 The remaining platform and release gaps are concrete:
 
-- The repository has divergent `main` and `develop` histories that must be reconciled before further feature work.
 - Prisma 5 uses the pre-Prisma-7 client and datasource configuration.
 - The Vendor record still combines a person, authentication credentials, tenant identity, and producer profile.
 - The handwritten authentication implementation does not provide organization membership, invitations, MFA, or portal entitlements.
@@ -330,41 +329,38 @@ Every stage uses a `codex/` branch and produces a pull request targeting `develo
 | Order | Branch | Pull request | Purpose |
 |---|---|---|---|
 | 00 | `codex/docs-vendor-completion-roadmap` | `docs(vendor): define final Prisma and identity completion roadmap` | Make this document and the decision log the authoritative completion contract. |
-| 01 | `codex/platform-vendor-branch-reconciliation` | `chore(repo): reconcile vendor and frontend architecture branches` | Combine the merged vendor stages with the newer frontend architecture on one trusted `develop` history. |
-| 02 | `codex/backend-vendor-prisma-7` | `chore(database): upgrade vendor platform to Prisma 7` | Modernize persistence independently before adding authentication models. |
-| 03 | `codex/backend-vendor-better-auth` | `feat(auth): add Better Auth users, organizations, and secure sessions` | Separate people and organizations and provide verified, revocable, MFA-capable authentication. |
-| 04 | `codex/backend-vendor-entitlements` | `feat(platform): add portal subscriptions and vendor-profile tenancy` | Separate portal entitlement from producer identity and migrate catalog ownership safely. |
-| 05 | `codex/frontend-vendor-auth` | `feat(portal): migrate vendor authentication and organization onboarding` | Move registration, login, verification, reset, MFA, sessions, and active Organization context to the accepted backend contract. |
-| 06 | `codex/frontend-vendor-member-access` | `feat(portal): add member invitations and vendor portal access` | Let an Owner invite members and control access without introducing future inventory roles. |
-| 07 | `codex/backend-vendor-catalog-hardening` | `chore(vendor): harden catalog tenancy and product lifecycle APIs` | Complete Vendor Profile authorization and product/version invariants. |
-| 08 | `codex/backend-vendor-media-import-search` | `chore(vendor): harden R2 media, imports, exports, and search` | Verify the highest-risk external and bulk-data boundaries before release. |
-| 09 | `codex/backend-vendor-auth-cleanup` | `refactor(auth): remove transitional vendor authentication fields` | Remove legacy authentication and ownership only after the cutover is proven. |
-| 10 | `codex/frontend-vendor-product-hardening` | `chore(portal): harden product and version workflows` | Finish product-first flows against the new Organization and Vendor Profile context. |
-| 11 | `codex/frontend-vendor-catalog-search-hardening` | `chore(portal): harden catalog, search, and import workflows` | Complete advanced catalog and bulk workflows without expanding scope. |
-| 12 | `codex/frontend-vendor-accessibility` | `chore(portal): complete vendor accessibility and responsive behavior` | Make the finished workflows usable by keyboard, screen reader, desktop, and mobile users. |
-| 13 | `codex/release-vendor-portal` | `chore(vendor): verify and document vendor portal release` | Produce release evidence and documentation without adding business features. |
+| 01 | `codex/backend-vendor-prisma-7` | `chore(database): upgrade vendor platform to Prisma 7` | Modernize persistence independently before adding authentication models. |
+| 02 | `codex/backend-vendor-better-auth` | `feat(auth): add Better Auth users, organizations, and secure sessions` | Separate people and organizations and provide verified, revocable, MFA-capable authentication. |
+| 03 | `codex/backend-vendor-entitlements` | `feat(platform): add portal subscriptions and vendor-profile tenancy` | Separate portal entitlement from producer identity and migrate catalog ownership safely. |
+| 04 | `codex/frontend-vendor-auth` | `feat(portal): migrate vendor authentication and organization onboarding` | Move registration, login, verification, reset, MFA, sessions, and active Organization context to the accepted backend contract. |
+| 05 | `codex/frontend-vendor-member-access` | `feat(portal): add member invitations and vendor portal access` | Let an Owner invite members and control access without introducing future inventory roles. |
+| 06 | `codex/backend-vendor-catalog-hardening` | `chore(vendor): harden catalog tenancy and product lifecycle APIs` | Complete Vendor Profile authorization and product/version invariants. |
+| 07 | `codex/backend-vendor-media-import-search` | `chore(vendor): harden R2 media, imports, exports, and search` | Verify the highest-risk external and bulk-data boundaries before release. |
+| 08 | `codex/backend-vendor-auth-cleanup` | `refactor(auth): remove transitional vendor authentication fields` | Remove legacy authentication and ownership only after the cutover is proven. |
+| 09 | `codex/frontend-vendor-product-hardening` | `chore(portal): harden product and version workflows` | Finish product-first flows against the new Organization and Vendor Profile context. |
+| 10 | `codex/frontend-vendor-catalog-search-hardening` | `chore(portal): harden catalog, search, and import workflows` | Complete advanced catalog and bulk workflows without expanding scope. |
+| 11 | `codex/frontend-vendor-accessibility` | `chore(portal): complete vendor accessibility and responsive behavior` | Make the finished workflows usable by keyboard, screen reader, desktop, and mobile users. |
+| 12 | `codex/release-vendor-portal` | `chore(vendor): verify and document vendor portal release` | Produce release evidence and documentation without adding business features. |
 
 ### Stage details
 
-PR 01 preserves the unfinished Stage 10 changes on a local safety commit, begins from remote `develop`, integrates the two newer `main` commits, and resolves conflicts in favor of the newer TanStack/Form/Zod/BFF/Storybook architecture while retaining stages 00 through 09.
+PR 01 upgrades Prisma without changing user-visible behavior. It verifies clean and current-data migrations, generation, seeding, API tests, pooling, and shutdown behavior.
 
-PR 02 upgrades Prisma without changing user-visible behavior. It verifies clean and current-data migrations, generation, seeding, API tests, pooling, and shutdown behavior.
+PR 02 adds Better Auth's User, Account, Session, Verification, Organization, Member, and Invitation data, email/password flows, verification, reset, TOTP, recovery codes, session revocation, legacy-password migration, and the temporary compatibility facade.
 
-PR 03 adds Better Auth's User, Account, Session, Verification, Organization, Member, and Invitation data, email/password flows, verification, reset, TOTP, recovery codes, session revocation, legacy-password migration, and the temporary compatibility facade.
+PR 03 adds Portal, Organization Portal Subscription, Member Portal Access, primary Vendor Profile, subscription/access middleware, catalog ownership backfill, one-primary-profile enforcement, and migration verification reports.
 
-PR 04 adds Portal, Organization Portal Subscription, Member Portal Access, primary Vendor Profile, subscription/access middleware, catalog ownership backfill, one-primary-profile enforcement, and migration verification reports.
+PRs 04 and 05 separately deliver the visible authentication/onboarding and member-access experiences. The Organization switcher appears only when a User has multiple memberships. Custom job roles remain deferred.
 
-PRs 05 and 06 separately deliver the visible authentication/onboarding and member-access experiences. The Organization switcher appears only when a User has multiple memberships. Custom job roles remain deferred.
+PR 06 completes profile-scoped authorization across products, versions, categories, templates, and lifecycle actions, including system-record immutability, identifier uniqueness, and primary-version concurrency.
 
-PR 07 completes profile-scoped authorization across products, versions, categories, templates, and lifecycle actions, including system-record immutability, identifier uniqueness, and primary-version concurrency.
+PR 07 completes R2 upload/deletion/rollback tests, version-owned media behavior, CSV limits and row errors, profile-aware import/export, and universal-search isolation and the 10,000-product benchmark.
 
-PR 08 completes R2 upload/deletion/rollback tests, version-owned media behavior, CSV limits and row errors, profile-aware import/export, and universal-search isolation and the 10,000-product benchmark.
+PR 08 removes handwritten JWT/session code, the temporary facade, credential fields from the former Vendor data, and transitional ownership columns only after the frontend cutover and migration audits pass.
 
-PR 09 removes handwritten JWT/session code, the temporary facade, credential fields from the former Vendor data, and transitional ownership columns only after the frontend cutover and migration audits pass.
+PRs 09 through 11 finish the quick-create, product/version, catalog/template, universal-search, CSV, mobile, keyboard, focus, screen-reader, and responsive behavior already defined in this blueprint.
 
-PRs 10 through 12 finish the quick-create, product/version, catalog/template, universal-search, CSV, mobile, keyboard, focus, screen-reader, and responsive behavior already defined in this blueprint.
-
-PR 13 contains only clean-install and upgrade verification, release notes, security and license evidence, setup/migration/rollback documentation, final screenshots, and regenerated Markdown/DOCX artifacts.
+PR 12 contains only clean-install and upgrade verification, release notes, security and license evidence, setup/migration/rollback documentation, final screenshots, and regenerated Markdown/DOCX artifacts.
 
 ## 15. Test and release gates
 
@@ -424,6 +420,6 @@ Backend pull requests do not contain pages or feature UI. Frontend pull requests
 
 ## 18. Release boundary and inventory handoff
 
-This implementation run ends when PR 13 is merged and the repository is release-ready. It does not provision an external staging or production deployment.
+This implementation run ends when PR 12 is merged and the repository is release-ready. It does not provision an external staging or production deployment.
 
 After the vendor release, create `docs/inventory-portal-handoff.md` containing only the reusable User/Organization model, membership and portal-access rules, subscription service, Vendor Profile separation, Prisma 7 conventions, Better Auth context, shared UI/contracts, and explicitly deferred role decisions. Then begin Inventory Portal planning and implementation in a separate Codex chat from the completed `develop` state.

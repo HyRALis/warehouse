@@ -73,3 +73,12 @@ Existing accounts, email addresses, and passwords are preserved. Legacy sessions
 Schema, migrations, contracts, services, authorization, and API tests merge before their dependent frontend workflows. Frontend pull requests consume accepted contracts and contain no backend business rules.
 
 **Reason:** Smaller capability pull requests are easier to review, test, explain, and resume with limited context.
+
+## VPD-009 - Develop is the authoritative release base
+
+**Date:** 2026-09-01\
+**Status:** Accepted
+
+All Vendor Portal completion branches start from the `develop` history. The divergent `main` frontend refactor is excluded from this release and may be evaluated separately later.
+
+**Reason:** The Vendor Portal stages are already merged into `develop`; keeping one implementation base avoids an unrelated architecture reconciliation during the Prisma and identity cutover.
