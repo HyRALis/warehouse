@@ -3,7 +3,7 @@ name: CI
 on:
     pull_request:
     push:
-        branches: [main]
+        branches: [develop]
 
 permissions:
     contents: read
@@ -19,6 +19,7 @@ jobs:
             CORS_ORIGINS: http://localhost:3000
             API_PUBLIC_URL: http://localhost:4000
             ALLOW_LOCAL_STORAGE_IN_PRODUCTION: 'true'
+            RUN_DATABASE_INTEGRATION: 'true'
         services:
             postgres:
                 image: postgres:16
