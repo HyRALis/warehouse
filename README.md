@@ -32,6 +32,8 @@ OmniStock is a monorepo for the vendor-facing catalog portal and the inventory p
 
 The vendor portal is available at `http://localhost:3000`; the API defaults to `http://localhost:4000`. The portal uses a same-origin `/api/v1/*` BFF and `API_INTERNAL_URL` for server-to-server access, so the Express origin is not exposed to browser code. Liveness and database readiness probes are exposed at `/health` and `/ready` on the API host.
 
+Run the component workshop at `http://localhost:6006` with `npm run storybook`. It documents shared UI primitives and reusable portal components with controls, generated documentation, interaction examples, and accessibility auditing. Create a production-static build with `npm run build-storybook`.
+
 Uploaded images use the development-only local storage adapter and are served under `/uploads`. Production configuration requires the R2 driver and a CDN/public delivery origin; the disposable CI smoke environment is the only explicit local-storage exception. Direct browser uploads and image transformation are still scheduled for Phase 3.
 
 ## Verification
