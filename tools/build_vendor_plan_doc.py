@@ -116,6 +116,7 @@ def style_paragraph(paragraph, size=11, color="000000", before=0, after=8, line=
     fmt.space_before = Pt(before)
     fmt.space_after = Pt(after)
     fmt.line_spacing = line
+    fmt.keep_together = True
     for run in paragraph.runs:
         set_font(run, size=size, color=color, bold=bold)
 
@@ -144,13 +145,75 @@ def add_body(doc, text, style=None):
     return p
 
 
-def add_list(doc, text, ordered=False):
+def create_numbering_id(doc):
+    numbering = doc.part.numbering_part.element
+    abstract_ids = [
+        int(node.get(qn("w:abstractNumId")))
+        for node in numbering.findall(qn("w:abstractNum"))
+    ]
+    num_ids = [int(node.get(qn("w:numId"))) for node in numbering.findall(qn("w:num"))]
+    abstract_id = max(abstract_ids, default=-1) + 1
+    num_id = max(num_ids, default=0) + 1
+
+    abstract = OxmlElement("w:abstractNum")
+    abstract.set(qn("w:abstractNumId"), str(abstract_id))
+    multi = OxmlElement("w:multiLevelType")
+    multi.set(qn("w:val"), "singleLevel")
+    abstract.append(multi)
+    level = OxmlElement("w:lvl")
+    level.set(qn("w:ilvl"), "0")
+    start = OxmlElement("w:start")
+    start.set(qn("w:val"), "1")
+    level.append(start)
+    num_fmt = OxmlElement("w:numFmt")
+    num_fmt.set(qn("w:val"), "decimal")
+    level.append(num_fmt)
+    level_text = OxmlElement("w:lvlText")
+    level_text.set(qn("w:val"), "%1.")
+    level.append(level_text)
+    level_jc = OxmlElement("w:lvlJc")
+    level_jc.set(qn("w:val"), "left")
+    level.append(level_jc)
+    p_pr = OxmlElement("w:pPr")
+    tabs = OxmlElement("w:tabs")
+    tab = OxmlElement("w:tab")
+    tab.set(qn("w:val"), "num")
+    tab.set(qn("w:pos"), "720")
+    tabs.append(tab)
+    p_pr.append(tabs)
+    ind = OxmlElement("w:ind")
+    ind.set(qn("w:left"), "720")
+    ind.set(qn("w:hanging"), "360")
+    p_pr.append(ind)
+    level.append(p_pr)
+    abstract.append(level)
+    numbering.append(abstract)
+
+    num = OxmlElement("w:num")
+    num.set(qn("w:numId"), str(num_id))
+    abstract_ref = OxmlElement("w:abstractNumId")
+    abstract_ref.set(qn("w:val"), str(abstract_id))
+    num.append(abstract_ref)
+    numbering.append(num)
+    return num_id
+
+
+def add_list(doc, text, ordered=False, numbering_id=None):
     p = doc.add_paragraph(style="List Number" if ordered else "List Bullet")
     p.paragraph_format.left_indent = Inches(0.5)
     p.paragraph_format.first_line_indent = Inches(-0.25)
     p.paragraph_format.space_after = Pt(4)
     p.paragraph_format.line_spacing = 1.15
     p.paragraph_format.keep_together = True
+    if ordered and numbering_id is not None:
+        p_pr = p._p.get_or_add_pPr()
+        num_pr = p_pr.get_or_add_numPr()
+        ilvl = OxmlElement("w:ilvl")
+        ilvl.set(qn("w:val"), "0")
+        num_id = OxmlElement("w:numId")
+        num_id.set(qn("w:val"), str(numbering_id))
+        num_pr.append(ilvl)
+        num_pr.append(num_id)
     add_inline(p, text)
     return p
 
@@ -263,9 +326,11 @@ def build():
     lines = SOURCE.read_text(encoding="utf-8").splitlines()
     i = 0
     first_title = True
+    ordered_numbering_id = None
     while i < len(lines):
         line = lines[i]
         if not line.strip():
+            ordered_numbering_id = None
             i += 1
             continue
         if line.startswith("```"):
@@ -313,7 +378,16 @@ def build():
             continue
         ordered = re.match(r"^\s*\d+\.\s+(.*)$", line)
         if ordered:
-            add_list(doc, ordered.group(1), ordered=True)
+            if ordered_numbering_id is None:
+                ordered_numbering_id = create_numbering_id(doc)
+            add_list(doc, ordered.group(1), ordered=True, numbering_id=ordered_numbering_id)
+            i += 1
+            continue
+        ordered_numbering_id = None
+        # Markdown's trailing backslash is a hard line break. Preserve metadata
+        # lines as compact, separate paragraphs instead of joining them.
+        if line.endswith("\\"):
+            add_body(doc, line[:-1].rstrip())
             i += 1
             continue
         paragraph_lines = [line.strip()]
