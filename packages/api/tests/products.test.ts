@@ -1,9 +1,17 @@
 import request from 'supertest';
 import { app } from '../src/index';
 import { generateTestToken, mockPrisma } from './setup';
+import { StorageService } from '../src/services/storage.service';
 
 jest.mock('../src/services/qrcode.service', () => ({
     QRCodeService: { generateQRCode: jest.fn().mockResolvedValue('data:image/png;base64,qr') },
+}));
+
+jest.mock('../src/services/storage.service', () => ({
+    StorageService: {
+        uploadFile: jest.fn(),
+        deleteFile: jest.fn(),
+    },
 }));
 
 const vendorId = 'vendor-1';
@@ -267,5 +275,43 @@ describe('products', () => {
 
         expect(response.status).toBe(409);
         expect(response.body.code).toBe('PRODUCT_CONFLICT');
+    });
+
+    it('stores product-route images on the primary version and updates its representative image', async () => {
+        const imageUrl = 'https://media.example.test/products/image.webp';
+        mockPrisma.product.findFirst.mockResolvedValue({
+            ...product,
+            versions: [{ ...version, images: [] }],
+        });
+        (StorageService.uploadFile as jest.Mock).mockResolvedValue(imageUrl);
+        mockPrisma.productImage.create.mockResolvedValue({
+            id: 'image-1',
+            productId,
+            productVersionId: version.id,
+            imageUrl,
+            sortOrder: 0,
+        });
+
+        const response = await request(app)
+            .post(`/api/v1/products/${productId}/images`)
+            .set('Authorization', `Bearer ${token}`)
+            .attach('image', Buffer.from([0xff, 0xd8, 0xff]), {
+                filename: 'product.jpg',
+                contentType: 'image/jpeg',
+            });
+
+        expect(response.status).toBe(201);
+        expect(mockPrisma.productImage.create).toHaveBeenCalledWith({
+            data: {
+                productId,
+                productVersionId: version.id,
+                imageUrl,
+                sortOrder: 0,
+            },
+        });
+        expect(mockPrisma.product.update).toHaveBeenCalledWith({
+            where: { id: productId },
+            data: { imageUrl },
+        });
     });
 });

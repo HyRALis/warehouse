@@ -73,6 +73,11 @@ interface NormalizedCsvRow {
 
 const normalizeCsvValue = (value?: string) => value?.trim() || '';
 
+const safeSpreadsheetCell = (value: string | null | undefined): string => {
+    const normalized = value ?? '';
+    return /^[=+\-@\t\r]/.test(normalized) ? `'${normalized}` : normalized;
+};
+
 const parseCsvStatus = (value: string, fallback: ProductStatus): ProductStatus | null => {
     const normalized = (value || fallback).toUpperCase();
     return Object.values(ProductStatus).includes(normalized as ProductStatus)
@@ -447,6 +452,33 @@ export class ProductController {
                         });
                     }
 
+                    if (baseName !== undefined || categoryId !== undefined) {
+                        const secondaryVersions = await tx.productVersion.findMany({
+                            where: {
+                                productId: id,
+                                deletedAt: null,
+                                id: { not: primaryVersion.id },
+                            },
+                            select: { id: true, label: true, sku: true, barcode: true },
+                        });
+                        await Promise.all(
+                            secondaryVersions.map((version) =>
+                                tx.productVersion.update({
+                                    where: { id: version.id },
+                                    data: {
+                                        searchText: buildSearchText(
+                                            nextName,
+                                            version.label,
+                                            version.sku,
+                                            version.barcode,
+                                            categoryName
+                                        ),
+                                    },
+                                })
+                            )
+                        );
+                    }
+
                     return tx.product.findUnique({ where: { id }, include: productInclude });
                 },
                 { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
@@ -515,11 +547,10 @@ export class ProductController {
             const product = await prisma.product.findFirst({
                 where: { id, vendorProfileId: req.vendorProfileId, deletedAt: null },
                 include: {
-                    images: true,
                     versions: {
                         where: { isPrimary: true, deletedAt: null },
                         take: 1,
-                        select: { id: true },
+                        include: { images: { orderBy: { sortOrder: 'asc' } } },
                     },
                 },
             });
@@ -529,29 +560,53 @@ export class ProductController {
                 return;
             }
 
-            if (product.images.length >= 4) {
-                res.status(400).json({
+            const primaryVersion = product.versions[0];
+            if (!primaryVersion) {
+                res.status(409).json({
                     success: false,
-                    message: 'Maximum of 4 product images allowed',
+                    code: 'PRIMARY_VERSION_REQUIRED',
+                    message: 'A product must have a primary version before images can be uploaded',
                 });
                 return;
             }
-
             if (!req.file) {
                 res.status(400).json({ success: false, message: 'No file provided' });
                 return;
             }
+            if (primaryVersion.images.length >= 4) {
+                res.status(400).json({
+                    success: false,
+                    code: 'IMAGE_LIMIT_EXCEEDED',
+                    message: 'Maximum of 4 images per version',
+                });
+                return;
+            }
 
             const imageUrl = await StorageService.uploadFile(req.file);
-
-            const productImage = await prisma.productImage.create({
-                data: {
-                    productId: id,
-                    productVersionId: product.versions[0]?.id,
-                    imageUrl,
-                    sortOrder: product.images.length,
-                },
-            });
+            let productImage;
+            try {
+                productImage = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+                    const image = await tx.productImage.create({
+                        data: {
+                            productId: id,
+                            productVersionId: primaryVersion.id,
+                            imageUrl,
+                            sortOrder: primaryVersion.images.length,
+                        },
+                    });
+                    if (primaryVersion.images.length === 0) {
+                        await tx.product.update({ where: { id }, data: { imageUrl } });
+                    }
+                    return image;
+                });
+            } catch (databaseError) {
+                try {
+                    await StorageService.deleteFile(imageUrl);
+                } catch (cleanupError) {
+                    console.error('Failed to remove uncommitted product image', cleanupError);
+                }
+                throw databaseError;
+            }
 
             res.status(201).json({ success: true, data: productImage });
         } catch (error) {
@@ -704,6 +759,29 @@ export class ProductController {
                 if (!sku) fail('REQUIRED_FIELD', 'Version SKU is required', 'sku');
                 if (!productName || !sku) continue;
 
+                const boundedFields: Array<[string, string, number]> = [
+                    ['productName', productName, 200],
+                    ['sku', sku, 100],
+                    ['productReference', normalizeCsvValue(row.productReference), 200],
+                    ['categoryCode', normalizeCsvValue(row.categoryCode), 120],
+                    ['categoryName', normalizeCsvValue(row.categoryName), 120],
+                    ['versionLabel', normalizeCsvValue(row.versionLabel), 100],
+                    ['barcode', normalizeCsvValue(row.barcode), 100],
+                    ['designNotes', normalizeCsvValue(row.designNotes), 5000],
+                ];
+                const oversizedFields = boundedFields.filter(
+                    ([, value, maximum]) => value.length > maximum
+                );
+                for (const [field, value, maximum] of oversizedFields) {
+                    fail(
+                        'FIELD_TOO_LONG',
+                        `${field} must contain at most ${maximum} characters`,
+                        field,
+                        value
+                    );
+                }
+                if (oversizedFields.length > 0) continue;
+
                 let category: (typeof categories)[number] | undefined;
                 const categoryId = normalizeCsvValue(row.categoryId);
                 const categoryCode = normalizeCsvValue(row.categoryCode).toLowerCase();
@@ -770,14 +848,14 @@ export class ProductController {
                 try {
                     if (normalizeCsvValue(row.characteristics)) {
                         const parsed = JSON.parse(row.characteristics);
-                        if (!Array.isArray(parsed))
+                        if (!Array.isArray(parsed) || parsed.length > 100)
                             throw new Error('Characteristics must be an array');
                         characteristics = parsed;
                     }
                 } catch {
                     fail(
                         'INVALID_CHARACTERISTICS',
-                        'Characteristics must be a valid JSON array',
+                        'Characteristics must be a valid JSON array with at most 100 entries',
                         'characteristics'
                     );
                     continue;
@@ -1069,16 +1147,16 @@ export class ProductController {
             const csvData = products.flatMap((product) =>
                 product.versions.map((version) => ({
                     productReference: product.id,
-                    productName: product.baseName,
-                    categoryCode: product.category?.code || '',
-                    categoryName: product.category?.name || '',
+                    productName: safeSpreadsheetCell(product.baseName),
+                    categoryCode: safeSpreadsheetCell(product.category?.code),
+                    categoryName: safeSpreadsheetCell(product.category?.name),
                     productStatus: product.status,
-                    versionLabel: version.label,
+                    versionLabel: safeSpreadsheetCell(version.label),
                     versionStatus: version.status,
-                    sku: version.sku,
-                    barcode: version.barcode || '',
+                    sku: safeSpreadsheetCell(version.sku),
+                    barcode: safeSpreadsheetCell(version.barcode),
                     characteristics: JSON.stringify(version.characteristics),
-                    designNotes: version.designNotes || '',
+                    designNotes: safeSpreadsheetCell(version.designNotes),
                     isPrimary: version.isPrimary,
                 }))
             );

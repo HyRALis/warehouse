@@ -13,8 +13,12 @@ export const universalSearchSchema = z.object({
                 (value) =>
                     value
                         .split(',')
-                        .filter(Boolean)
-                        .every((type) => entityTypes.includes(type as (typeof entityTypes)[number])),
+                        .map((type) => type.trim())
+                        .every(
+                            (type) =>
+                                type.length > 0 &&
+                                entityTypes.includes(type as (typeof entityTypes)[number])
+                        ),
                 'types must contain only product, version, category, or template'
             )
             .optional(),

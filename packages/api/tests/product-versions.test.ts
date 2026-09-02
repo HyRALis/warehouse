@@ -200,6 +200,24 @@ describe('product versions', () => {
         expect(StorageService.deleteFile).not.toHaveBeenCalled();
     });
 
+    it('deletes the R2 object after its final media reference is removed', async () => {
+        mockPrisma.product.findFirst.mockResolvedValue({ ...product, imageUrl: null });
+        mockPrisma.productImage.findFirst.mockResolvedValue({
+            ...original.images[0],
+            productId,
+            productVersionId: originalId,
+        });
+        mockPrisma.productImage.count.mockResolvedValue(0);
+        mockPrisma.productImage.delete.mockResolvedValue(original.images[0]);
+
+        const response = await request(app)
+            .delete(`/api/v1/products/${productId}/images/image-1`)
+            .set('Authorization', `Bearer ${token}`);
+
+        expect(response.status).toBe(200);
+        expect(StorageService.deleteFile).toHaveBeenCalledWith(original.images[0].imageUrl);
+    });
+
     it('denies cross-vendor product and version access', async () => {
         mockPrisma.product.findFirst.mockResolvedValue(null);
         const createResponse = await request(app)
@@ -242,5 +260,29 @@ describe('product versions', () => {
         expect(response.status).toBe(404);
         expect(response.body.code).toBe('PRODUCT_NOT_FOUND');
         expect(mockPrisma.productVersion.create).not.toHaveBeenCalled();
+    });
+
+    it('removes an uploaded object when the version-image database write fails', async () => {
+        const imageUrl = 'https://media.example.test/products/failed.webp';
+        mockPrisma.productVersion.findFirst.mockResolvedValue({
+            ...copied,
+            images: [],
+            isPrimary: false,
+        });
+        (StorageService.uploadFile as jest.Mock).mockResolvedValue(imageUrl);
+        mockPrisma.productImage.create.mockRejectedValue(new Error('database unavailable'));
+        const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        const response = await request(app)
+            .post(`/api/v1/products/${productId}/versions/${copyId}/images`)
+            .set('Authorization', `Bearer ${token}`)
+            .attach('image', Buffer.from([0xff, 0xd8, 0xff]), {
+                filename: 'version.jpg',
+                contentType: 'image/jpeg',
+            });
+
+        consoleError.mockRestore();
+        expect(response.status).toBe(500);
+        expect(StorageService.deleteFile).toHaveBeenCalledWith(imageUrl);
     });
 });

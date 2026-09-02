@@ -647,22 +647,39 @@ export class ProductVersionController {
             if (version.images.length >= 4) {
                 res.status(400).json({
                     success: false,
+                    code: 'IMAGE_LIMIT_EXCEEDED',
                     message: 'Maximum of 4 images per version',
                 });
                 return;
             }
 
             const imageUrl = await StorageService.uploadFile(req.file);
-            const image = await prisma.productImage.create({
-                data: {
-                    productId,
-                    productVersionId: versionId,
-                    imageUrl,
-                    sortOrder: version.images.length,
-                },
-            });
-            if (version.isPrimary && version.images.length === 0) {
-                await prisma.product.update({ where: { id: productId }, data: { imageUrl } });
+            let image;
+            try {
+                image = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+                    const createdImage = await tx.productImage.create({
+                        data: {
+                            productId,
+                            productVersionId: versionId,
+                            imageUrl,
+                            sortOrder: version.images.length,
+                        },
+                    });
+                    if (version.isPrimary && version.images.length === 0) {
+                        await tx.product.update({
+                            where: { id: productId },
+                            data: { imageUrl },
+                        });
+                    }
+                    return createdImage;
+                });
+            } catch (databaseError) {
+                try {
+                    await StorageService.deleteFile(imageUrl);
+                } catch (cleanupError) {
+                    console.error('Failed to remove uncommitted version image', cleanupError);
+                }
+                throw databaseError;
             }
             res.status(201).json({ success: true, data: image });
         } catch (error) {

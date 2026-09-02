@@ -145,6 +145,7 @@ jest.mock('@inventory-system/database', () => ({
     },
     Prisma: {
         TransactionIsolationLevel: { Serializable: 'Serializable' },
+        sql: (strings: TemplateStringsArray) => strings.join(' '),
         PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {
             code = 'P2002';
         },
