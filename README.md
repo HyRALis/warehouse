@@ -15,29 +15,29 @@ OmniStock is a monorepo for the vendor-facing catalog portal and the inventory p
    share a value. Configure SMTP when verification, invitation, and reset links need delivery.
 2. Install the locked dependency graph:
 
-   ```sh
-   npm ci
-   ```
+    ```sh
+    npm ci
+    ```
 
 3. Generate the Prisma client and apply development migrations:
 
-   ```sh
-   npm run generate --workspace @inventory-system/database
-   npm run migrate:dev --workspace @inventory-system/database
-   npm run seed --workspace @inventory-system/database
-   ```
+    ```sh
+    npm run generate --workspace @inventory-system/database
+    npm run migrate:dev --workspace @inventory-system/database
+    npm run seed --workspace @inventory-system/database
+    ```
 
-   Prisma 7 loads the database connection through the root `prisma.config.ts` and
-   generates its ESM client into an ignored source directory. Seeding is explicit; migrations
-   do not run it automatically. The PostgreSQL adapter defaults to 10 connections, a 5-second
-   connection timeout, and a 30-second idle timeout. Override those values with the documented
-   `PRISMA_POOL_*` environment variables only when the deployment capacity requires it.
+    Prisma 7 loads the database connection through the root `prisma.config.ts` and
+    generates its ESM client into an ignored source directory. Seeding is explicit; migrations
+    do not run it automatically. The PostgreSQL adapter defaults to 10 connections, a 5-second
+    connection timeout, and a 30-second idle timeout. Override those values with the documented
+    `PRISMA_POOL_*` environment variables only when the deployment capacity requires it.
 
 4. Start the portal and API together:
 
-   ```sh
-   npm run dev
-   ```
+    ```sh
+    npm run dev
+    ```
 
 The vendor portal is available at `http://localhost:3000`; the API defaults to `http://localhost:4000`. Liveness and database readiness probes are exposed at `/health` and `/ready` on the API host.
 
@@ -71,6 +71,9 @@ URL, and strong dedicated secrets. When the API is behind Cloudflare, set
 `AUTH_CLIENT_IP_HEADER=cf-connecting-ip` only after confirming Cloudflare is the trusted ingress.
 See [Better Auth migration and rollback](docs/better-auth-migration.md) for the identity model,
 existing-user cutover, email settings, verification, and rollback procedure.
+See [Vendor entitlements and Vendor Profile migration](docs/vendor-entitlements-migration.md) for
+the Organization subscription/access rules, primary profile ownership, migration audit, and
+staged-rollout compatibility behavior.
 
 CI also starts PostgreSQL, applies the migration history, boots the compiled API, and runs `node tools/smoke-api.mjs`. The same smoke script can validate a deployed environment by setting `API_SMOKE_BASE_URL` to its API origin; it creates and then deactivates an isolated test vendor.
 
