@@ -23,12 +23,16 @@ export const createProductSchema = z.object({
 });
 
 export const updateProductSchema = z.object({
-    body: z.object({
-        categoryId: z.string().uuid().optional(),
-        sku: z.string().optional(),
-        baseName: z.string().optional(),
-        barcode: z.string().optional(),
-        characteristics: z.array(characteristicSchema).optional(),
-        status: z.nativeEnum(ProductStatus).optional(),
-    }),
+    body: z
+        .object({
+            categoryId: z.string().uuid().optional(),
+            sku: z.string().trim().min(1).max(100).optional(),
+            baseName: z.string().trim().min(1).max(200).optional(),
+            barcode: z.string().trim().min(1).max(100).nullable().optional(),
+            characteristics: z.array(characteristicSchema).max(100).optional(),
+            status: z.nativeEnum(ProductStatus).optional(),
+        })
+        .refine((body) => Object.keys(body).length > 0, {
+            message: 'At least one product field is required',
+        }),
 });

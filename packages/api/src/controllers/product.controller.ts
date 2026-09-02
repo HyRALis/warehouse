@@ -329,61 +329,151 @@ export class ProductController {
             const { categoryId, sku, baseName, barcode, characteristics, status } = req.body;
             const vendorProfileId = req.vendorProfileId!;
 
-            const product = await prisma.product.findFirst({
-                where: { id, vendorProfileId, deletedAt: null },
-                include: { category: { select: { name: true } } },
-            });
+            const updatedProduct = await prisma.$transaction(
+                async (tx: Prisma.TransactionClient) => {
+                    const lockedRows = await tx.$queryRaw<Array<{ id: string }>>`
+                        SELECT id
+                        FROM products
+                        WHERE id = ${id}
+                          AND vendor_profile_id = ${vendorProfileId}
+                          AND deleted_at IS NULL
+                        FOR UPDATE
+                    `;
+                    if (lockedRows.length === 0) {
+                        throw Object.assign(new Error('Product not found'), {
+                            statusCode: 404,
+                            code: 'PRODUCT_NOT_FOUND',
+                        });
+                    }
 
-            if (!product) {
-                res.status(404).json({ success: false, message: 'Product not found' });
+                    const product = await tx.product.findFirst({
+                        where: { id, vendorProfileId, deletedAt: null },
+                        include: {
+                            category: { select: { name: true } },
+                            versions: {
+                                where: { isPrimary: true, deletedAt: null },
+                                take: 1,
+                                select: {
+                                    id: true,
+                                    label: true,
+                                    sku: true,
+                                    barcode: true,
+                                    characteristics: true,
+                                },
+                            },
+                        },
+                    });
+                    if (!product) {
+                        throw Object.assign(new Error('Product not found'), {
+                            statusCode: 404,
+                            code: 'PRODUCT_NOT_FOUND',
+                        });
+                    }
+
+                    let categoryName = product.category.name;
+                    if (categoryId !== undefined) {
+                        const category = await tx.category.findFirst({
+                            where: {
+                                id: categoryId,
+                                OR: [{ vendorProfileId: null }, { vendorProfileId }],
+                            },
+                            select: { id: true, name: true },
+                        });
+                        if (!category) {
+                            throw Object.assign(new Error('Category is not available'), {
+                                statusCode: 400,
+                                code: 'CATEGORY_NOT_AVAILABLE',
+                            });
+                        }
+                        categoryName = category.name;
+                    }
+
+                    const nextName = baseName ?? product.baseName;
+                    const nextSku = sku ?? product.sku;
+                    const nextBarcode = barcode === undefined ? product.barcode : barcode;
+                    const nextCharacteristics = (characteristics ??
+                        product.characteristics) as Prisma.InputJsonValue;
+
+                    await tx.product.update({
+                        where: { id },
+                        data: {
+                            ...(categoryId !== undefined && { categoryId }),
+                            ...(sku !== undefined && { sku }),
+                            ...(baseName !== undefined && { baseName }),
+                            ...(barcode !== undefined && { barcode }),
+                            ...(characteristics !== undefined && {
+                                characteristics: nextCharacteristics,
+                            }),
+                            ...(status !== undefined && { status }),
+                            searchText: buildSearchText(
+                                nextName,
+                                nextSku,
+                                nextBarcode,
+                                categoryName
+                            ),
+                        },
+                    });
+
+                    const primaryVersion = product.versions[0];
+                    if (!primaryVersion) {
+                        throw Object.assign(new Error('Product has no primary version'), {
+                            statusCode: 409,
+                            code: 'PRIMARY_VERSION_REQUIRED',
+                        });
+                    }
+                    if (
+                        baseName !== undefined ||
+                        categoryId !== undefined ||
+                        sku !== undefined ||
+                        barcode !== undefined ||
+                        characteristics !== undefined
+                    ) {
+                        await tx.productVersion.update({
+                            where: { id: primaryVersion.id },
+                            data: {
+                                ...(sku !== undefined && { sku }),
+                                ...(barcode !== undefined && { barcode }),
+                                ...(characteristics !== undefined && {
+                                    characteristics: nextCharacteristics,
+                                }),
+                                searchText: buildSearchText(
+                                    nextName,
+                                    primaryVersion.label,
+                                    nextSku,
+                                    nextBarcode,
+                                    categoryName
+                                ),
+                            },
+                        });
+                    }
+
+                    return tx.product.findUnique({ where: { id }, include: productInclude });
+                },
+                { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+            );
+
+            res.status(200).json({
+                success: true,
+                data: updatedProduct && serializeProduct(updatedProduct),
+            });
+        } catch (error) {
+            const code = (error as { code?: string }).code;
+            if (code === 'P2002') {
+                res.status(409).json({
+                    success: false,
+                    code: 'IDENTIFIER_CONFLICT',
+                    message: 'That SKU or barcode is already used by one of your products.',
+                });
                 return;
             }
-
-            let categoryName = product.category.name;
-            if (categoryId !== undefined) {
-                const category = await prisma.category.findFirst({
-                    where: {
-                        id: categoryId,
-                        OR: [{ vendorProfileId: null }, { vendorProfileId }],
-                    },
-                    select: { id: true, name: true },
+            if (code === 'P2034') {
+                res.status(409).json({
+                    success: false,
+                    code: 'PRODUCT_CONFLICT',
+                    message: 'The product changed at the same time. Please retry.',
                 });
-
-                if (!category) {
-                    res.status(400).json({ success: false, message: 'Category is not available' });
-                    return;
-                }
-                categoryName = category.name;
+                return;
             }
-
-            let parsedCharacteristics = characteristics;
-            if (characteristics && typeof characteristics === 'string') {
-                parsedCharacteristics = JSON.parse(characteristics);
-            }
-
-            const updatedProduct = await prisma.product.update({
-                where: { id },
-                data: {
-                    ...(categoryId !== undefined && { categoryId }),
-                    ...(sku !== undefined && { sku }),
-                    ...(baseName !== undefined && { baseName }),
-                    ...(barcode !== undefined && { barcode }),
-                    ...(parsedCharacteristics !== undefined && {
-                        characteristics: parsedCharacteristics,
-                    }),
-                    ...(status !== undefined && { status }),
-                    searchText: buildSearchText(
-                        baseName ?? product.baseName,
-                        sku ?? product.sku,
-                        barcode === undefined ? product.barcode : barcode,
-                        categoryName
-                    ),
-                },
-                include: { images: true, category: true },
-            });
-
-            res.status(200).json({ success: true, data: updatedProduct });
-        } catch (error) {
             next(error);
         }
     }

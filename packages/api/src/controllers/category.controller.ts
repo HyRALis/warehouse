@@ -11,6 +11,11 @@ const findAvailableTemplate = (id: string, vendorProfileId: string) =>
         select: { id: true },
     });
 
+const findAvailableCategory = (id: string, vendorProfileId: string) =>
+    prisma.category.findFirst({
+        where: { id, OR: [{ vendorProfileId: null }, { vendorProfileId }] },
+    });
+
 export class CategoryController {
     /**
      * List categories
@@ -102,20 +107,18 @@ export class CategoryController {
             const { id } = req.params;
             const { name, parentId, defaultTemplateId, aliases } = req.body;
 
-            const category = await prisma.category.findUnique({ where: { id } });
+            const category = await findAvailableCategory(id, req.vendorProfileId!);
 
             if (!category) {
                 res.status(404).json({ success: false, message: 'Category not found' });
                 return;
             }
 
-            if (
-                category.vendorProfileId !== req.vendorProfileId ||
-                category.vendorProfileId === null
-            ) {
+            if (category.vendorProfileId === null) {
                 res.status(403).json({
                     success: false,
-                    message: 'Cannot edit system category or category owned by another vendor',
+                    code: 'SYSTEM_CATEGORY_READ_ONLY',
+                    message: 'System categories are read-only',
                 });
                 return;
             }
@@ -211,20 +214,18 @@ export class CategoryController {
         try {
             const { id } = req.params;
 
-            const category = await prisma.category.findUnique({ where: { id } });
+            const category = await findAvailableCategory(id, req.vendorProfileId!);
 
             if (!category) {
                 res.status(404).json({ success: false, message: 'Category not found' });
                 return;
             }
 
-            if (
-                category.vendorProfileId !== req.vendorProfileId ||
-                category.vendorProfileId === null
-            ) {
+            if (category.vendorProfileId === null) {
                 res.status(403).json({
                     success: false,
-                    message: 'Cannot delete system category or category owned by another vendor',
+                    code: 'SYSTEM_CATEGORY_READ_ONLY',
+                    message: 'System categories are read-only',
                 });
                 return;
             }

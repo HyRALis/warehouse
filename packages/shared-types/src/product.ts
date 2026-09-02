@@ -28,7 +28,7 @@ export interface UpdateProductRequest {
     categoryId?: string;
     sku?: string;
     baseName?: string;
-    barcode?: string;
+    barcode?: string | null;
     characteristics?: Characteristic[];
     status?: ProductStatus;
 }
