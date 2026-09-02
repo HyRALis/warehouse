@@ -27,7 +27,7 @@ describe('LoginPage', () => {
             'owner@example.test',
             'correct horse battery staple'
         );
-        expect(mocks.push).toHaveBeenCalledWith('/two-factor');
+        expect(mocks.push).toHaveBeenCalledWith('/two-factor?returnTo=%2Fdashboard');
     });
 
     it('explains the one-time session migration reauthentication', () => {
