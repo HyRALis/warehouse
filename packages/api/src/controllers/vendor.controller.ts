@@ -5,12 +5,29 @@ import { auth } from '../auth';
 import { AuthRequest } from '../middleware/auth';
 import { applyBetterAuthHeaders } from '../services/better-auth-response.service';
 
+const isOwner = (role: string | undefined): boolean =>
+    role
+        ?.split(',')
+        .map((value) => value.trim())
+        .includes('owner') ?? false;
+
+const requireOwner = (req: AuthRequest, res: Response): boolean => {
+    if (isOwner(req.memberRole) && req.vendorId) return false;
+    res.status(403).json({
+        success: false,
+        code: 'OWNER_REQUIRED',
+        message: 'Only an Organization Owner can change or deactivate the Vendor Profile',
+    });
+    return true;
+};
+
 export class VendorController {
     /**
      * Update vendor profile
      */
     static async updateProfile(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
+            if (requireOwner(req, res)) return;
             const { companyName } = req.body;
             const email = req.body.email?.trim().toLowerCase();
             const vendorId = req.vendorId!;
@@ -49,6 +66,12 @@ export class VendorController {
                         ...(email && { email, emailVerified: false }),
                     },
                 });
+                if (companyName) {
+                    await transaction.vendorProfile.update({
+                        where: { id: req.vendorProfileId! },
+                        data: { displayName: companyName },
+                    });
+                }
                 return vendor;
             });
 
@@ -63,6 +86,7 @@ export class VendorController {
      */
     static async deleteAccount(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
+            if (requireOwner(req, res)) return;
             const vendorId = req.vendorId!;
 
             const { headers } = await auth.api.signOut({
@@ -84,6 +108,10 @@ export class VendorController {
                 await transaction.vendor.update({
                     where: { id: vendorId },
                     data: { deletedAt: new Date(), tokenVersion: { increment: 1 } },
+                });
+                await transaction.vendorProfile.updateMany({
+                    where: { legacyVendorId: vendorId, deletedAt: null },
+                    data: { deletedAt: new Date() },
                 });
             });
 

@@ -5,9 +5,9 @@ import { AuthRequest } from '../middleware/auth';
 const categorySearchText = (name: string, aliases: string[] = [], parentName?: string): string =>
     [name, ...aliases, parentName].filter(Boolean).join(' ').trim().toLocaleLowerCase();
 
-const findAvailableTemplate = (id: string, vendorId: string) =>
+const findAvailableTemplate = (id: string, vendorProfileId: string) =>
     prisma.characteristicTemplate.findFirst({
-        where: { id, OR: [{ vendorId: null }, { vendorId }] },
+        where: { id, OR: [{ vendorProfileId: null }, { vendorProfileId }] },
         select: { id: true },
     });
 
@@ -19,7 +19,7 @@ export class CategoryController {
         try {
             const categories = await prisma.category.findMany({
                 where: {
-                    OR: [{ vendorId: null }, { vendorId: req.vendorId }],
+                    OR: [{ vendorProfileId: null }, { vendorProfileId: req.vendorProfileId }],
                 },
                 include: {
                     parent: { select: { id: true, name: true } },
@@ -50,7 +50,7 @@ export class CategoryController {
                 const parent = await prisma.category.findFirst({
                     where: {
                         id: parentId,
-                        OR: [{ vendorId: null }, { vendorId: req.vendorId }],
+                        OR: [{ vendorProfileId: null }, { vendorProfileId: req.vendorProfileId }],
                     },
                     select: { id: true, name: true },
                 });
@@ -65,7 +65,10 @@ export class CategoryController {
                 parentName = parent.name;
             }
 
-            if (defaultTemplateId && !(await findAvailableTemplate(defaultTemplateId, req.vendorId!))) {
+            if (
+                defaultTemplateId &&
+                !(await findAvailableTemplate(defaultTemplateId, req.vendorProfileId!))
+            ) {
                 res.status(400).json({
                     success: false,
                     code: 'TEMPLATE_NOT_AVAILABLE',
@@ -81,6 +84,7 @@ export class CategoryController {
                     defaultTemplateId,
                     aliases,
                     vendorId: req.vendorId!,
+                    vendorProfileId: req.vendorProfileId!,
                     searchText: categorySearchText(name, aliases, parentName),
                 },
             });
@@ -105,7 +109,10 @@ export class CategoryController {
                 return;
             }
 
-            if (category.vendorId !== req.vendorId || category.vendorId === null) {
+            if (
+                category.vendorProfileId !== req.vendorProfileId ||
+                category.vendorProfileId === null
+            ) {
                 res.status(403).json({
                     success: false,
                     message: 'Cannot edit system category or category owned by another vendor',
@@ -114,29 +121,47 @@ export class CategoryController {
             }
 
             if (parentId === id) {
-                res.status(400).json({ success: false, message: 'A category cannot be its own parent' });
+                res.status(400).json({
+                    success: false,
+                    message: 'A category cannot be its own parent',
+                });
                 return;
             }
 
             let parentName: string | undefined;
             if (parentId) {
                 let parent = await prisma.category.findFirst({
-                    where: { id: parentId, OR: [{ vendorId: null }, { vendorId: req.vendorId }] },
+                    where: {
+                        id: parentId,
+                        OR: [{ vendorProfileId: null }, { vendorProfileId: req.vendorProfileId }],
+                    },
                     select: { id: true, name: true, parentId: true },
                 });
                 if (!parent) {
-                    res.status(400).json({ success: false, message: 'Parent category is not available' });
+                    res.status(400).json({
+                        success: false,
+                        message: 'Parent category is not available',
+                    });
                     return;
                 }
                 parentName = parent.name;
                 while (parent) {
                     if (parent.id === id) {
-                        res.status(400).json({ success: false, message: 'A category cannot be moved below one of its subcategories' });
+                        res.status(400).json({
+                            success: false,
+                            message: 'A category cannot be moved below one of its subcategories',
+                        });
                         return;
                     }
                     if (!parent.parentId) break;
                     parent = await prisma.category.findFirst({
-                        where: { id: parent.parentId, OR: [{ vendorId: null }, { vendorId: req.vendorId }] },
+                        where: {
+                            id: parent.parentId,
+                            OR: [
+                                { vendorProfileId: null },
+                                { vendorProfileId: req.vendorProfileId },
+                            ],
+                        },
                         select: { id: true, name: true, parentId: true },
                     });
                 }
@@ -148,8 +173,14 @@ export class CategoryController {
                 parentName = currentParent?.name;
             }
 
-            if (defaultTemplateId && !(await findAvailableTemplate(defaultTemplateId, req.vendorId!))) {
-                res.status(400).json({ success: false, message: 'Default template is not available' });
+            if (
+                defaultTemplateId &&
+                !(await findAvailableTemplate(defaultTemplateId, req.vendorProfileId!))
+            ) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Default template is not available',
+                });
                 return;
             }
 
@@ -187,7 +218,10 @@ export class CategoryController {
                 return;
             }
 
-            if (category.vendorId !== req.vendorId || category.vendorId === null) {
+            if (
+                category.vendorProfileId !== req.vendorProfileId ||
+                category.vendorProfileId === null
+            ) {
                 res.status(403).json({
                     success: false,
                     message: 'Cannot delete system category or category owned by another vendor',

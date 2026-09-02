@@ -5,3 +5,4 @@ export * from './template.js';
 export * from './common.js';
 export * from './search.js';
 export * from './bulk.js';
+export * from './platform.js';

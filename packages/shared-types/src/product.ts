@@ -62,6 +62,8 @@ export interface UpdateProductVersionRequest {
 export interface ProductResponse {
     id: string;
     vendorId: string;
+    /** Primary catalog owner. vendorId remains during the authentication cleanup window. */
+    vendorProfileId?: string;
     categoryId: string;
     sku: string;
     baseName: string;
@@ -90,6 +92,8 @@ export interface ProductVersionResponse {
     id: string;
     productId: string;
     vendorId: string;
+    /** Primary catalog owner. vendorId remains during the authentication cleanup window. */
+    vendorProfileId?: string;
     versionNumber: number;
     label: string;
     sku: string;

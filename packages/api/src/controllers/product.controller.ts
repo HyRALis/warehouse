@@ -36,7 +36,9 @@ const serializeProduct = <
         versions?: Array<{ isPrimary: boolean; status: ProductStatus }>;
         _count?: { versions: number };
     },
->(product: T) => {
+>(
+    product: T
+) => {
     const versions = (product.versions || []).map((version) => ({
         ...version,
         effectiveStatus: getEffectiveStatus(product.status, version.status),
@@ -93,7 +95,7 @@ const csvRowError = (
     value?: string
 ): CsvImportRowError => ({ row, code, message, ...(field && { field }), ...(value && { value }) });
 
-const generateSku = async (vendorId: string, baseName: string): Promise<string> => {
+const generateSku = async (vendorProfileId: string, baseName: string): Promise<string> => {
     const prefix =
         baseName
             .normalize('NFKD')
@@ -106,9 +108,12 @@ const generateSku = async (vendorId: string, baseName: string): Promise<string> 
         const suffix = Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, '0');
         const candidate = `${prefix}-${suffix}`;
         const [product, version] = await Promise.all([
-            prisma.product.findFirst({ where: { vendorId, sku: candidate }, select: { id: true } }),
+            prisma.product.findFirst({
+                where: { vendorProfileId, sku: candidate },
+                select: { id: true },
+            }),
             prisma.productVersion.findFirst({
-                where: { vendorId, sku: candidate },
+                where: { vendorProfileId, sku: candidate },
                 select: { id: true },
             }),
         ]);
@@ -139,7 +144,7 @@ export class ProductController {
             }
 
             const where: Prisma.ProductWhereInput = {
-                vendorId: req.vendorId,
+                vendorProfileId: req.vendorProfileId,
                 deletedAt: null,
             };
 
@@ -187,7 +192,7 @@ export class ProductController {
         try {
             const { id } = req.params;
             const product = await prisma.product.findFirst({
-                where: { id, vendorId: req.vendorId, deletedAt: null },
+                where: { id, vendorProfileId: req.vendorProfileId, deletedAt: null },
                 include: productInclude,
             });
 
@@ -220,11 +225,12 @@ export class ProductController {
                 status,
             } = req.body;
             const vendorId = req.vendorId!;
+            const vendorProfileId = req.vendorProfileId!;
 
             const category = await prisma.category.findFirst({
                 where: {
                     id: categoryId,
-                    OR: [{ vendorId: null }, { vendorId }],
+                    OR: [{ vendorProfileId: null }, { vendorProfileId }],
                 },
                 select: { id: true, name: true },
             });
@@ -236,8 +242,9 @@ export class ProductController {
 
             const parsedCharacteristics: Prisma.InputJsonValue =
                 typeof characteristics === 'string' ? JSON.parse(characteristics) : characteristics;
-            const resolvedSku = sku?.trim() || (await generateSku(vendorId, baseName));
-            const resolvedProductStatus: ProductStatus = productStatus || status || ProductStatus.DRAFT;
+            const resolvedSku = sku?.trim() || (await generateSku(vendorProfileId, baseName));
+            const resolvedProductStatus: ProductStatus =
+                productStatus || status || ProductStatus.DRAFT;
             const resolvedVersionStatus: ProductStatus = versionStatus || ProductStatus.DRAFT;
             const searchText = buildSearchText(baseName, resolvedSku, barcode, category.name);
 
@@ -252,6 +259,7 @@ export class ProductController {
                         status: resolvedProductStatus,
                         searchText,
                         vendorId,
+                        vendorProfileId,
                     },
                 });
 
@@ -259,6 +267,7 @@ export class ProductController {
                     data: {
                         productId: newProduct.id,
                         vendorId,
+                        vendorProfileId,
                         versionNumber: 1,
                         label: 'Original',
                         sku: resolvedSku,
@@ -318,10 +327,10 @@ export class ProductController {
         try {
             const { id } = req.params;
             const { categoryId, sku, baseName, barcode, characteristics, status } = req.body;
-            const vendorId = req.vendorId!;
+            const vendorProfileId = req.vendorProfileId!;
 
             const product = await prisma.product.findFirst({
-                where: { id, vendorId, deletedAt: null },
+                where: { id, vendorProfileId, deletedAt: null },
                 include: { category: { select: { name: true } } },
             });
 
@@ -335,7 +344,7 @@ export class ProductController {
                 const category = await prisma.category.findFirst({
                     where: {
                         id: categoryId,
-                        OR: [{ vendorId: null }, { vendorId }],
+                        OR: [{ vendorProfileId: null }, { vendorProfileId }],
                     },
                     select: { id: true, name: true },
                 });
@@ -387,7 +396,7 @@ export class ProductController {
             const { id } = req.params;
 
             const product = await prisma.product.findFirst({
-                where: { id, vendorId: req.vendorId, deletedAt: null },
+                where: { id, vendorProfileId: req.vendorProfileId, deletedAt: null },
             });
 
             if (!product) {
@@ -414,7 +423,7 @@ export class ProductController {
             const { id } = req.params;
 
             const product = await prisma.product.findFirst({
-                where: { id, vendorId: req.vendorId, deletedAt: null },
+                where: { id, vendorProfileId: req.vendorProfileId, deletedAt: null },
                 include: {
                     images: true,
                     versions: {
@@ -468,7 +477,7 @@ export class ProductController {
             const { id, imageId } = req.params;
 
             const product = await prisma.product.findFirst({
-                where: { id, vendorId: req.vendorId, deletedAt: null },
+                where: { id, vendorProfileId: req.vendorProfileId, deletedAt: null },
             });
 
             if (!product) {
@@ -521,7 +530,11 @@ export class ProductController {
     static async importCSV(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             if (!req.file) {
-                res.status(400).json({ success: false, code: 'CSV_FILE_REQUIRED', message: 'No CSV file provided' });
+                res.status(400).json({
+                    success: false,
+                    code: 'CSV_FILE_REQUIRED',
+                    message: 'No CSV file provided',
+                });
                 return;
             }
 
@@ -534,7 +547,11 @@ export class ProductController {
                     bom: true,
                 }) as Record<string, string>[];
             } catch {
-                res.status(400).json({ success: false, code: 'CSV_PARSE_ERROR', message: 'The CSV file could not be parsed' });
+                res.status(400).json({
+                    success: false,
+                    code: 'CSV_PARSE_ERROR',
+                    message: 'The CSV file could not be parsed',
+                });
                 return;
             }
 
@@ -547,15 +564,21 @@ export class ProductController {
                 return;
             }
             if (records.length === 0) {
-                res.status(400).json({ success: false, code: 'CSV_EMPTY', message: 'The CSV file has no product rows' });
+                res.status(400).json({
+                    success: false,
+                    code: 'CSV_EMPTY',
+                    message: 'The CSV file has no product rows',
+                });
                 return;
             }
 
             const vendorId = req.vendorId!;
-            const categories = (await prisma.category.findMany({
-                where: { OR: [{ vendorId: null }, { vendorId }] },
-                select: { id: true, code: true, name: true },
-            })) || [];
+            const vendorProfileId = req.vendorProfileId!;
+            const categories =
+                (await prisma.category.findMany({
+                    where: { OR: [{ vendorProfileId: null }, { vendorProfileId }] },
+                    select: { id: true, code: true, name: true },
+                })) || [];
             const categoriesByCode = new Map<string, (typeof categories)[number]>();
             const categoriesByName = new Map<string, typeof categories>();
             for (const category of categories) {
@@ -575,8 +598,14 @@ export class ProductController {
                 const rowNumber = i + 2;
                 const productName = normalizeCsvValue(row.productName || row.baseName);
                 const sku = normalizeCsvValue(row.sku);
-                const groupKey = normalizeCsvValue(row.productReference) || `name:${productName.toLowerCase()}`;
-                const fail = (code: CsvImportErrorCode, message: string, field?: string, value?: string) => {
+                const groupKey =
+                    normalizeCsvValue(row.productReference) || `name:${productName.toLowerCase()}`;
+                const fail = (
+                    code: CsvImportErrorCode,
+                    message: string,
+                    field?: string,
+                    value?: string
+                ) => {
                     errors.push(csvRowError(rowNumber, code, message, field, value));
                     if (groupKey && productName) invalidGroups.add(groupKey);
                 };
@@ -589,30 +618,61 @@ export class ProductController {
                 const categoryId = normalizeCsvValue(row.categoryId);
                 const categoryCode = normalizeCsvValue(row.categoryCode).toLowerCase();
                 const categoryName = normalizeCsvValue(row.categoryName).toLowerCase();
-                if (categoryId) category = categories.find((candidate) => candidate.id === categoryId);
+                if (categoryId)
+                    category = categories.find((candidate) => candidate.id === categoryId);
                 else if (categoryCode) category = categoriesByCode.get(categoryCode);
                 else if (categoryName) {
                     const matches = categoriesByName.get(categoryName) || [];
                     if (matches.length > 1) {
-                        fail('CATEGORY_AMBIGUOUS', 'Category name matches multiple available categories; use categoryCode', 'categoryName', row.categoryName);
+                        fail(
+                            'CATEGORY_AMBIGUOUS',
+                            'Category name matches multiple available categories; use categoryCode',
+                            'categoryName',
+                            row.categoryName
+                        );
                         continue;
                     }
                     category = matches[0];
                 }
                 if (!category) {
-                    const categoryField = categoryId ? 'categoryId' : categoryCode ? 'categoryCode' : 'categoryName';
-                    fail('CATEGORY_NOT_AVAILABLE', 'Category code or name is not available', categoryField, row.categoryId || row.categoryCode || row.categoryName);
+                    const categoryField = categoryId
+                        ? 'categoryId'
+                        : categoryCode
+                          ? 'categoryCode'
+                          : 'categoryName';
+                    fail(
+                        'CATEGORY_NOT_AVAILABLE',
+                        'Category code or name is not available',
+                        categoryField,
+                        row.categoryId || row.categoryCode || row.categoryName
+                    );
                     continue;
                 }
 
-                const productStatus = parseCsvStatus(normalizeCsvValue(row.productStatus || row.status), ProductStatus.DRAFT);
+                const productStatus = parseCsvStatus(
+                    normalizeCsvValue(row.productStatus || row.status),
+                    ProductStatus.DRAFT
+                );
                 if (!productStatus) {
-                    fail('INVALID_PRODUCT_STATUS', 'Product status must be DRAFT, ACTIVE, or DISCONTINUED', 'productStatus', row.productStatus || row.status);
+                    fail(
+                        'INVALID_PRODUCT_STATUS',
+                        'Product status must be DRAFT, ACTIVE, or DISCONTINUED',
+                        'productStatus',
+                        row.productStatus || row.status
+                    );
                     continue;
                 }
-                const versionStatus = parseCsvStatus(normalizeCsvValue(row.versionStatus), ProductStatus.DRAFT);
+                const versionStatus = parseCsvStatus(
+                    normalizeCsvValue(row.versionStatus),
+                    ProductStatus.DRAFT
+                );
                 if (!versionStatus) {
-                    fail('INVALID_VERSION_STATUS', 'Version status must be DRAFT, ACTIVE, or DISCONTINUED', 'versionStatus', row.versionStatus);
+                    fail(
+                        'INVALID_VERSION_STATUS',
+                        'Version status must be DRAFT, ACTIVE, or DISCONTINUED',
+                        'versionStatus',
+                        row.versionStatus
+                    );
                     continue;
                 }
 
@@ -620,24 +680,39 @@ export class ProductController {
                 try {
                     if (normalizeCsvValue(row.characteristics)) {
                         const parsed = JSON.parse(row.characteristics);
-                        if (!Array.isArray(parsed)) throw new Error('Characteristics must be an array');
+                        if (!Array.isArray(parsed))
+                            throw new Error('Characteristics must be an array');
                         characteristics = parsed;
                     }
                 } catch {
-                    fail('INVALID_CHARACTERISTICS', 'Characteristics must be a valid JSON array', 'characteristics');
+                    fail(
+                        'INVALID_CHARACTERISTICS',
+                        'Characteristics must be a valid JSON array',
+                        'characteristics'
+                    );
                     continue;
                 }
 
                 const primaryValue = normalizeCsvValue(row.isPrimary);
                 const isPrimary = parseCsvBoolean(primaryValue);
                 if (primaryValue && isPrimary === null) {
-                    fail('INVALID_PRIMARY_FLAG', 'isPrimary must be true or false', 'isPrimary', row.isPrimary);
+                    fail(
+                        'INVALID_PRIMARY_FLAG',
+                        'isPrimary must be true or false',
+                        'isPrimary',
+                        row.isPrimary
+                    );
                     continue;
                 }
 
                 const normalizedSku = sku.toLowerCase();
                 if (seenSkus.has(normalizedSku)) {
-                    fail('IDENTIFIER_CONFLICT', `SKU duplicates row ${seenSkus.get(normalizedSku)}`, 'sku', sku);
+                    fail(
+                        'IDENTIFIER_CONFLICT',
+                        `SKU duplicates row ${seenSkus.get(normalizedSku)}`,
+                        'sku',
+                        sku
+                    );
                     continue;
                 }
                 seenSkus.set(normalizedSku, rowNumber);
@@ -646,7 +721,12 @@ export class ProductController {
                 if (barcode) {
                     const normalizedBarcode = barcode.toLowerCase();
                     if (seenBarcodes.has(normalizedBarcode)) {
-                        fail('IDENTIFIER_CONFLICT', `Barcode duplicates row ${seenBarcodes.get(normalizedBarcode)}`, 'barcode', barcode);
+                        fail(
+                            'IDENTIFIER_CONFLICT',
+                            `Barcode duplicates row ${seenBarcodes.get(normalizedBarcode)}`,
+                            'barcode',
+                            barcode
+                        );
                         continue;
                     }
                     seenBarcodes.set(normalizedBarcode, rowNumber);
@@ -670,40 +750,107 @@ export class ProductController {
             }
 
             const groups = new Map<string, NormalizedCsvRow[]>();
-            for (const row of normalizedRows) groups.set(row.groupKey, [...(groups.get(row.groupKey) || []), row]);
+            for (const row of normalizedRows)
+                groups.set(row.groupKey, [...(groups.get(row.groupKey) || []), row]);
             for (const [groupKey, rows] of groups) {
                 const first = rows[0];
-                const inconsistent = rows.some((row) => row.productName !== first.productName || row.categoryId !== first.categoryId || row.productStatus !== first.productStatus);
+                const inconsistent = rows.some(
+                    (row) =>
+                        row.productName !== first.productName ||
+                        row.categoryId !== first.categoryId ||
+                        row.productStatus !== first.productStatus
+                );
                 if (inconsistent) {
                     invalidGroups.add(groupKey);
-                    for (const row of rows) errors.push(csvRowError(row.row, 'PRODUCT_CONFLICT', 'Rows with the same productReference must use the same product name, category, and product status'));
+                    for (const row of rows)
+                        errors.push(
+                            csvRowError(
+                                row.row,
+                                'PRODUCT_CONFLICT',
+                                'Rows with the same productReference must use the same product name, category, and product status'
+                            )
+                        );
                 }
                 if (rows.filter((row) => row.isPrimary === true).length > 1) {
                     invalidGroups.add(groupKey);
-                    for (const row of rows.filter((row) => row.isPrimary === true)) errors.push(csvRowError(row.row, 'MULTIPLE_PRIMARY_VERSIONS', 'Only one version can be primary for a product', 'isPrimary'));
+                    for (const row of rows.filter((row) => row.isPrimary === true))
+                        errors.push(
+                            csvRowError(
+                                row.row,
+                                'MULTIPLE_PRIMARY_VERSIONS',
+                                'Only one version can be primary for a product',
+                                'isPrimary'
+                            )
+                        );
                 }
             }
 
             const candidateRows = normalizedRows.filter((row) => !invalidGroups.has(row.groupKey));
             const skus = candidateRows.map((row) => row.sku);
-            const barcodes = candidateRows.map((row) => row.barcode).filter((value): value is string => Boolean(value));
+            const barcodes = candidateRows
+                .map((row) => row.barcode)
+                .filter((value): value is string => Boolean(value));
             const [existingProductsRaw, existingVersionsRaw] = await Promise.all([
-                prisma.product.findMany({ where: { vendorId, deletedAt: null, OR: [{ sku: { in: skus } }, ...(barcodes.length ? [{ barcode: { in: barcodes } }] : [])] }, select: { sku: true, barcode: true } }),
-                prisma.productVersion.findMany({ where: { vendorId, deletedAt: null, OR: [{ sku: { in: skus } }, ...(barcodes.length ? [{ barcode: { in: barcodes } }] : [])] }, select: { sku: true, barcode: true } }),
+                prisma.product.findMany({
+                    where: {
+                        vendorProfileId,
+                        deletedAt: null,
+                        OR: [
+                            { sku: { in: skus } },
+                            ...(barcodes.length ? [{ barcode: { in: barcodes } }] : []),
+                        ],
+                    },
+                    select: { sku: true, barcode: true },
+                }),
+                prisma.productVersion.findMany({
+                    where: {
+                        vendorProfileId,
+                        deletedAt: null,
+                        OR: [
+                            { sku: { in: skus } },
+                            ...(barcodes.length ? [{ barcode: { in: barcodes } }] : []),
+                        ],
+                    },
+                    select: { sku: true, barcode: true },
+                }),
             ]);
             const existingProducts = existingProductsRaw || [];
             const existingVersions = existingVersionsRaw || [];
             for (const row of candidateRows) {
-                if (existingProducts.some((item) => item.sku === row.sku || (row.barcode && item.barcode === row.barcode)) || existingVersions.some((item) => item.sku === row.sku || (row.barcode && item.barcode === row.barcode))) {
+                if (
+                    existingProducts.some(
+                        (item) =>
+                            item.sku === row.sku || (row.barcode && item.barcode === row.barcode)
+                    ) ||
+                    existingVersions.some(
+                        (item) =>
+                            item.sku === row.sku || (row.barcode && item.barcode === row.barcode)
+                    )
+                ) {
                     invalidGroups.add(row.groupKey);
-                    errors.push(csvRowError(row.row, 'IDENTIFIER_CONFLICT', 'SKU or barcode is already used by this vendor', row.barcode ? 'sku/barcode' : 'sku', row.sku));
+                    errors.push(
+                        csvRowError(
+                            row.row,
+                            'IDENTIFIER_CONFLICT',
+                            'SKU or barcode is already used by this vendor',
+                            row.barcode ? 'sku/barcode' : 'sku',
+                            row.sku
+                        )
+                    );
                 }
             }
 
             for (const [groupKey, rows] of groups) {
                 if (!invalidGroups.has(groupKey)) continue;
                 for (const row of rows) {
-                    if (!errors.some((error) => error.row === row.row)) errors.push(csvRowError(row.row, 'PRODUCT_CONFLICT', 'This product was skipped because another version row is invalid'));
+                    if (!errors.some((error) => error.row === row.row))
+                        errors.push(
+                            csvRowError(
+                                row.row,
+                                'PRODUCT_CONFLICT',
+                                'This product was skipped because another version row is invalid'
+                            )
+                        );
                 }
             }
 
@@ -713,46 +860,70 @@ export class ProductController {
                 if (invalidGroups.has(groupKey)) continue;
                 const primary = rows.find((row) => row.isPrimary === true) || rows[0];
                 try {
-                    const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-                        const product = await tx.product.create({
-                            data: {
-                                vendorId,
-                                categoryId: primary.categoryId,
-                                baseName: primary.productName,
-                                sku: primary.sku,
-                                barcode: primary.barcode,
-                                status: primary.productStatus,
-                                characteristics: primary.characteristics,
-                                searchText: buildSearchText(primary.productName, primary.sku, primary.barcode, primary.categoryName),
-                            },
-                        });
-                        const versions: Array<{ id: string; isPrimary: boolean }> = [];
-                        for (let index = 0; index < rows.length; index += 1) {
-                            const row = rows[index];
-                            versions.push(await tx.productVersion.create({
+                    const created = await prisma.$transaction(
+                        async (tx: Prisma.TransactionClient) => {
+                            const product = await tx.product.create({
                                 data: {
-                                    productId: product.id,
                                     vendorId,
-                                    versionNumber: index + 1,
-                                    label: row.versionLabel,
-                                    sku: row.sku,
-                                    barcode: row.barcode,
-                                    status: row.versionStatus,
-                                    characteristics: row.characteristics,
-                                    designNotes: row.designNotes,
-                                    isPrimary: row === primary,
-                                    searchText: buildSearchText(row.productName, row.versionLabel, row.sku, row.barcode, row.categoryName),
+                                    vendorProfileId,
+                                    categoryId: primary.categoryId,
+                                    baseName: primary.productName,
+                                    sku: primary.sku,
+                                    barcode: primary.barcode,
+                                    status: primary.productStatus,
+                                    characteristics: primary.characteristics,
+                                    searchText: buildSearchText(
+                                        primary.productName,
+                                        primary.sku,
+                                        primary.barcode,
+                                        primary.categoryName
+                                    ),
                                 },
-                            }));
+                            });
+                            const versions: Array<{ id: string; isPrimary: boolean }> = [];
+                            for (let index = 0; index < rows.length; index += 1) {
+                                const row = rows[index];
+                                versions.push(
+                                    await tx.productVersion.create({
+                                        data: {
+                                            productId: product.id,
+                                            vendorId,
+                                            vendorProfileId,
+                                            versionNumber: index + 1,
+                                            label: row.versionLabel,
+                                            sku: row.sku,
+                                            barcode: row.barcode,
+                                            status: row.versionStatus,
+                                            characteristics: row.characteristics,
+                                            designNotes: row.designNotes,
+                                            isPrimary: row === primary,
+                                            searchText: buildSearchText(
+                                                row.productName,
+                                                row.versionLabel,
+                                                row.sku,
+                                                row.barcode,
+                                                row.categoryName
+                                            ),
+                                        },
+                                    })
+                                );
+                            }
+                            return { productId: product.id, versions };
                         }
-                        return { productId: product.id, versions };
-                    });
+                    );
 
                     for (const version of created.versions) {
                         try {
                             const qrCodeUrl = await QRCodeService.generateQRCode(version.id);
-                            await prisma.productVersion.update({ where: { id: version.id }, data: { qrCodeUrl } });
-                            if (version.isPrimary) await prisma.product.update({ where: { id: created.productId }, data: { qrCodeUrl } });
+                            await prisma.productVersion.update({
+                                where: { id: version.id },
+                                data: { qrCodeUrl },
+                            });
+                            if (version.isPrimary)
+                                await prisma.product.update({
+                                    where: { id: created.productId },
+                                    data: { qrCodeUrl },
+                                });
                         } catch {
                             // Optional QR rendering must not roll back an otherwise valid CSV import.
                         }
@@ -760,8 +931,14 @@ export class ProductController {
                     importedProducts += 1;
                     importedVersions += rows.length;
                 } catch (error) {
-                    const code: CsvImportErrorCode = (error as { code?: string }).code === 'P2002' ? 'IDENTIFIER_CONFLICT' : 'IMPORT_FAILED';
-                    const message = code === 'IDENTIFIER_CONFLICT' ? 'SKU or barcode is already used by this vendor' : 'The product could not be imported';
+                    const code: CsvImportErrorCode =
+                        (error as { code?: string }).code === 'P2002'
+                            ? 'IDENTIFIER_CONFLICT'
+                            : 'IMPORT_FAILED';
+                    const message =
+                        code === 'IDENTIFIER_CONFLICT'
+                            ? 'SKU or barcode is already used by this vendor'
+                            : 'The product could not be imported';
                     for (const row of rows) errors.push(csvRowError(row.row, code, message));
                 }
             }
@@ -772,7 +949,13 @@ export class ProductController {
             res.status(200).json({
                 success: true,
                 message: errors.length ? 'Import completed with row errors' : 'Import completed',
-                data: { imported: importedProducts, importedProducts, importedVersions, failedRows, errors },
+                data: {
+                    imported: importedProducts,
+                    importedProducts,
+                    importedVersions,
+                    failedRows,
+                    errors,
+                },
             });
         } catch (error) {
             next(error);
@@ -785,7 +968,7 @@ export class ProductController {
     static async exportCSV(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const products = await prisma.product.findMany({
-                where: { vendorId: req.vendorId, deletedAt: null },
+                where: { vendorProfileId: req.vendorProfileId, deletedAt: null },
                 include: {
                     category: true,
                     versions: { where: { deletedAt: null }, orderBy: { versionNumber: 'asc' } },
@@ -793,20 +976,22 @@ export class ProductController {
                 orderBy: [{ baseName: 'asc' }, { createdAt: 'asc' }],
             });
 
-            const csvData = products.flatMap((product) => product.versions.map((version) => ({
-                productReference: product.id,
-                productName: product.baseName,
-                categoryCode: product.category?.code || '',
-                categoryName: product.category?.name || '',
-                productStatus: product.status,
-                versionLabel: version.label,
-                versionStatus: version.status,
-                sku: version.sku,
-                barcode: version.barcode || '',
-                characteristics: JSON.stringify(version.characteristics),
-                designNotes: version.designNotes || '',
-                isPrimary: version.isPrimary,
-            })));
+            const csvData = products.flatMap((product) =>
+                product.versions.map((version) => ({
+                    productReference: product.id,
+                    productName: product.baseName,
+                    categoryCode: product.category?.code || '',
+                    categoryName: product.category?.name || '',
+                    productStatus: product.status,
+                    versionLabel: version.label,
+                    versionStatus: version.status,
+                    sku: version.sku,
+                    barcode: version.barcode || '',
+                    characteristics: JSON.stringify(version.characteristics),
+                    designNotes: version.designNotes || '',
+                    isPrimary: version.isPrimary,
+                }))
+            );
 
             const csvString = stringify(csvData, { header: true });
 

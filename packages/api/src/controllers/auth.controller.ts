@@ -7,6 +7,7 @@ import { auth } from '../auth';
 import { AuthRequest } from '../middleware/auth';
 import { applyBetterAuthHeaders } from '../services/better-auth-response.service';
 import { hashPassword, isLegacyBcryptHash } from '../services/password.service';
+import { createVendorProfile, VENDOR_PORTAL_KEY } from '../services/vendor-profile.service';
 
 const publicVendor = (vendor: {
     id: string;
@@ -77,7 +78,7 @@ export class AuthController {
                             createdAt: now,
                         },
                     });
-                    await transaction.member.create({
+                    const ownerMember = await transaction.member.create({
                         data: {
                             id: crypto.randomUUID(),
                             organizationId,
@@ -85,6 +86,39 @@ export class AuthController {
                             role: 'owner',
                             createdAt: now,
                         },
+                    });
+                    await transaction.portal.upsert({
+                        where: { key: VENDOR_PORTAL_KEY },
+                        create: {
+                            key: VENDOR_PORTAL_KEY,
+                            name: 'Vendor Portal',
+                            description: 'Producer and vendor catalog management portal',
+                        },
+                        update: { name: 'Vendor Portal' },
+                    });
+                    await transaction.organizationPortalSubscription.create({
+                        data: {
+                            organizationId,
+                            portalKey: VENDOR_PORTAL_KEY,
+                            status: 'ACTIVE',
+                            startsAt: now,
+                        },
+                    });
+                    await transaction.memberPortalAccess.create({
+                        data: {
+                            memberId: ownerMember.id,
+                            portalKey: VENDOR_PORTAL_KEY,
+                            enabled: true,
+                            grantedByUserId: userId,
+                            updatedByUserId: userId,
+                        },
+                    });
+                    await createVendorProfile(transaction, {
+                        organizationId,
+                        profileId: vendorId,
+                        profileKey: 'primary',
+                        displayName: companyName,
+                        legacyVendorId: vendorId,
                     });
                     return createdVendor;
                 },

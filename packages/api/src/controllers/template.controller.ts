@@ -12,7 +12,9 @@ export class TemplateController {
     static async list(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const templates = await prisma.characteristicTemplate.findMany({
-                where: { OR: [{ vendorId: null }, { vendorId: req.vendorId }] },
+                where: {
+                    OR: [{ vendorProfileId: null }, { vendorProfileId: req.vendorProfileId }],
+                },
                 include: { _count: { select: { defaultForCategories: true } } },
                 orderBy: [{ vendorId: 'asc' }, { name: 'asc' }],
             });
@@ -29,7 +31,10 @@ export class TemplateController {
         try {
             const { id } = req.params;
             const template = await prisma.characteristicTemplate.findFirst({
-                where: { id, OR: [{ vendorId: null }, { vendorId: req.vendorId }] },
+                where: {
+                    id,
+                    OR: [{ vendorProfileId: null }, { vendorProfileId: req.vendorProfileId }],
+                },
                 include: { _count: { select: { defaultForCategories: true } } },
             });
 
@@ -48,7 +53,7 @@ export class TemplateController {
     static async duplicate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const source = await prisma.characteristicTemplate.findFirst({
-                where: { id: req.params.id, vendorId: null },
+                where: { id: req.params.id, vendorProfileId: null },
             });
             if (!source) {
                 res.status(404).json({ success: false, message: 'System template not found' });
@@ -59,6 +64,7 @@ export class TemplateController {
             const template = await prisma.characteristicTemplate.create({
                 data: {
                     vendorId: req.vendorId!,
+                    vendorProfileId: req.vendorProfileId!,
                     name,
                     fields: source.fields as Prisma.InputJsonValue,
                     searchText: templateSearchText(name, source.fields),
@@ -81,6 +87,7 @@ export class TemplateController {
                     name,
                     fields,
                     vendorId: req.vendorId!,
+                    vendorProfileId: req.vendorProfileId!,
                     searchText: templateSearchText(name, fields),
                 },
             });
@@ -104,7 +111,10 @@ export class TemplateController {
                 res.status(404).json({ success: false, message: 'Template not found' });
                 return;
             }
-            if (template.vendorId !== req.vendorId || template.vendorId === null) {
+            if (
+                template.vendorProfileId !== req.vendorProfileId ||
+                template.vendorProfileId === null
+            ) {
                 res.status(403).json({ success: false, message: 'Cannot edit this template' });
                 return;
             }
@@ -141,7 +151,10 @@ export class TemplateController {
                 return;
             }
 
-            if (template.vendorId !== req.vendorId || template.vendorId === null) {
+            if (
+                template.vendorProfileId !== req.vendorProfileId ||
+                template.vendorProfileId === null
+            ) {
                 res.status(403).json({ success: false, message: 'Cannot delete this template' });
                 return;
             }
@@ -153,7 +166,8 @@ export class TemplateController {
                 res.status(409).json({
                     success: false,
                     code: 'TEMPLATE_IN_USE',
-                    message: 'Choose another default template for linked categories before deleting',
+                    message:
+                        'Choose another default template for linked categories before deleting',
                     details: { categoriesCount },
                 });
                 return;

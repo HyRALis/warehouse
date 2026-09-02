@@ -8,13 +8,13 @@ import {
     resetPasswordSchema,
 } from '../validators/auth.validators';
 import { authLimiter } from '../middleware/rate-limit';
-import { verifyAuth } from '../middleware/auth';
+import { verifySession } from '../middleware/auth';
 
 const router = Router();
 
 router.post('/register', validate(registerSchema), AuthController.register);
 router.post('/login', authLimiter, validate(loginSchema), AuthController.login);
-router.post('/logout', verifyAuth, AuthController.logout);
+router.post('/logout', verifySession, AuthController.logout);
 router.post(
     '/forgot-password',
     authLimiter,
@@ -27,6 +27,6 @@ router.post(
     validate(resetPasswordSchema),
     AuthController.resetPassword
 );
-router.get('/me', verifyAuth, AuthController.getMe);
+router.get('/me', verifySession, AuthController.getMe);
 
 export default router;
