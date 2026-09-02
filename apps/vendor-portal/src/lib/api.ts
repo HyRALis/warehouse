@@ -1,4 +1,6 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+export const API_ORIGIN =
+    process.env.NEXT_PUBLIC_API_ORIGIN || API_BASE_URL.replace(/\/api\/v1\/?$/, '');
 
 import type {
     AuthResponse,
@@ -7,7 +9,9 @@ import type {
     LoginVendorRequest,
     RegisterVendorRequest,
     UpdateProductRequest,
+    UpdateVendorProfileRequest,
     UniversalSearchResponse,
+    VendorPlatformContext,
 } from '@inventory-system/shared-types';
 
 interface ApiResponse<T> {
@@ -43,12 +47,6 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         headers,
         credentials: 'include',
     });
-
-    if (response.status === 401 && !endpoint.includes('/auth/login')) {
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-            window.location.href = '/login';
-        }
-    }
 
     const data = await response.json().catch(() => ({}));
 
@@ -96,6 +94,25 @@ export const api = {
         }),
     logout: () => request<any>('/auth/logout', { method: 'POST' }),
     getMe: () => request<any>('/auth/me'),
+    forgotPassword: (body: { email: string }) =>
+        request<ApiResponse<never>>('/auth/forgot-password', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        }),
+    resetPassword: (body: { token: string; password: string }) =>
+        request<ApiResponse<never>>('/auth/reset-password', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        }),
+
+    // Platform context
+    getPlatformContext: () => request<ApiResponse<VendorPlatformContext>>('/platform/context'),
+    getVendorProfile: () => request<any>('/platform/vendor-profile'),
+    updateVendorProfile: (body: UpdateVendorProfileRequest) =>
+        request<any>('/platform/vendor-profile', {
+            method: 'PUT',
+            body: JSON.stringify(body),
+        }),
 
     // Products
     getProducts: (params?: Record<string, string | number>) => {
@@ -112,8 +129,7 @@ export const api = {
         request<any>(`/products/${id}/images`, { method: 'POST', body: formData }),
     deleteProductImage: (id: string, imageId: string) =>
         request<any>(`/products/${id}/images/${imageId}`, { method: 'DELETE' }),
-    getProductVersions: (productId: string) =>
-        request<any>(`/products/${productId}/versions`),
+    getProductVersions: (productId: string) => request<any>(`/products/${productId}/versions`),
     getProductVersion: (productId: string, versionId: string) =>
         request<any>(`/products/${productId}/versions/${versionId}`),
     createProductVersion: (productId: string, body: any) =>
@@ -171,7 +187,10 @@ export const api = {
 
     // Bulk Operations
     importCSV: (formData: FormData) =>
-        request<ApiResponse<CsvImportResult>>('/products/import', { method: 'POST', body: formData }),
+        request<ApiResponse<CsvImportResult>>('/products/import', {
+            method: 'POST',
+            body: formData,
+        }),
     exportCSV: async () => {
         const response = await fetch(`${API_BASE_URL}/products/export`, {
             credentials: 'include',

@@ -15,7 +15,7 @@ interface DashboardStats {
 }
 
 export default function DashboardOverview() {
-    const { vendor } = useAuth();
+    const { user, platform } = useAuth();
     const [stats, setStats] = useState<DashboardStats>({
         totalProducts: 0,
         activeProducts: 0,
@@ -56,7 +56,7 @@ export default function DashboardOverview() {
         <div className="mx-auto max-w-7xl space-y-8">
             <div>
                 <h1 className="text-3xl font-bold text-white">
-                    Welcome back, {vendor?.companyName}
+                    Welcome back, {user?.name || platform?.vendorProfile?.displayName}
                 </h1>
                 <p className="mt-2 text-slate-400">
                     Here&apos;s what&apos;s happening with your inventory today.

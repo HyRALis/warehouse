@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
     LayoutDashboard,
     Package,
@@ -40,7 +40,8 @@ export const navigationGroups = [
 
 export default function Sidebar() {
     const pathname = usePathname();
-    const { vendor, logout } = useAuth();
+    const { user, platform, logout } = useAuth();
+    const router = useRouter();
 
     return (
         <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-slate-800 bg-slate-900 text-slate-300 md:flex">
@@ -80,7 +81,9 @@ export default function Sidebar() {
                                                 : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
                                         }`}
                                     >
-                                        <Icon className={`h-5 w-5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                                        <Icon
+                                            className={`h-5 w-5 ${isActive ? 'text-white' : 'text-slate-400'}`}
+                                        />
                                         <span>{item.name}</span>
                                     </Link>
                                 );
@@ -95,14 +98,17 @@ export default function Sidebar() {
                 <div className="flex items-center justify-between">
                     <div className="truncate pr-2">
                         <p className="truncate text-sm font-semibold text-white">
-                            {vendor?.companyName || 'Vendor Company'}
+                            {platform?.vendorProfile?.displayName || 'Vendor Company'}
                         </p>
-                        <p className="truncate text-xs text-slate-500">{vendor?.email}</p>
+                        <p className="truncate text-xs text-slate-500">{user?.email}</p>
                     </div>
                     <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => logout()}
+                        onClick={async () => {
+                            await logout();
+                            router.replace('/login');
+                        }}
                         title="Log Out"
                         className="text-slate-400 hover:bg-rose-500/10 hover:text-rose-400"
                     >
