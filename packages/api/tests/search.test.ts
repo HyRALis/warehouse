@@ -118,7 +118,12 @@ describe('universal search', () => {
         });
 
         const queryValues = mockPrisma.$queryRaw.mock.calls[0].slice(1);
+        const queryText = mockPrisma.$queryRaw.mock.calls[0][0].join(' ');
         expect(queryValues).toContain(vendorId);
+        expect(queryText).toContain('p.vendor_profile_id');
+        expect(queryText).toContain('pv.vendor_profile_id');
+        expect(queryText).toContain('c.vendor_profile_id');
+        expect(queryText).toContain('t.vendor_profile_id');
         expect(queryValues).toContain(false);
         expect(queryValues).toContain(true);
         expect(queryValues).toContain(10);

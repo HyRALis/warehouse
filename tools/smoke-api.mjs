@@ -24,9 +24,7 @@ const registration = await expectResponse(
 );
 
 const setCookie =
-    registration.headers
-        .getSetCookie?.()
-        .find((cookie) => cookie.includes('session_token=')) ||
+    registration.headers.getSetCookie?.().find((cookie) => cookie.includes('session_token=')) ||
     registration.headers.get('set-cookie');
 let sessionCookie = setCookie?.split(';')[0];
 if (!sessionCookie) throw new Error('Registration did not return a session cookie');
@@ -81,9 +79,30 @@ if (!Array.isArray(organizations) || organizations.length !== 1) {
     throw new Error('Registration did not create exactly one Better Auth organization');
 }
 
-const organization = await (
-    await nativeAuthRequest('/organization/get-full-organization')
-).json();
+const platformContext = await (await apiRequest('/api/v1/platform/context')).json();
+if (
+    platformContext.data?.portal?.subscription?.active !== true ||
+    platformContext.data?.portal?.access?.implicit !== true ||
+    platformContext.data?.vendorProfile?.profileKey !== 'primary'
+) {
+    throw new Error('Registration did not create the active Vendor entitlement graph');
+}
+
+const crossProfileAttempt = await fetch(`${baseUrl}/api/v1/products`, {
+    headers: {
+        Cookie: sessionCookie,
+        'X-Vendor-Profile-Id': crypto.randomUUID(),
+    },
+});
+const crossProfileBody = await crossProfileAttempt.json();
+if (
+    crossProfileAttempt.status !== 403 ||
+    crossProfileBody.code !== 'VENDOR_PROFILE_ACCESS_DENIED'
+) {
+    throw new Error('A cross-profile catalog request was not denied');
+}
+
+const organization = await (await nativeAuthRequest('/organization/get-full-organization')).json();
 const owner = organization?.members?.find((member) => member.role === 'owner');
 if (!owner) throw new Error('Registered organization did not contain an Owner member');
 
@@ -159,6 +178,24 @@ const profileResponse = await apiRequest('/api/v1/vendors/me', {
 const profile = await profileResponse.json();
 if (profile.data.companyName !== 'Phase Zero Verified Vendor') {
     throw new Error('Vendor profile response did not contain the updated company name');
+}
+
+const vendorProfile = await (await apiRequest('/api/v1/platform/vendor-profile')).json();
+if (vendorProfile.data?.displayName !== 'Phase Zero Verified Vendor') {
+    throw new Error('Legacy profile update did not synchronize the primary Vendor Profile');
+}
+const updatedVendorProfile = await (
+    await apiRequest('/api/v1/platform/vendor-profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            description: 'Phase Zero producer profile',
+            websiteUrl: 'https://example.com/phase-zero-producer',
+        }),
+    })
+).json();
+if (updatedVendorProfile.data?.description !== 'Phase Zero producer profile') {
+    throw new Error('Primary Vendor Profile details were not updated');
 }
 
 const categoryResponse = await apiRequest('/api/v1/categories', {

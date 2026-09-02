@@ -1,0 +1,104 @@
+{
+    "info": {
+        "name": "Vendor Platform Context and Access API",
+        "description": "Uses the Better Auth session cookie created by the Auth API collection. Owners can inspect Organization entitlement context and manage explicit Member access.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        { "key": "baseUrl", "value": "http://localhost:4000", "type": "string" },
+        { "key": "memberId", "value": "", "type": "string" },
+        { "key": "vendorProfileId", "value": "", "type": "string" }
+    ],
+    "item": [
+        {
+            "name": "Get primary Vendor Profile",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "{{baseUrl}}/api/v1/platform/vendor-profile",
+                    "host": ["{{baseUrl}}"],
+                    "path": ["api", "v1", "platform", "vendor-profile"]
+                }
+            }
+        },
+        {
+            "name": "Update producer-facing Vendor Profile",
+            "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"displayName\": \"Example Producer\",\n  \"description\": \"Independent producer\",\n  \"websiteUrl\": \"https://producer.example\"\n}"
+                },
+                "url": {
+                    "raw": "{{baseUrl}}/api/v1/platform/vendor-profile",
+                    "host": ["{{baseUrl}}"],
+                    "path": ["api", "v1", "platform", "vendor-profile"]
+                }
+            }
+        },
+        {
+            "name": "Get active Organization and Vendor entitlement context",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "{{baseUrl}}/api/v1/platform/context",
+                    "host": ["{{baseUrl}}"],
+                    "path": ["api", "v1", "platform", "context"]
+                }
+            }
+        },
+        {
+            "name": "List Organization members and Vendor Portal access",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "{{baseUrl}}/api/v1/platform/vendor/members",
+                    "host": ["{{baseUrl}}"],
+                    "path": ["api", "v1", "platform", "vendor", "members"]
+                }
+            }
+        },
+        {
+            "name": "Grant Member Vendor Portal access",
+            "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"enabled\": true\n}" },
+                "url": {
+                    "raw": "{{baseUrl}}/api/v1/platform/vendor/members/{{memberId}}/access",
+                    "host": ["{{baseUrl}}"],
+                    "path": ["api", "v1", "platform", "vendor", "members", "{{memberId}}", "access"]
+                }
+            }
+        },
+        {
+            "name": "Revoke Member Vendor Portal access",
+            "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": { "mode": "raw", "raw": "{\n  \"enabled\": false\n}" },
+                "url": {
+                    "raw": "{{baseUrl}}/api/v1/platform/vendor/members/{{memberId}}/access",
+                    "host": ["{{baseUrl}}"],
+                    "path": ["api", "v1", "platform", "vendor", "members", "{{memberId}}", "access"]
+                }
+            }
+        },
+        {
+            "name": "Verify explicit Vendor Profile scope",
+            "request": {
+                "method": "GET",
+                "header": [{ "key": "X-Vendor-Profile-Id", "value": "{{vendorProfileId}}" }],
+                "url": {
+                    "raw": "{{baseUrl}}/api/v1/products",
+                    "host": ["{{baseUrl}}"],
+                    "path": ["api", "v1", "products"]
+                }
+            }
+        }
+    ]
+}

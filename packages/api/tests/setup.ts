@@ -12,6 +12,7 @@ const modelMock = () => ({
     findMany: jest.fn(),
     create: jest.fn(),
     createMany: jest.fn(),
+    upsert: jest.fn(),
     update: jest.fn(),
     updateMany: jest.fn(),
     delete: jest.fn(),
@@ -26,6 +27,10 @@ export const mockPrisma = {
     session: modelMock(),
     organization: modelMock(),
     member: modelMock(),
+    portal: modelMock(),
+    organizationPortalSubscription: modelMock(),
+    memberPortalAccess: modelMock(),
+    vendorProfile: modelMock(),
     invitation: modelMock(),
     twoFactor: modelMock(),
     verification: modelMock(),
@@ -77,6 +82,38 @@ mockPrisma.user.findUnique.mockImplementation(({ where }: { where: { id?: string
               legacyVendor: { deletedAt: null },
           }
         : null
+);
+
+mockPrisma.member.findUnique.mockImplementation(
+    ({
+        where,
+    }: {
+        where: { organizationId_userId?: { organizationId: string; userId: string } };
+    }) => {
+        const key = where.organizationId_userId;
+        return key
+            ? {
+                  id: `member:${key.userId}`,
+                  organizationId: key.organizationId,
+                  role: 'owner',
+              }
+            : null;
+    }
+);
+mockPrisma.organizationPortalSubscription.findUnique.mockResolvedValue({
+    status: 'ACTIVE',
+    startsAt: new Date('2020-01-01T00:00:00.000Z'),
+    endsAt: null,
+});
+mockPrisma.memberPortalAccess.findUnique.mockResolvedValue({ enabled: true });
+mockPrisma.vendorProfile.findUnique.mockImplementation(
+    ({ where }: { where: { organizationId_profileKey?: { organizationId: string } } }) => {
+        const organizationId = where.organizationId_profileKey?.organizationId;
+        const vendorId = organizationId?.startsWith('organization:')
+            ? organizationId.slice('organization:'.length)
+            : undefined;
+        return vendorId ? { id: vendorId, legacyVendorId: vendorId, deletedAt: null } : null;
+    }
 );
 
 jest.mock('better-auth/node', () => ({

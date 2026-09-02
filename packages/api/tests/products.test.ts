@@ -14,6 +14,7 @@ const productId = '9cc10440-333c-4f0a-92be-082962cfa80f';
 const product = {
     id: productId,
     vendorId,
+    vendorProfileId: vendorId,
     categoryId,
     sku: 'SKU-1',
     baseName: 'Test product',
@@ -31,6 +32,7 @@ const version = {
     id: '4a48cdb1-b253-4c6d-bd51-2dfb24dd4b51',
     productId,
     vendorId,
+    vendorProfileId: vendorId,
     versionNumber: 1,
     label: 'Original',
     sku: 'SKU-1',
@@ -63,7 +65,11 @@ describe('products', () => {
         expect(response.status).toBe(200);
         expect(mockPrisma.product.findMany).toHaveBeenCalledWith(
             expect.objectContaining({
-                where: expect.objectContaining({ vendorId, deletedAt: null, status: 'DRAFT' }),
+                where: expect.objectContaining({
+                    vendorProfileId: vendorId,
+                    deletedAt: null,
+                    status: 'DRAFT',
+                }),
             })
         );
     });
@@ -92,13 +98,17 @@ describe('products', () => {
 
         expect(response.status).toBe(201);
         expect(mockPrisma.category.findFirst).toHaveBeenCalledWith({
-            where: { id: categoryId, OR: [{ vendorId: null }, { vendorId }] },
+            where: {
+                id: categoryId,
+                OR: [{ vendorProfileId: null }, { vendorProfileId: vendorId }],
+            },
             select: { id: true, name: true },
         });
         expect(mockPrisma.productVersion.create).toHaveBeenCalledWith({
             data: expect.objectContaining({
                 productId,
                 vendorId,
+                vendorProfileId: vendorId,
                 label: 'Original',
                 versionNumber: 1,
                 sku: product.sku,
@@ -202,7 +212,9 @@ describe('products', () => {
 
         expect(response.status).toBe(404);
         expect(mockPrisma.product.findFirst).toHaveBeenCalledWith(
-            expect.objectContaining({ where: { id: productId, vendorId, deletedAt: null } })
+            expect.objectContaining({
+                where: { id: productId, vendorProfileId: vendorId, deletedAt: null },
+            })
         );
     });
 });

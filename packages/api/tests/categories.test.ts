@@ -21,7 +21,9 @@ describe('categories', () => {
 
         expect(response.status).toBe(200);
         expect(mockPrisma.category.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({ where: { OR: [{ vendorId: null }, { vendorId }] } })
+            expect.objectContaining({
+                where: { OR: [{ vendorProfileId: null }, { vendorProfileId: vendorId }] },
+            })
         );
     });
 
@@ -38,7 +40,11 @@ describe('categories', () => {
     });
 
     it('forbids editing a system category or another vendor’s category', async () => {
-        mockPrisma.category.findUnique.mockResolvedValue({ id: categoryId, vendorId: null });
+        mockPrisma.category.findUnique.mockResolvedValue({
+            id: categoryId,
+            vendorId: null,
+            vendorProfileId: null,
+        });
 
         const response = await request(app)
             .put(`/api/v1/categories/${categoryId}`)
@@ -66,7 +72,11 @@ describe('categories', () => {
     });
 
     it('prevents deletion while products or child categories still reference it', async () => {
-        mockPrisma.category.findUnique.mockResolvedValue({ id: categoryId, vendorId });
+        mockPrisma.category.findUnique.mockResolvedValue({
+            id: categoryId,
+            vendorId,
+            vendorProfileId: vendorId,
+        });
         mockPrisma.product.count.mockResolvedValue(2);
         mockPrisma.category.count.mockResolvedValue(1);
 
