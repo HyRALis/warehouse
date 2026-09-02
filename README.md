@@ -77,6 +77,9 @@ staged-rollout compatibility behavior.
 See [Vendor catalog tenancy and lifecycle hardening](docs/vendor-catalog-hardening.md) for
 cross-profile isolation, system-record immutability, primary-version consistency, and concurrency
 rules.
+See [Vendor media, import, export, and search hardening](docs/vendor-media-import-search-hardening.md)
+for R2 lifecycle safeguards, CSV boundaries, tenant-scoped search, and the repeatable 20,000-row
+development benchmark.
 
 CI also starts PostgreSQL, applies the migration history, boots the compiled API, and runs `node tools/smoke-api.mjs`. The same smoke script can validate a deployed environment by setting `API_SMOKE_BASE_URL` to its API origin; it creates and then deactivates an isolated test vendor.
 
