@@ -9,6 +9,7 @@ import {
 
 const router = Router();
 
+router.get('/invitations/:invitationId', PlatformController.invitationSummary);
 router.get('/context', verifySession, PlatformController.context);
 router.get('/vendor-profile', verifyAuth, PlatformController.vendorProfile);
 router.put(

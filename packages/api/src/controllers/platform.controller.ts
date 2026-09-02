@@ -21,6 +21,53 @@ const ownerRequired = (req: AuthRequest, res: Response): boolean => {
 };
 
 export class PlatformController {
+    static async invitationSummary(
+        req: AuthRequest,
+        res: Response,
+        next: NextFunction
+    ): Promise<void> {
+        try {
+            const invitation = await prisma.invitation.findUnique({
+                where: { id: req.params.invitationId },
+                select: {
+                    id: true,
+                    email: true,
+                    organizationId: true,
+                    role: true,
+                    status: true,
+                    expiresAt: true,
+                    organization: { select: { name: true } },
+                    user: { select: { email: true } },
+                },
+            });
+
+            if (!invitation) {
+                res.status(404).json({
+                    success: false,
+                    code: 'INVITATION_NOT_FOUND',
+                    message: 'This invitation is invalid or no longer available',
+                });
+                return;
+            }
+
+            res.status(200).json({
+                success: true,
+                data: {
+                    id: invitation.id,
+                    email: invitation.email,
+                    organizationId: invitation.organizationId,
+                    organizationName: invitation.organization.name,
+                    inviterEmail: invitation.user.email,
+                    role: invitation.role ?? 'member',
+                    status: invitation.status,
+                    expiresAt: invitation.expiresAt,
+                },
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     static async vendorProfile(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const profile = await prisma.vendorProfile.findUnique({
