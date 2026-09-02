@@ -45,6 +45,9 @@ jobs:
                   node-version-file: .nvmrc
                   cache: npm
 
+            - name: Use the repository npm version
+              run: npm install --global npm@11.6.2
+
             - name: Install exact dependency graph
               run: npm ci
 
