@@ -16,6 +16,9 @@ jobs:
             NODE_ENV: test
             DATABASE_URL: postgresql://inventory:inventory@localhost:5432/inventory?schema=public
             JWT_SECRET: test-secret-that-is-at-least-32-characters-long
+            BETTER_AUTH_SECRET: better-auth-test-secret-at-least-32-characters
+            BETTER_AUTH_URL: http://localhost:4000
+            AUTH_CLIENT_IP_HEADER: x-real-ip
             CORS_ORIGINS: http://localhost:3000
             API_PUBLIC_URL: http://localhost:4000
             ALLOW_LOCAL_STORAGE_IN_PRODUCTION: 'true'
