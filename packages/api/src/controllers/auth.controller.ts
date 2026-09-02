@@ -1,14 +1,12 @@
-import { Request, Response, NextFunction } from 'express';
-import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
-import prisma from '@inventory-system/database';
+import crypto from 'node:crypto';
+import { NextFunction, Request, Response } from 'express';
+import { fromNodeHeaders } from 'better-auth/node';
+import prisma, { Prisma } from '@inventory-system/database';
+import { isAPIError } from 'better-auth/api';
+import { auth } from '../auth';
 import { AuthRequest } from '../middleware/auth';
-import { config } from '../config';
-import {
-    clearSessionCookie,
-    setSessionCookie,
-    signSession,
-} from '../services/session.service';
+import { applyBetterAuthHeaders } from '../services/better-auth-response.service';
+import { hashPassword, isLegacyBcryptHash } from '../services/password.service';
 
 const publicVendor = (vendor: {
     id: string;
@@ -22,175 +20,244 @@ const publicVendor = (vendor: {
     createdAt: vendor.createdAt,
 });
 
-const hashResetToken = (token: string): string =>
-    crypto.createHash('sha256').update(token).digest('hex');
+const normalizeEmail = (email: string): string => email.trim().toLowerCase();
+
+const conflictError = (error: unknown): boolean =>
+    error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 
 export class AuthController {
     /**
-     * Register a new vendor
+     * Transitional registration contract. Identity, credential account, Organization, Owner
+     * membership, and legacy Vendor context are created atomically; Better Auth then creates the
+     * database-backed session returned through its native cookie.
      */
     static async register(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
-            const { email, password, companyName } = req.body;
+            const email = normalizeEmail(req.body.email);
+            const { password, companyName } = req.body;
+            const passwordHash = await hashPassword(password);
+            const userId = crypto.randomUUID();
+            const vendorId = crypto.randomUUID();
+            const organizationId = crypto.randomUUID();
+            const now = new Date();
 
-            const existingVendor = await prisma.vendor.findUnique({ where: { email } });
-            if (existingVendor) {
-                res.status(409).json({ success: false, message: 'Email already in use' });
-                return;
-            }
-
-            const passwordHash = await bcrypt.hash(password, 12);
-
-            const vendor = await prisma.vendor.create({
-                data: {
-                    email,
-                    passwordHash,
-                    companyName,
+            const vendor = await prisma.$transaction(
+                async (transaction) => {
+                    const createdVendor = await transaction.vendor.create({
+                        data: { id: vendorId, email, passwordHash, companyName },
+                    });
+                    await transaction.user.create({
+                        data: {
+                            id: userId,
+                            name: companyName,
+                            email,
+                            emailVerified: false,
+                            legacyVendorId: vendorId,
+                            createdAt: now,
+                            updatedAt: now,
+                        },
+                    });
+                    await transaction.account.create({
+                        data: {
+                            id: crypto.randomUUID(),
+                            issuer: 'local:credential',
+                            accountId: userId,
+                            providerId: 'credential',
+                            userId,
+                            password: passwordHash,
+                            createdAt: now,
+                            updatedAt: now,
+                        },
+                    });
+                    await transaction.organization.create({
+                        data: {
+                            id: organizationId,
+                            name: companyName,
+                            slug: `vendor-${organizationId.replaceAll('-', '')}`,
+                            createdAt: now,
+                        },
+                    });
+                    await transaction.member.create({
+                        data: {
+                            id: crypto.randomUUID(),
+                            organizationId,
+                            userId,
+                            role: 'owner',
+                            createdAt: now,
+                        },
+                    });
+                    return createdVendor;
                 },
-            });
+                { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+            );
 
-            const token = signSession(vendor.id, vendor.tokenVersion);
-            setSessionCookie(res, token);
+            const { headers } = await auth.api.signInEmail({
+                returnHeaders: true,
+                body: { email, password },
+                headers: fromNodeHeaders(req.headers),
+            });
+            applyBetterAuthHeaders(res, headers);
+
+            void auth.api
+                .sendVerificationEmail({ body: { email, callbackURL: '/dashboard' } })
+                .catch((error) => {
+                    console.error(
+                        JSON.stringify({
+                            level: 'error',
+                            event: 'verification_email_request_failed',
+                            message: error instanceof Error ? error.message : 'Unknown error',
+                        })
+                    );
+                });
 
             res.status(201).json({
                 success: true,
-                data: {
-                    vendor: publicVendor(vendor),
-                },
+                data: { vendor: publicVendor(vendor) },
             });
         } catch (error) {
+            if (conflictError(error)) {
+                res.status(409).json({ success: false, message: 'Email already in use' });
+                return;
+            }
             next(error);
         }
     }
 
-    /**
-     * Login a vendor
-     */
+    /** Login through Better Auth while preserving the existing response envelope. */
     static async login(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
-            const { email, password } = req.body;
-            const vendor = await prisma.vendor.findFirst({
-                where: { email, deletedAt: null },
+            const email = normalizeEmail(req.body.email);
+            const { headers, response } = await auth.api.signInEmail({
+                returnHeaders: true,
+                body: { email, password: req.body.password },
+                headers: fromNodeHeaders(req.headers),
             });
+            applyBetterAuthHeaders(res, headers);
 
-            if (!vendor) {
+            const twoFactorResponse = response as typeof response & {
+                twoFactorRedirect?: boolean;
+                twoFactorMethods?: string[];
+            };
+            if (twoFactorResponse.twoFactorRedirect) {
+                res.status(200).json({
+                    success: true,
+                    data: {
+                        twoFactorRequired: true,
+                        twoFactorMethods: twoFactorResponse.twoFactorMethods,
+                    },
+                });
+                return;
+            }
+
+            const signedInUser = response as typeof response & { user?: { id?: string } };
+            const identity = signedInUser.user?.id
+                ? await prisma.user.findUnique({
+                      where: { id: signedInUser.user.id },
+                      select: {
+                          legacyVendor: {
+                              select: {
+                                  id: true,
+                                  email: true,
+                                  companyName: true,
+                                  createdAt: true,
+                                  deletedAt: true,
+                              },
+                          },
+                          accounts: {
+                              where: { issuer: 'local:credential', providerId: 'credential' },
+                              take: 1,
+                              select: { id: true, password: true },
+                          },
+                      },
+                  })
+                : null;
+
+            if (!identity?.legacyVendor || identity.legacyVendor.deletedAt) {
                 res.status(401).json({ success: false, message: 'Invalid credentials' });
                 return;
             }
 
-            const isPasswordValid = await bcrypt.compare(password, vendor.passwordHash);
-
-            if (!isPasswordValid) {
-                res.status(401).json({ success: false, message: 'Invalid credentials' });
-                return;
+            const credential = identity.accounts[0];
+            if (credential && isLegacyBcryptHash(credential.password)) {
+                await prisma.account.update({
+                    where: { id: credential.id },
+                    data: { password: await hashPassword(req.body.password) },
+                });
             }
-
-            const token = signSession(vendor.id, vendor.tokenVersion);
-            setSessionCookie(res, token);
 
             res.status(200).json({
                 success: true,
-                data: {
-                    vendor: publicVendor(vendor),
-                },
+                data: { vendor: publicVendor(identity.legacyVendor) },
             });
         } catch (error) {
+            if (isAPIError(error)) {
+                res.status(401).json({ success: false, message: 'Invalid credentials' });
+                return;
+            }
             next(error);
         }
     }
 
-    /**
-     * Logout a vendor
-     */
     static async logout(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
-            await prisma.vendor.update({
-                where: { id: req.vendorId! },
-                data: { tokenVersion: { increment: 1 } },
+            const { headers } = await auth.api.signOut({
+                returnHeaders: true,
+                headers: fromNodeHeaders(req.headers),
             });
-            clearSessionCookie(res);
+            applyBetterAuthHeaders(res, headers);
             res.status(200).json({ success: true, message: 'Logged out successfully' });
         } catch (error) {
             next(error);
         }
     }
 
-    /**
-     * Request password reset
-     */
     static async forgotPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
-            const { email } = req.body;
-            const vendor = await prisma.vendor.findFirst({
-                where: { email, deletedAt: null },
-                select: { id: true },
+            await auth.api.requestPasswordReset({
+                body: {
+                    email: normalizeEmail(req.body.email),
+                    redirectTo: '/reset-password',
+                },
+                headers: fromNodeHeaders(req.headers),
             });
-
-            let resetToken: string | undefined;
-            if (vendor) {
-                resetToken = crypto.randomBytes(32).toString('hex');
-                await prisma.vendor.update({
-                    where: { id: vendor.id },
-                    data: {
-                        passwordResetTokenHash: hashResetToken(resetToken),
-                        passwordResetExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
-                    },
-                });
-            }
-
             res.status(200).json({
                 success: true,
                 message: 'If the email exists, a reset link has been sent.',
-                ...(config.nodeEnv !== 'production' && resetToken ? { resetToken } : {}),
             });
         } catch (error) {
+            if (isAPIError(error)) {
+                res.status(200).json({
+                    success: true,
+                    message: 'If the email exists, a reset link has been sent.',
+                });
+                return;
+            }
             next(error);
         }
     }
 
-    /**
-     * Reset password
-     */
     static async resetPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
-            const { token, password } = req.body;
-            const vendor = await prisma.vendor.findFirst({
-                where: {
-                    passwordResetTokenHash: hashResetToken(token),
-                    passwordResetExpiresAt: { gt: new Date() },
-                    deletedAt: null,
-                },
-                select: { id: true },
+            await auth.api.resetPassword({
+                body: { token: req.body.token, newPassword: req.body.password },
+                headers: fromNodeHeaders(req.headers),
             });
-
-            if (!vendor) {
-                res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
-                return;
-            }
-
-            const passwordHash = await bcrypt.hash(password, 12);
-            await prisma.vendor.update({
-                where: { id: vendor.id },
-                data: {
-                    passwordHash,
-                    passwordResetTokenHash: null,
-                    passwordResetExpiresAt: null,
-                    tokenVersion: { increment: 1 },
-                },
-            });
-            clearSessionCookie(res);
             res.status(200).json({
                 success: true,
                 message: 'Password has been reset successfully.',
             });
         } catch (error) {
+            if (isAPIError(error)) {
+                res.status(400).json({
+                    success: false,
+                    message: 'Invalid or expired reset token',
+                });
+                return;
+            }
             next(error);
         }
     }
 
-    /**
-     * Get current vendor profile
-     */
     static async getMe(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const vendor = await prisma.vendor.findFirst({

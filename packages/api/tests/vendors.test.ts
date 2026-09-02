@@ -31,6 +31,9 @@ describe('vendor settings contract', () => {
 
     it('deactivates the current vendor and revokes sessions at DELETE /vendors/me', async () => {
         mockPrisma.vendor.update.mockResolvedValue({ id: vendorId });
+        mockPrisma.user.findUniqueOrThrow.mockResolvedValue({
+            id: vendorId,
+        });
 
         const response = await request(app)
             .delete('/api/v1/vendors/me')
@@ -40,6 +43,12 @@ describe('vendor settings contract', () => {
         expect(mockPrisma.vendor.update).toHaveBeenCalledWith({
             where: { id: vendorId },
             data: { deletedAt: expect.any(Date), tokenVersion: { increment: 1 } },
+        });
+        expect(mockPrisma.session.deleteMany).toHaveBeenCalledWith({
+            where: { userId: vendorId },
+        });
+        expect(mockPrisma.verification.deleteMany).toHaveBeenCalledWith({
+            where: { value: vendorId },
         });
     });
 });
