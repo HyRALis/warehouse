@@ -12,6 +12,7 @@ import {
     Settings,
     Store,
     LogOut,
+    UsersRound,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@inventory-system/ui';
@@ -34,7 +35,15 @@ export const navigationGroups = [
     },
     {
         label: 'Workspace',
-        items: [{ name: 'Store Settings', href: '/dashboard/settings', icon: Settings }],
+        items: [
+            {
+                name: 'Team Access',
+                href: '/dashboard/members',
+                icon: UsersRound,
+                ownerOnly: true,
+            },
+            { name: 'Store Settings', href: '/dashboard/settings', icon: Settings },
+        ],
     },
 ];
 
@@ -66,28 +75,31 @@ export default function Sidebar() {
                             {group.label}
                         </p>
                         <div className="space-y-1.5">
-                            {group.items.map((item) => {
-                                const isActive =
-                                    pathname === item.href ||
-                                    (item.href !== '/dashboard' && pathname.startsWith(item.href));
-                                const Icon = item.icon;
-                                return (
-                                    <Link
-                                        key={item.name}
-                                        href={item.href}
-                                        className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${
-                                            isActive
-                                                ? 'bg-indigo-600 font-semibold text-white shadow-lg shadow-indigo-600/30'
-                                                : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
-                                        }`}
-                                    >
-                                        <Icon
-                                            className={`h-5 w-5 ${isActive ? 'text-white' : 'text-slate-400'}`}
-                                        />
-                                        <span>{item.name}</span>
-                                    </Link>
-                                );
-                            })}
+                            {group.items
+                                .filter((item) => !item.ownerOnly || platform?.membership.isOwner)
+                                .map((item) => {
+                                    const isActive =
+                                        pathname === item.href ||
+                                        (item.href !== '/dashboard' &&
+                                            pathname.startsWith(item.href));
+                                    const Icon = item.icon;
+                                    return (
+                                        <Link
+                                            key={item.name}
+                                            href={item.href}
+                                            className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${
+                                                isActive
+                                                    ? 'bg-indigo-600 font-semibold text-white shadow-lg shadow-indigo-600/30'
+                                                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                                            }`}
+                                        >
+                                            <Icon
+                                                className={`h-5 w-5 ${isActive ? 'text-white' : 'text-slate-400'}`}
+                                            />
+                                            <span>{item.name}</span>
+                                        </Link>
+                                    );
+                                })}
                         </div>
                     </div>
                 ))}

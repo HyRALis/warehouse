@@ -96,23 +96,28 @@ export default function Header() {
                                         {group.label}
                                     </p>
                                     <div className="space-y-1.5">
-                                        {group.items.map((item) => {
-                                            const active =
-                                                pathname === item.href ||
-                                                (item.href !== '/dashboard' &&
-                                                    pathname.startsWith(item.href));
-                                            const Icon = item.icon;
-                                            return (
-                                                <Link
-                                                    key={item.name}
-                                                    href={item.href}
-                                                    className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium ${active ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-                                                >
-                                                    <Icon className="h-5 w-5" />
-                                                    {item.name}
-                                                </Link>
-                                            );
-                                        })}
+                                        {group.items
+                                            .filter(
+                                                (item) =>
+                                                    !item.ownerOnly || platform?.membership.isOwner
+                                            )
+                                            .map((item) => {
+                                                const active =
+                                                    pathname === item.href ||
+                                                    (item.href !== '/dashboard' &&
+                                                        pathname.startsWith(item.href));
+                                                const Icon = item.icon;
+                                                return (
+                                                    <Link
+                                                        key={item.name}
+                                                        href={item.href}
+                                                        className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium ${active ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                                                    >
+                                                        <Icon className="h-5 w-5" />
+                                                        {item.name}
+                                                    </Link>
+                                                );
+                                            })}
                                     </div>
                                 </div>
                             ))}

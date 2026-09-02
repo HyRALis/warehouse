@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import QuickCreateMenu from '@/components/QuickCreateMenu';
+import OrganizationSwitcher from '@/components/OrganizationSwitcher';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const { user, platform, loading, accessError, logout } = useAuth();
@@ -47,6 +48,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                   ? 'Your membership has not been granted Vendor Portal access.'
                                   : 'The primary Vendor Profile is not available.')}
                     </p>
+                    <div className="mt-5 flex justify-center">
+                        <OrganizationSwitcher />
+                    </div>
                     <button
                         className="mt-6 rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
                         onClick={async () => {

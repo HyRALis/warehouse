@@ -44,7 +44,10 @@ export default function TwoFactorPage() {
                         return;
                     }
                     await refresh();
-                    router.replace('/dashboard');
+                    const value = new URLSearchParams(window.location.search).get('returnTo');
+                    const returnTo =
+                        value?.startsWith('/') && !value.startsWith('//') ? value : '/dashboard';
+                    router.replace(returnTo);
                 }}
             >
                 {error && (

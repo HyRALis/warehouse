@@ -11,6 +11,7 @@ import type {
     UpdateProductRequest,
     UpdateVendorProfileRequest,
     UniversalSearchResponse,
+    VendorMemberAccessResponse,
     VendorPlatformContext,
 } from '@inventory-system/shared-types';
 
@@ -19,6 +20,17 @@ interface ApiResponse<T> {
     data: T;
     message?: string;
     meta?: { total: number; page: number; limit: number; totalPages: number };
+}
+
+export interface PublicInvitationSummary {
+    id: string;
+    email: string;
+    organizationId: string;
+    organizationName: string;
+    inviterEmail: string;
+    role: string;
+    status: string;
+    expiresAt: string;
 }
 
 export class ApiError extends Error {
@@ -107,11 +119,22 @@ export const api = {
 
     // Platform context
     getPlatformContext: () => request<ApiResponse<VendorPlatformContext>>('/platform/context'),
+    getInvitationSummary: (invitationId: string) =>
+        request<ApiResponse<PublicInvitationSummary>>(
+            `/platform/invitations/${encodeURIComponent(invitationId)}`
+        ),
     getVendorProfile: () => request<any>('/platform/vendor-profile'),
     updateVendorProfile: (body: UpdateVendorProfileRequest) =>
         request<any>('/platform/vendor-profile', {
             method: 'PUT',
             body: JSON.stringify(body),
+        }),
+    getVendorMembers: () =>
+        request<ApiResponse<VendorMemberAccessResponse[]>>('/platform/vendor/members'),
+    updateVendorMemberAccess: (memberId: string, enabled: boolean) =>
+        request<any>(`/platform/vendor/members/${memberId}/access`, {
+            method: 'PUT',
+            body: JSON.stringify({ enabled }),
         }),
 
     // Products

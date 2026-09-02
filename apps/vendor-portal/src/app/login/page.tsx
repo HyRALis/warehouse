@@ -7,6 +7,12 @@ import { Mail, Lock, Package2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button, Input, Label, Spinner } from '@inventory-system/ui';
 
+const getSafeReturnTo = () => {
+    if (typeof window === 'undefined') return '/dashboard';
+    const value = new URLSearchParams(window.location.search).get('returnTo');
+    return value?.startsWith('/') && !value.startsWith('//') ? value : '/dashboard';
+};
+
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -22,7 +28,12 @@ export default function LoginPage() {
 
         try {
             const result = await login(email, password);
-            router.push(result.twoFactorRequired ? '/two-factor' : '/dashboard');
+            const returnTo = getSafeReturnTo();
+            router.push(
+                result.twoFactorRequired
+                    ? `/two-factor?returnTo=${encodeURIComponent(returnTo)}`
+                    : returnTo
+            );
         } catch (err: any) {
             setError(err.message || 'An error occurred during login');
         } finally {
@@ -31,7 +42,7 @@ export default function LoginPage() {
     };
 
     useEffect(() => {
-        if (!loading && user) router.replace('/dashboard');
+        if (!loading && user) router.replace(getSafeReturnTo());
     }, [loading, router, user]);
 
     if (!loading && user) return null;
