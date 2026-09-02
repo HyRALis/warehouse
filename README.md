@@ -80,6 +80,8 @@ the Organization subscription/access rules, primary profile ownership, migration
 staged-rollout compatibility behavior.
 See [Vendor Portal frontend authentication](docs/vendor-frontend-auth.md) for session hydration,
 Organization switching, email verification, MFA, active-session controls, and frontend rollback.
+See [Vendor Portal member invitations and access](docs/vendor-member-access.md) for the invitation
+lifecycle, Owner controls, explicit portal access, tenancy rules, verification, and rollback.
 
 CI also starts PostgreSQL, applies the migration history, boots the compiled API, and runs `node tools/smoke-api.mjs`. The same smoke script can validate a deployed environment by setting `API_SMOKE_BASE_URL` to its API origin; it creates and then deactivates an isolated test vendor.
 
