@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { Search, Plus, Filter, PackageX, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button, Input, Badge, Spinner } from '@inventory-system/ui';
 
 interface Product {
@@ -187,9 +188,13 @@ export default function ProductsPage() {
                                 >
                                     <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-slate-950">
                                         {primaryImage ? (
-                                            <img
+                                            <Image
                                                 src={primaryImage.imageUrl}
                                                 alt={product.baseName}
+                                                fill
+                                                unoptimized
+                                                loader={({ src }) => src}
+                                                sizes="(min-width: 1280px) 25vw, (min-width: 640px) 50vw, 100vw"
                                                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                                             />
                                         ) : (

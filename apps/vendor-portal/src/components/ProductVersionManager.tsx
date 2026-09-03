@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import {
     ArrowRightLeft,
     Copy,
@@ -529,11 +530,15 @@ export default function ProductVersionManager({
                             className={`rounded-xl border bg-slate-900 p-5 ${version.isPrimary ? 'border-indigo-500/50' : 'border-slate-800'}`}
                         >
                             <div className="flex gap-4">
-                                <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
+                                <div className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
                                     {image ? (
-                                        <img
+                                        <Image
                                             src={image.imageUrl}
                                             alt=""
+                                            fill
+                                            unoptimized
+                                            loader={({ src }) => src}
+                                            sizes="80px"
                                             className="h-full w-full object-cover"
                                         />
                                     ) : (
@@ -597,9 +602,13 @@ export default function ProductVersionManager({
                                         </p>
                                     </div>
                                     {version.qrCodeUrl && (
-                                        <img
+                                        <Image
                                             src={version.qrCodeUrl}
                                             alt={`${version.label} QR code`}
+                                            width={64}
+                                            height={64}
+                                            unoptimized
+                                            loader={({ src }) => src}
                                             className="h-16 w-16 rounded bg-white p-1"
                                         />
                                     )}
@@ -677,9 +686,13 @@ export default function ProductVersionManager({
                                                     key={image.id}
                                                     className="relative aspect-square overflow-hidden rounded-lg border border-slate-800"
                                                 >
-                                                    <img
+                                                    <Image
                                                         src={image.imageUrl}
                                                         alt=""
+                                                        fill
+                                                        unoptimized
+                                                        loader={({ src }) => src}
+                                                        sizes="(min-width: 640px) 120px, 25vw"
                                                         className="h-full w-full object-cover"
                                                     />
                                                     <button
@@ -838,7 +851,7 @@ export default function ProductVersionManager({
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-800">
-                                    {comparison.differences.map((difference: any) => (
+                                    {comparison.differences.map((difference) => (
                                         <tr key={difference.field}>
                                             <td className="px-4 py-3 font-medium text-slate-200">
                                                 {difference.field}

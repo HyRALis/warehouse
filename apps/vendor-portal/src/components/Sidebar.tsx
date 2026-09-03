@@ -87,6 +87,7 @@ export default function Sidebar() {
                                         <Link
                                             key={item.name}
                                             href={item.href}
+                                            aria-current={isActive ? 'page' : undefined}
                                             className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${
                                                 isActive
                                                     ? 'bg-indigo-600 font-semibold text-white shadow-lg shadow-indigo-600/30'
@@ -95,6 +96,7 @@ export default function Sidebar() {
                                         >
                                             <Icon
                                                 className={`h-5 w-5 ${isActive ? 'text-white' : 'text-slate-400'}`}
+                                                aria-hidden="true"
                                             />
                                             <span>{item.name}</span>
                                         </Link>
@@ -122,6 +124,7 @@ export default function Sidebar() {
                             router.replace('/login');
                         }}
                         title="Log Out"
+                        aria-label="Log out"
                         className="text-slate-400 hover:bg-rose-500/10 hover:text-rose-400"
                     >
                         <LogOut className="h-4 w-4" />

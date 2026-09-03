@@ -32,3 +32,18 @@ select:focus,
 textarea:focus {
     @apply border-indigo-500 outline-none ring-2 ring-indigo-500/50;
 }
+
+:where(a, button, [role='button']):focus-visible {
+    @apply outline-none ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-950;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
