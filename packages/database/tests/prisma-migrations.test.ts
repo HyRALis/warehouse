@@ -87,37 +87,39 @@ integrationTest(
         prisma = createPrismaClient({ databaseUrl, maxConnections: 2 });
 
         const [categoryCount, templateCount] = await Promise.all([
-            prisma.category.count({ where: { vendorId: null } }),
-            prisma.characteristicTemplate.count({ where: { vendorId: null } }),
+            prisma.category.count({ where: { vendorProfileId: null } }),
+            prisma.characteristicTemplate.count({ where: { vendorProfileId: null } }),
         ]);
         assert.equal(categoryCount, 126);
         assert.equal(templateCount, 12);
 
         const category = await prisma.category.findFirstOrThrow({
-            where: { vendorId: null, parentId: { not: null } },
+            where: { vendorProfileId: null, parentId: { not: null } },
             select: { id: true },
         });
-        const { vendor, vendorProfile } = await prisma.$transaction(async (transaction) => {
-            const vendor = await transaction.vendor.create({
-                data: {
-                    email: 'prisma-7-migration@example.test',
-                    passwordHash: 'preserved-bcrypt-hash',
-                    companyName: 'Migration Fixture Vendor',
-                },
-            });
+        const vendorProfile = await prisma.$transaction(async (transaction) => {
             const user = await transaction.user.create({
                 data: {
                     id: 'prisma-7-migration-user',
-                    name: vendor.companyName,
-                    email: vendor.email,
+                    name: 'Migration Fixture Owner',
+                    email: 'prisma-7-migration@example.test',
                     emailVerified: true,
-                    legacyVendorId: vendor.id,
+                },
+            });
+            await transaction.account.create({
+                data: {
+                    id: 'prisma-7-migration-account',
+                    issuer: 'local:credential',
+                    accountId: user.id,
+                    providerId: 'credential',
+                    userId: user.id,
+                    password: 'preserved-bcrypt-hash',
                 },
             });
             const organization = await transaction.organization.create({
                 data: {
                     id: 'prisma-7-migration-organization',
-                    name: vendor.companyName,
+                    name: 'Migration Fixture Organization',
                     slug: 'prisma-7-migration-organization',
                     createdAt: new Date(),
                 },
@@ -133,11 +135,10 @@ integrationTest(
             });
             const vendorProfile = await transaction.vendorProfile.create({
                 data: {
-                    id: vendor.id,
+                    id: 'prisma-7-migration-profile',
                     organizationId: organization.id,
                     profileKey: 'primary',
-                    displayName: vendor.companyName,
-                    legacyVendorId: vendor.id,
+                    displayName: 'Migration Fixture Vendor',
                 },
             });
             await transaction.organizationPortalSubscription.create({
@@ -156,11 +157,10 @@ integrationTest(
                     updatedByUserId: user.id,
                 },
             });
-            return { vendor, vendorProfile };
+            return vendorProfile;
         });
         const product = await prisma.product.create({
             data: {
-                vendorId: vendor.id,
                 vendorProfileId: vendorProfile.id,
                 categoryId: category.id,
                 sku: 'MIGRATION-SKU-001',
@@ -173,7 +173,6 @@ integrationTest(
         const version = await prisma.productVersion.create({
             data: {
                 productId: product.id,
-                vendorId: vendor.id,
                 vendorProfileId: vendorProfile.id,
                 versionNumber: 1,
                 label: 'Original',
@@ -191,7 +190,6 @@ integrationTest(
             where: { id: product.id },
             include: { versions: true },
         });
-        assert.equal(preserved.vendorId, vendor.id);
         assert.equal(preserved.vendorProfileId, vendorProfile.id);
         assert.equal(preserved.sku, 'MIGRATION-SKU-001');
         assert.deepEqual(preserved.characteristics, [{ name: 'Color', value: 'Blue' }]);

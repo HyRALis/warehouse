@@ -17,24 +17,35 @@ const filters: Array<{ value: UniversalSearchEntityType; label: string }> = [
     { value: 'category', label: 'Categories' },
     { value: 'template', label: 'Templates' },
 ];
+const validTypes = new Set<UniversalSearchEntityType>(filters.map((filter) => filter.value));
+
+const parsePage = (value: string | null) => {
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
+};
 
 function SearchResults() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const query = searchParams.get('q') || '';
-    const types = searchParams.get('types') || '';
-    const page = Math.max(1, Number(searchParams.get('page') || 1));
+    const rawTypes = searchParams.get('types') || '';
+    const page = parsePage(searchParams.get('page'));
     const [draftQuery, setDraftQuery] = useState(query);
     const [response, setResponse] = useState<UniversalSearchResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [retryKey, setRetryKey] = useState(0);
 
-    const selectedTypes = useMemo(
-        () => new Set(types.split(',').filter(Boolean) as UniversalSearchEntityType[]),
-        [types]
-    );
+    const selectedTypes = useMemo(() => {
+        const selected = rawTypes
+            .split(',')
+            .filter((type): type is UniversalSearchEntityType =>
+                validTypes.has(type as UniversalSearchEntityType)
+            );
+        return new Set(selected);
+    }, [rawTypes]);
+    const types = useMemo(() => Array.from(selectedTypes).join(','), [selectedTypes]);
 
     useEffect(() => setDraftQuery(query), [query]);
 

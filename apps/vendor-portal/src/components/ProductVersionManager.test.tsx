@@ -12,6 +12,7 @@ const { apiMock } = vi.hoisted(() => ({
         deleteProductVersion: vi.fn(),
         compareProductVersions: vi.fn(),
         uploadProductVersionImage: vi.fn(),
+        deleteProductImage: vi.fn(),
     },
 }));
 
@@ -49,7 +50,9 @@ describe('ProductVersionManager', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         onChanged.mockResolvedValue(undefined);
-        Object.values(apiMock).forEach((mock) => mock.mockResolvedValue({ success: true, data: {} }));
+        Object.values(apiMock).forEach((mock) =>
+            mock.mockResolvedValue({ success: true, data: {} })
+        );
     });
 
     it('creates a copied version while reusing media references', async () => {
@@ -65,7 +68,10 @@ describe('ProductVersionManager', () => {
 
         await user.click(screen.getByRole('button', { name: 'Add version' }));
         await user.click(screen.getByRole('button', { name: /Copy existing/ }));
-        await user.selectOptions(screen.getByRole('combobox', { name: 'Source version' }), summer.id);
+        await user.selectOptions(
+            screen.getByRole('combobox', { name: 'Source version' }),
+            summer.id
+        );
         await user.type(screen.getByPlaceholderText('e.g. Summer 2027'), 'Holiday Drop');
         await user.click(screen.getByRole('button', { name: 'Create version' }));
 
@@ -97,10 +103,7 @@ describe('ProductVersionManager', () => {
         expect(screen.getAllByRole('button', { name: 'Delete' })[0]).toBeDisabled();
         await user.click(screen.getByRole('button', { name: 'Set primary' }));
         await waitFor(() =>
-            expect(apiMock.setPrimaryProductVersion).toHaveBeenCalledWith(
-                'product-1',
-                summer.id
-            )
+            expect(apiMock.setPrimaryProductVersion).toHaveBeenCalledWith('product-1', summer.id)
         );
     });
 
@@ -130,5 +133,49 @@ describe('ProductVersionManager', () => {
         expect(await screen.findByText('Version comparison')).toBeInTheDocument();
         expect(screen.getAllByText(original.sku).length).toBeGreaterThan(1);
         expect(screen.getAllByText(summer.sku).length).toBeGreaterThan(1);
+    });
+
+    it('changes version lifecycle state while keeping product context visible', async () => {
+        const user = userEvent.setup();
+        render(
+            <ProductVersionManager
+                productId="product-1"
+                productStatus={ProductStatus.ACTIVE}
+                versions={[original, summer]}
+                onChanged={onChanged}
+            />
+        );
+
+        await user.click(screen.getAllByRole('button', { name: 'Discontinue' })[1]);
+        await waitFor(() =>
+            expect(apiMock.updateProductVersion).toHaveBeenCalledWith('product-1', summer.id, {
+                status: ProductStatus.DISCONTINUED,
+            })
+        );
+        expect(screen.getByText('Summer Drop')).toBeInTheDocument();
+    });
+
+    it('rejects an oversized image before calling the media API', async () => {
+        const user = userEvent.setup();
+        render(
+            <ProductVersionManager
+                productId="product-1"
+                productStatus={ProductStatus.ACTIVE}
+                versions={[original]}
+                onChanged={onChanged}
+            />
+        );
+
+        await user.upload(
+            screen.getByLabelText('Add image'),
+            new File([new Uint8Array(2 * 1024 * 1024 + 1)], 'large.png', {
+                type: 'image/png',
+            })
+        );
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+            'Image must be 2 MB or smaller.'
+        );
+        expect(apiMock.uploadProductVersionImage).not.toHaveBeenCalled();
     });
 });

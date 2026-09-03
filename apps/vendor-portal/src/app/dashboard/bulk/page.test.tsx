@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import BulkOperationsPage from './page';
@@ -52,6 +52,50 @@ describe('BulkOperationsPage', () => {
         expect(screen.getByRole('button', { name: 'Start Import' })).toBeDisabled();
     });
 
+    it('rejects non-CSV files before uploading', async () => {
+        render(<BulkOperationsPage />);
+
+        fireEvent.change(screen.getByLabelText('Choose product CSV'), {
+            target: {
+                files: [new File(['not,csv'], 'products.txt', { type: 'text/plain' })],
+            },
+        });
+
+        expect(screen.getByRole('alert')).toHaveTextContent(
+            'Choose a file with the .csv extension.'
+        );
+        expect(api.importCSV).not.toHaveBeenCalled();
+    });
+
+    it('keeps a failed import selected so the vendor can retry', async () => {
+        vi.mocked(api.importCSV)
+            .mockRejectedValueOnce(new Error('Import service unavailable'))
+            .mockResolvedValueOnce({
+                success: true,
+                data: {
+                    imported: 1,
+                    importedProducts: 1,
+                    importedVersions: 1,
+                    failedRows: 0,
+                    errors: [],
+                },
+            });
+        const user = userEvent.setup();
+        render(<BulkOperationsPage />);
+
+        await user.upload(
+            screen.getByLabelText('Choose product CSV'),
+            new File(['productName,sku\nHoodie,H-1'], 'products.csv', { type: 'text/csv' })
+        );
+        await user.click(screen.getByRole('button', { name: 'Start Import' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Import service unavailable');
+        expect(screen.getByText('products.csv')).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Start Import' }));
+        expect(await screen.findByText('Import completed')).toBeInTheDocument();
+        expect(api.importCSV).toHaveBeenCalledTimes(2);
+    });
+
     it('exports the version-aware catalog filename', async () => {
         vi.mocked(api.exportCSV).mockResolvedValue(new Blob(['csv'], { type: 'text/csv' }));
         const user = userEvent.setup();
@@ -59,5 +103,17 @@ describe('BulkOperationsPage', () => {
         await user.click(screen.getByRole('button', { name: 'Export Products & Versions' }));
         expect(api.exportCSV).toHaveBeenCalledOnce();
         expect(URL.createObjectURL).toHaveBeenCalled();
+    });
+
+    it('reports export failures without clearing import feedback', async () => {
+        vi.mocked(api.exportCSV).mockRejectedValue(new Error('Export is temporarily unavailable'));
+        const user = userEvent.setup();
+        render(<BulkOperationsPage />);
+
+        await user.click(screen.getByRole('button', { name: 'Export Products & Versions' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+            'Export is temporarily unavailable'
+        );
     });
 });

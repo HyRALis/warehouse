@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import prisma from '@inventory-system/database';
+import prisma, { Prisma } from '@inventory-system/database';
 import type {
     UniversalSearchEntityType,
     UniversalSearchGroup,
@@ -33,7 +33,7 @@ const escapeLike = (value: string): string => value.replace(/[\\%_]/g, '\\$&');
 
 const parseTypes = (value: unknown): UniversalSearchEntityType[] => {
     if (typeof value !== 'string' || value.length === 0) return allTypes;
-    return value.split(',') as UniversalSearchEntityType[];
+    return [...new Set(value.split(',').map((type) => type.trim()))] as UniversalSearchEntityType[];
 };
 
 const serializeRow = (row: SearchRow): UniversalSearchResult => ({
@@ -64,6 +64,50 @@ export class SearchController {
             const limit = mode === 'suggestions' ? Math.min(requestedLimit, 20) : requestedLimit;
             const offset = mode === 'suggestions' ? 0 : (page - 1) * limit;
 
+            const [literalMatch] = await prisma.$queryRaw<Array<{ found: boolean }>>`
+                SELECT (
+                    (${selectedTypes.includes('product')} AND EXISTS (
+                        SELECT 1 FROM products p
+                        WHERE p.vendor_profile_id = ${vendorProfileId}
+                          AND p.deleted_at IS NULL
+                          AND p.search_text ILIKE ${containsPattern} ESCAPE '\\'
+                    ))
+                    OR (${selectedTypes.includes('version')} AND EXISTS (
+                        SELECT 1 FROM product_versions pv
+                        JOIN products p
+                          ON p.id = pv.product_id
+                         AND p.vendor_profile_id = ${vendorProfileId}
+                         AND p.deleted_at IS NULL
+                        WHERE pv.vendor_profile_id = ${vendorProfileId}
+                          AND pv.deleted_at IS NULL
+                          AND pv.search_text ILIKE ${containsPattern} ESCAPE '\\'
+                    ))
+                    OR (${selectedTypes.includes('category')} AND EXISTS (
+                        SELECT 1 FROM categories c
+                        WHERE (c.vendor_profile_id IS NULL OR c.vendor_profile_id = ${vendorProfileId})
+                          AND c.search_text ILIKE ${containsPattern} ESCAPE '\\'
+                    ))
+                    OR (${selectedTypes.includes('template')} AND EXISTS (
+                        SELECT 1 FROM characteristic_templates t
+                        WHERE (t.vendor_profile_id IS NULL OR t.vendor_profile_id = ${vendorProfileId})
+                          AND t.search_text ILIKE ${containsPattern} ESCAPE '\\'
+                    ))
+                ) AS found
+            `;
+            const useFuzzy = !literalMatch?.found;
+            const productCandidate = useFuzzy
+                ? Prisma.sql`p.search_text % ${normalizedQuery}`
+                : Prisma.sql`p.search_text ILIKE ${containsPattern} ESCAPE '\\'`;
+            const versionCandidate = useFuzzy
+                ? Prisma.sql`pv.search_text % ${normalizedQuery}`
+                : Prisma.sql`pv.search_text ILIKE ${containsPattern} ESCAPE '\\'`;
+            const categoryCandidate = useFuzzy
+                ? Prisma.sql`c.search_text % ${normalizedQuery}`
+                : Prisma.sql`c.search_text ILIKE ${containsPattern} ESCAPE '\\'`;
+            const templateCandidate = useFuzzy
+                ? Prisma.sql`t.search_text % ${normalizedQuery}`
+                : Prisma.sql`t.search_text ILIKE ${containsPattern} ESCAPE '\\'`;
+
             const rows = await prisma.$queryRaw<SearchRow[]>`
                 WITH ranked_results AS (
                     SELECT
@@ -92,17 +136,16 @@ export class SearchController {
                             'breadcrumb', concat_ws(' / ', pc.name, c.name)
                         ) AS context
                     FROM products p
-                    JOIN categories c ON c.id = p.category_id
-                    LEFT JOIN categories pc ON pc.id = c.parent_id
+                    JOIN categories c
+                      ON c.id = p.category_id
+                     AND (c.vendor_profile_id IS NULL OR c.vendor_profile_id = ${vendorProfileId})
+                    LEFT JOIN categories pc
+                      ON pc.id = c.parent_id
+                     AND (pc.vendor_profile_id IS NULL OR pc.vendor_profile_id = ${vendorProfileId})
                     WHERE ${selectedTypes.includes('product')}
                       AND p.vendor_profile_id = ${vendorProfileId}
                       AND p.deleted_at IS NULL
-                      AND (
-                          lower(p.sku) = ${normalizedQuery}
-                          OR lower(coalesce(p.barcode, '')) = ${normalizedQuery}
-                          OR p.search_text ILIKE ${containsPattern} ESCAPE '\\'
-                          OR similarity(p.search_text, ${normalizedQuery}) >= 0.15
-                      )
+                      AND ${productCandidate}
 
                     UNION ALL
 
@@ -135,20 +178,20 @@ export class SearchController {
                             'breadcrumb', concat_ws(' / ', pc.name, c.name)
                         ) AS context
                     FROM product_versions pv
-                    JOIN products p ON p.id = pv.product_id
-                    JOIN categories c ON c.id = p.category_id
-                    LEFT JOIN categories pc ON pc.id = c.parent_id
+                    JOIN products p
+                      ON p.id = pv.product_id
+                     AND p.vendor_profile_id = ${vendorProfileId}
+                     AND p.deleted_at IS NULL
+                    JOIN categories c
+                      ON c.id = p.category_id
+                     AND (c.vendor_profile_id IS NULL OR c.vendor_profile_id = ${vendorProfileId})
+                    LEFT JOIN categories pc
+                      ON pc.id = c.parent_id
+                     AND (pc.vendor_profile_id IS NULL OR pc.vendor_profile_id = ${vendorProfileId})
                     WHERE ${selectedTypes.includes('version')}
                       AND pv.vendor_profile_id = ${vendorProfileId}
                       AND pv.deleted_at IS NULL
-                      AND p.deleted_at IS NULL
-                      AND (
-                          lower(pv.sku) = ${normalizedQuery}
-                          OR lower(coalesce(pv.barcode, '')) = ${normalizedQuery}
-                          OR pv.search_text ILIKE ${containsPattern} ESCAPE '\\'
-                          OR p.search_text ILIKE ${containsPattern} ESCAPE '\\'
-                          OR similarity(pv.search_text, ${normalizedQuery}) >= 0.15
-                      )
+                      AND ${versionCandidate}
 
                     UNION ALL
 
@@ -176,15 +219,12 @@ export class SearchController {
                             'ownership', CASE WHEN c.vendor_profile_id IS NULL THEN 'system' ELSE 'vendor' END
                         ) AS context
                     FROM categories c
-                    LEFT JOIN categories pc ON pc.id = c.parent_id
+                    LEFT JOIN categories pc
+                      ON pc.id = c.parent_id
+                     AND (pc.vendor_profile_id IS NULL OR pc.vendor_profile_id = ${vendorProfileId})
                     WHERE ${selectedTypes.includes('category')}
                       AND (c.vendor_profile_id IS NULL OR c.vendor_profile_id = ${vendorProfileId})
-                      AND (
-                          lower(coalesce(c.code, '')) = ${normalizedQuery}
-                          OR c.search_text ILIKE ${containsPattern} ESCAPE '\\'
-                          OR EXISTS (SELECT 1 FROM unnest(c.aliases) alias WHERE lower(alias) LIKE ${containsPattern} ESCAPE '\\')
-                          OR similarity(c.search_text, ${normalizedQuery}) >= 0.15
-                      )
+                      AND ${categoryCandidate}
 
                     UNION ALL
 
@@ -214,12 +254,7 @@ export class SearchController {
                     FROM characteristic_templates t
                     WHERE ${selectedTypes.includes('template')}
                       AND (t.vendor_profile_id IS NULL OR t.vendor_profile_id = ${vendorProfileId})
-                      AND (
-                          lower(coalesce(t.key, '')) = ${normalizedQuery}
-                          OR t.search_text ILIKE ${containsPattern} ESCAPE '\\'
-                          OR t.fields::text ILIKE ${containsPattern} ESCAPE '\\'
-                          OR similarity(t.search_text, ${normalizedQuery}) >= 0.15
-                      )
+                      AND ${templateCandidate}
                 ), numbered_results AS (
                     SELECT
                         *,

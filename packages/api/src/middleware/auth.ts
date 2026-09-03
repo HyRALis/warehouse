@@ -5,7 +5,6 @@ import { auth } from '../auth';
 
 export interface AuthRequest extends Request {
     userId?: string;
-    vendorId?: string;
     vendorProfileId?: string;
     organizationId?: string;
     memberId?: string;
@@ -40,29 +39,20 @@ const resolveSessionContext = async (req: AuthRequest) => {
 
     const organizationId = session.session.activeOrganizationId;
     if (!organizationId) {
-        return { session, identity: null, membership: null };
+        return { session, membership: null };
     }
 
-    const [identity, membership] = await Promise.all([
-        prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: {
-                legacyVendorId: true,
-                legacyVendor: { select: { deletedAt: true } },
+    const membership = await prisma.member.findUnique({
+        where: {
+            organizationId_userId: {
+                organizationId,
+                userId: session.user.id,
             },
-        }),
-        prisma.member.findUnique({
-            where: {
-                organizationId_userId: {
-                    organizationId,
-                    userId: session.user.id,
-                },
-            },
-            select: { id: true, organizationId: true, role: true },
-        }),
-    ]);
+        },
+        select: { id: true, organizationId: true, role: true },
+    });
 
-    return { session, identity, membership };
+    return { session, membership };
 };
 
 const attachSessionContext = (
@@ -74,7 +64,6 @@ const attachSessionContext = (
     req.organizationId = context.membership?.organizationId;
     req.memberId = context.membership?.id;
     req.memberRole = context.membership?.role;
-    req.vendorId = context.identity?.legacyVendorId ?? undefined;
 };
 
 export const verifySession = async (
@@ -86,10 +75,6 @@ export const verifySession = async (
         const context = await resolveSessionContext(req);
         if (!context) {
             authenticationError(req, res, 'UNAUTHORIZED', 'Unauthorized', 401);
-            return;
-        }
-        if (!context.identity || context.identity.legacyVendor?.deletedAt) {
-            authenticationError(req, res, 'INVALID_SESSION', 'Invalid session', 401);
             return;
         }
         if (!context.membership) {
@@ -119,10 +104,6 @@ export const verifyAuth = async (
         const context = await resolveSessionContext(req);
         if (!context) {
             authenticationError(req, res, 'UNAUTHORIZED', 'Unauthorized', 401);
-            return;
-        }
-        if (!context.identity || context.identity.legacyVendor?.deletedAt) {
-            authenticationError(req, res, 'INVALID_SESSION', 'Invalid session', 401);
             return;
         }
         if (!context.membership) {
@@ -163,7 +144,7 @@ export const verifyAuth = async (
                         profileKey: 'primary',
                     },
                 },
-                select: { id: true, legacyVendorId: true, deletedAt: true },
+                select: { id: true, deletedAt: true },
             }),
         ]);
 
@@ -198,7 +179,7 @@ export const verifyAuth = async (
             return;
         }
 
-        if (!vendorProfile || vendorProfile.deletedAt || !vendorProfile.legacyVendorId) {
+        if (!vendorProfile || vendorProfile.deletedAt) {
             authenticationError(
                 req,
                 res,
@@ -223,7 +204,6 @@ export const verifyAuth = async (
 
         attachSessionContext(req, context);
         req.vendorProfileId = vendorProfile.id;
-        req.vendorId = vendorProfile.legacyVendorId;
         next();
     } catch (error) {
         next(error);

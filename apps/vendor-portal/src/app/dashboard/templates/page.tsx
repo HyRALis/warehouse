@@ -4,26 +4,22 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { Copy, Edit3, FileText, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-react';
 import { Badge, Button, Card, CardContent, Input, Label, Spinner } from '@inventory-system/ui';
+import type { TemplateField, TemplateResponse } from '@inventory-system/shared-types';
 
-interface TemplateField { name: string; measurement?: string }
-interface CharacteristicTemplate {
-    id: string;
-    key?: string | null;
-    name: string;
-    fields: TemplateField[];
-    vendorId?: string | null;
+type CharacteristicTemplate = TemplateResponse & {
     _count?: { defaultForCategories: number };
-}
+};
 
 const emptyField = (): TemplateField => ({ name: '', measurement: '' });
 
-function TemplateCard({ template, onEdit, onDelete, onDuplicate }: {
+function TemplateCard({ template, duplicating = false, onEdit, onDelete, onDuplicate }: {
     template: CharacteristicTemplate;
+    duplicating?: boolean;
     onEdit: (template: CharacteristicTemplate) => void;
     onDelete: (template: CharacteristicTemplate) => void;
     onDuplicate: (template: CharacteristicTemplate) => void;
 }) {
-    const editable = Boolean(template.vendorId);
+    const editable = Boolean(template.vendorProfileId);
     const usage = template._count?.defaultForCategories ?? 0;
     return (
         <Card className="h-full transition-colors hover:border-slate-700">
@@ -44,7 +40,7 @@ function TemplateCard({ template, onEdit, onDelete, onDuplicate }: {
                     {editable ? (
                         <><Button variant="ghost" size="sm" onClick={() => onEdit(template)}><Edit3 className="mr-2 h-4 w-4" /> Edit</Button><Button variant="ghost" size="icon" aria-label={`Delete ${template.name}`} onClick={() => onDelete(template)} className="text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"><Trash2 className="h-4 w-4" /></Button></>
                     ) : (
-                        <><span className="flex items-center gap-1 text-xs text-slate-600"><ShieldCheck className="h-4 w-4" /> Read only</span><Button variant="outline" size="sm" onClick={() => onDuplicate(template)}><Copy className="mr-2 h-4 w-4" /> Duplicate as custom</Button></>
+                        <><span className="flex items-center gap-1 text-xs text-slate-600"><ShieldCheck className="h-4 w-4" /> Read only</span><Button variant="outline" size="sm" disabled={duplicating} onClick={() => onDuplicate(template)}>{duplicating ? <Spinner size={4} className="mr-2" /> : <Copy className="mr-2 h-4 w-4" />} {duplicating ? 'Duplicating…' : 'Duplicate as custom'}</Button></>
                     )}
                 </div>
             </CardContent>
@@ -55,7 +51,9 @@ function TemplateCard({ template, onEdit, onDelete, onDuplicate }: {
 export default function TemplatesPage() {
     const [templates, setTemplates] = useState<CharacteristicTemplate[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const [loadError, setLoadError] = useState('');
+    const [actionError, setActionError] = useState('');
+    const [notice, setNotice] = useState('');
     const [query, setQuery] = useState('');
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -65,12 +63,13 @@ export default function TemplatesPage() {
     const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
     const fetchTemplates = useCallback(async () => {
-        setError('');
+        setLoadError('');
+        setLoading(true);
         try {
             const response = await api.getTemplates();
             setTemplates(response.data || []);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load field templates');
+            setLoadError(err instanceof Error ? err.message : 'Failed to load field templates');
         } finally {
             setLoading(false);
         }
@@ -81,8 +80,8 @@ export default function TemplatesPage() {
         if (new URLSearchParams(window.location.search).get('create') === 'true') setShowForm(true);
     }, [fetchTemplates]);
 
-    const startCreate = () => { setEditingId(null); setName(''); setFields([emptyField()]); setError(''); setShowForm(true); };
-    const startEdit = (template: CharacteristicTemplate) => { setEditingId(template.id); setName(template.name); setFields(template.fields.length ? template.fields : [emptyField()]); setError(''); setShowForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+    const startCreate = () => { setEditingId(null); setName(''); setFields([emptyField()]); setActionError(''); setNotice(''); setShowForm(true); };
+    const startEdit = (template: CharacteristicTemplate) => { setEditingId(template.id); setName(template.name); setFields(template.fields.length ? template.fields : [emptyField()]); setActionError(''); setNotice(''); setShowForm(true); window.scrollTo({ top: 0, behavior: 'smooth' }); };
     const closeForm = () => { setShowForm(false); setEditingId(null); setName(''); setFields([emptyField()]); };
 
     const updateField = (index: number, key: keyof TemplateField, value: string) => setFields((current) => current.map((field, fieldIndex) => fieldIndex === index ? { ...field, [key]: value } : field));
@@ -91,14 +90,15 @@ export default function TemplatesPage() {
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
         setIsSubmitting(true);
-        setError('');
+        setActionError('');
+        setNotice('');
         const validFields = fields.filter((field) => field.name.trim()).map((field) => ({ name: field.name.trim(), ...(field.measurement?.trim() && { measurement: field.measurement.trim() }) }));
         try {
             if (editingId) await api.updateTemplate(editingId, { name: name.trim(), fields: validFields }); else await api.createTemplate({ name: name.trim(), fields: validFields });
             closeForm();
             await fetchTemplates();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not save template');
+            setActionError(err instanceof Error ? err.message : 'Could not save template');
         } finally {
             setIsSubmitting(false);
         }
@@ -106,12 +106,14 @@ export default function TemplatesPage() {
 
     const handleDuplicate = async (template: CharacteristicTemplate) => {
         setDuplicatingId(template.id);
-        setError('');
+        setActionError('');
+        setNotice('');
         try {
             await api.duplicateTemplate(template.id);
             await fetchTemplates();
+            setNotice(`“${template.name}” was duplicated as a custom template.`);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not duplicate template');
+            setActionError(err instanceof Error ? err.message : 'Could not duplicate template');
         } finally {
             setDuplicatingId(null);
         }
@@ -119,12 +121,13 @@ export default function TemplatesPage() {
 
     const handleDelete = async (template: CharacteristicTemplate) => {
         if (!window.confirm(`Delete “${template.name}”?`)) return;
-        setError('');
+        setActionError('');
+        setNotice('');
         try {
             await api.deleteTemplate(template.id);
             await fetchTemplates();
         } catch (err) {
-            setError(err instanceof ApiError ? err.message : 'Could not delete template');
+            setActionError(err instanceof ApiError ? err.message : 'Could not delete template');
         }
     };
 
@@ -133,21 +136,28 @@ export default function TemplatesPage() {
         if (!needle) return templates;
         return templates.filter((template) => [template.name, template.key, ...template.fields.map((field) => field.name)].filter(Boolean).some((value) => String(value).toLocaleLowerCase().includes(needle)));
     }, [templates, query]);
-    const customTemplates = filtered.filter((template) => template.vendorId);
-    const systemTemplates = filtered.filter((template) => !template.vendorId);
-
-    if (loading) return <div className="flex justify-center p-20"><Spinner size={8} /></div>;
+    const customTemplates = filtered.filter((template) => template.vendorProfileId);
+    const systemTemplates = filtered.filter((template) => !template.vendorProfileId);
 
     return (
         <div className="mx-auto max-w-6xl space-y-6">
             <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div><div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-400"><FileText className="h-4 w-4" /> Advanced setup</div><h1 className="text-2xl font-bold text-white">Field templates</h1><p className="mt-1 text-sm text-slate-400">Reuse product characteristics. Start with a system template and customize only what you need.</p></div>
-                <Button onClick={startCreate}><Plus className="mr-2 h-4 w-4" /> Create custom template</Button>
+                <Button onClick={startCreate} disabled={loading || Boolean(loadError)}><Plus className="mr-2 h-4 w-4" /> Create custom template</Button>
             </header>
 
-            {error && <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</div>}
+            {loadError && (
+                <div role="alert" className="flex flex-col gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between">
+                    <span>{loadError}</span>
+                    <Button variant="secondary" size="sm" onClick={() => void fetchTemplates()}>Try again</Button>
+                </div>
+            )}
+            {actionError && <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{actionError}</div>}
+            {notice && <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{notice}</div>}
 
-            {showForm && (
+            {loading && <div className="flex justify-center p-20" role="status" aria-label="Loading templates"><Spinner size={8} /></div>}
+
+            {!loading && !loadError && showForm && (
                 <Card><CardContent className="p-5">
                     <div className="mb-4 flex items-center justify-between"><h2 className="font-semibold text-white">{editingId ? 'Edit custom template' : 'New custom template'}</h2><Button variant="ghost" size="icon" aria-label="Close template form" onClick={closeForm}><X className="h-4 w-4" /></Button></div>
                     <form onSubmit={handleSubmit} className="space-y-4">
@@ -158,11 +168,11 @@ export default function TemplatesPage() {
                 </CardContent></Card>
             )}
 
-            <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" /><Input aria-label="Search templates" value={query} onChange={(event) => setQuery(event.target.value)} className="pl-10" placeholder="Search template or field name…" /></div>
+            {!loading && !loadError && <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" /><Input aria-label="Search templates" value={query} onChange={(event) => setQuery(event.target.value)} className="pl-10" placeholder="Search template or field name…" /></div>}
 
-            <section aria-labelledby="custom-templates-heading"><div className="mb-2 flex items-center justify-between"><h2 id="custom-templates-heading" className="font-semibold text-white">Your custom templates</h2><span className="text-xs text-slate-500">{customTemplates.length} shown</span></div>{customTemplates.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{customTemplates.map((template) => <TemplateCard key={template.id} template={template} onEdit={startEdit} onDelete={handleDelete} onDuplicate={handleDuplicate} />)}</div> : <Card><CardContent className="p-6 text-center text-sm text-slate-500">{query ? 'No custom templates match your search.' : 'Duplicate a system template or create one from scratch.'}</CardContent></Card>}</section>
+            {!loading && !loadError && <section aria-labelledby="custom-templates-heading"><div className="mb-2 flex items-center justify-between"><h2 id="custom-templates-heading" className="font-semibold text-white">Your custom templates</h2><span className="text-xs text-slate-500">{customTemplates.length} shown</span></div>{customTemplates.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{customTemplates.map((template) => <TemplateCard key={template.id} template={template} onEdit={startEdit} onDelete={handleDelete} onDuplicate={handleDuplicate} />)}</div> : <Card><CardContent className="p-6 text-center text-sm text-slate-500">{query ? 'No custom templates match your search.' : 'Duplicate a system template or create one from scratch.'}</CardContent></Card>}</section>}
 
-            <section aria-labelledby="system-templates-heading"><div className="mb-2 flex items-center justify-between"><h2 id="system-templates-heading" className="font-semibold text-white">Built-in templates</h2><span className="text-xs text-slate-500">Managed by OmniStock · {systemTemplates.length} shown</span></div>{systemTemplates.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{systemTemplates.map((template) => <div key={template.id} className={duplicatingId === template.id ? 'pointer-events-none opacity-60' : ''}><TemplateCard template={template} onEdit={startEdit} onDelete={handleDelete} onDuplicate={handleDuplicate} /></div>)}</div> : <Card><CardContent className="p-6 text-center text-sm text-slate-500">No system templates match your search.</CardContent></Card>}</section>
+            {!loading && !loadError && <section aria-labelledby="system-templates-heading"><div className="mb-2 flex items-center justify-between"><h2 id="system-templates-heading" className="font-semibold text-white">Built-in templates</h2><span className="text-xs text-slate-500">Managed by OmniStock · {systemTemplates.length} shown</span></div>{systemTemplates.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{systemTemplates.map((template) => <TemplateCard key={template.id} template={template} duplicating={duplicatingId === template.id} onEdit={startEdit} onDelete={handleDelete} onDuplicate={handleDuplicate} />)}</div> : <Card><CardContent className="p-6 text-center text-sm text-slate-500">No system templates match your search.</CardContent></Card>}</section>}
         </div>
     );
 }

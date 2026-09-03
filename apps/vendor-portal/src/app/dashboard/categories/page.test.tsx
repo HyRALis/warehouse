@@ -16,8 +16,8 @@ vi.mock('@/lib/api', () => ({
 }));
 
 const categories = [
-    { id: 'system-1', code: 'FOOD', name: 'Food', vendorId: null, aliases: ['groceries'], parent: null, defaultTemplate: { id: 'template-1', name: 'Packaged Food' }, _count: { products: 2, children: 8 } },
-    { id: 'custom-1', name: 'Creator Merch', vendorId: 'vendor-1', aliases: ['influencer goods'], parent: { id: 'system-1', name: 'Food' }, defaultTemplate: null, _count: { products: 1, children: 0 } },
+    { id: 'system-1', code: 'FOOD', name: 'Food', vendorProfileId: null, aliases: ['groceries'], parent: null, defaultTemplate: { id: 'template-1', name: 'Packaged Food' }, _count: { products: 2, children: 8 } },
+    { id: 'custom-1', name: 'Creator Merch', vendorProfileId: 'profile-1', aliases: ['influencer goods'], parent: { id: 'system-1', name: 'Food' }, defaultTemplate: null, _count: { products: 1, children: 0 } },
 ];
 
 describe('CategoriesPage', () => {
@@ -54,5 +54,21 @@ describe('CategoriesPage', () => {
         render(<CategoriesPage />);
         await user.click(await screen.findByLabelText('Delete Creator Merch'));
         expect(await screen.findByRole('alert')).toHaveTextContent('Move linked products before deleting');
+    });
+
+    it('retries an initial catalog loading failure', async () => {
+        vi.mocked(api.getCategories)
+            .mockRejectedValueOnce(new Error('Categories are temporarily unavailable'))
+            .mockResolvedValueOnce({ success: true, data: categories });
+        const user = userEvent.setup();
+
+        render(<CategoriesPage />);
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+            'Categories are temporarily unavailable'
+        );
+        await user.click(screen.getByRole('button', { name: 'Try again' }));
+        expect(await screen.findByText('Food / Creator Merch')).toBeInTheDocument();
+        expect(api.getCategories).toHaveBeenCalledTimes(2);
     });
 });
