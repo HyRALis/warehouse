@@ -24,7 +24,7 @@ const categories = [
         id: 'category-apparel',
         name: 'Apparel',
         aliases: ['clothing'],
-        vendorId: null,
+        vendorProfileId: null,
         defaultTemplate: {
             id: 'template-apparel',
             name: 'Apparel basics',
@@ -35,7 +35,7 @@ const categories = [
         id: 'category-electronics',
         name: 'Electronics',
         aliases: ['tech'],
-        vendorId: null,
+        vendorProfileId: null,
         defaultTemplate: {
             id: 'template-electronics',
             name: 'Electronics basics',
