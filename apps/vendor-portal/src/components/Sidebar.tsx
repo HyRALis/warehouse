@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
     LayoutDashboard,
     Package,
@@ -12,6 +12,7 @@ import {
     Settings,
     Store,
     LogOut,
+    UsersRound,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@inventory-system/ui';
@@ -34,13 +35,22 @@ export const navigationGroups = [
     },
     {
         label: 'Workspace',
-        items: [{ name: 'Store Settings', href: '/dashboard/settings', icon: Settings }],
+        items: [
+            {
+                name: 'Team Access',
+                href: '/dashboard/members',
+                icon: UsersRound,
+                ownerOnly: true,
+            },
+            { name: 'Store Settings', href: '/dashboard/settings', icon: Settings },
+        ],
     },
 ];
 
 export default function Sidebar() {
     const pathname = usePathname();
-    const { vendor, logout } = useAuth();
+    const { user, platform, logout } = useAuth();
+    const router = useRouter();
 
     return (
         <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-slate-800 bg-slate-900 text-slate-300 md:flex">
@@ -65,26 +75,31 @@ export default function Sidebar() {
                             {group.label}
                         </p>
                         <div className="space-y-1.5">
-                            {group.items.map((item) => {
-                                const isActive =
-                                    pathname === item.href ||
-                                    (item.href !== '/dashboard' && pathname.startsWith(item.href));
-                                const Icon = item.icon;
-                                return (
-                                    <Link
-                                        key={item.name}
-                                        href={item.href}
-                                        className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${
-                                            isActive
-                                                ? 'bg-indigo-600 font-semibold text-white shadow-lg shadow-indigo-600/30'
-                                                : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
-                                        }`}
-                                    >
-                                        <Icon className={`h-5 w-5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                                        <span>{item.name}</span>
-                                    </Link>
-                                );
-                            })}
+                            {group.items
+                                .filter((item) => !item.ownerOnly || platform?.membership.isOwner)
+                                .map((item) => {
+                                    const isActive =
+                                        pathname === item.href ||
+                                        (item.href !== '/dashboard' &&
+                                            pathname.startsWith(item.href));
+                                    const Icon = item.icon;
+                                    return (
+                                        <Link
+                                            key={item.name}
+                                            href={item.href}
+                                            className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200 ${
+                                                isActive
+                                                    ? 'bg-indigo-600 font-semibold text-white shadow-lg shadow-indigo-600/30'
+                                                    : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+                                            }`}
+                                        >
+                                            <Icon
+                                                className={`h-5 w-5 ${isActive ? 'text-white' : 'text-slate-400'}`}
+                                            />
+                                            <span>{item.name}</span>
+                                        </Link>
+                                    );
+                                })}
                         </div>
                     </div>
                 ))}
@@ -95,14 +110,17 @@ export default function Sidebar() {
                 <div className="flex items-center justify-between">
                     <div className="truncate pr-2">
                         <p className="truncate text-sm font-semibold text-white">
-                            {vendor?.companyName || 'Vendor Company'}
+                            {platform?.vendorProfile?.displayName || 'Vendor Company'}
                         </p>
-                        <p className="truncate text-xs text-slate-500">{vendor?.email}</p>
+                        <p className="truncate text-xs text-slate-500">{user?.email}</p>
                     </div>
                     <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => logout()}
+                        onClick={async () => {
+                            await logout();
+                            router.replace('/login');
+                        }}
                         title="Log Out"
                         className="text-slate-400 hover:bg-rose-500/10 hover:text-rose-400"
                     >

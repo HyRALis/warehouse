@@ -4,11 +4,15 @@ import { generateTestToken, mockPrisma } from './setup';
 
 const vendorId = 'vendor-search-1';
 const token = generateTestToken(vendorId);
+const mockSearchRows = (rows: unknown[], literalMatch = true) => {
+    mockPrisma.$queryRaw
+        .mockResolvedValueOnce([{ found: literalMatch }])
+        .mockResolvedValueOnce(rows);
+};
 
 describe('universal search', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendorId });
         mockPrisma.$queryRaw.mockResolvedValue([]);
     });
 
@@ -29,14 +33,18 @@ describe('universal search', () => {
         const unsupported = await request(app)
             .get('/api/v1/search?q=hoodie&types=vendor')
             .set('Authorization', `Bearer ${token}`);
+        const emptyType = await request(app)
+            .get('/api/v1/search?q=hoodie&types=product,,version')
+            .set('Authorization', `Bearer ${token}`);
 
         expect(empty.status).toBe(400);
         expect(oversized.status).toBe(400);
         expect(unsupported.status).toBe(400);
+        expect(emptyType.status).toBe(400);
     });
 
     it('returns grouped suggestions with version context and exact identifier ranking', async () => {
-        mockPrisma.$queryRaw.mockResolvedValue([
+        mockSearchRows([
             {
                 type: 'version',
                 id: 'version-1',
@@ -85,7 +93,7 @@ describe('universal search', () => {
     });
 
     it('supports URL-persistable type filters and paginated results', async () => {
-        mockPrisma.$queryRaw.mockResolvedValue([
+        mockSearchRows([
             {
                 type: 'category',
                 id: 'category-1',
@@ -117,20 +125,22 @@ describe('universal search', () => {
             totalPages: 3,
         });
 
-        const queryValues = mockPrisma.$queryRaw.mock.calls[0].slice(1);
-        const queryText = mockPrisma.$queryRaw.mock.calls[0][0].join(' ');
+        const queryValues = mockPrisma.$queryRaw.mock.calls[1].slice(1);
+        const queryText = mockPrisma.$queryRaw.mock.calls[1][0].join(' ');
         expect(queryValues).toContain(vendorId);
         expect(queryText).toContain('p.vendor_profile_id');
         expect(queryText).toContain('pv.vendor_profile_id');
         expect(queryText).toContain('c.vendor_profile_id');
         expect(queryText).toContain('t.vendor_profile_id');
+        expect(queryText).toContain('AND p.vendor_profile_id');
+        expect(queryText).toContain('pc.vendor_profile_id IS NULL');
         expect(queryValues).toContain(false);
         expect(queryValues).toContain(true);
         expect(queryValues).toContain(10);
     });
 
     it('preserves the total when a requested page has no rows', async () => {
-        mockPrisma.$queryRaw.mockResolvedValue([
+        mockSearchRows([
             {
                 type: null,
                 id: null,
@@ -158,7 +168,7 @@ describe('universal search', () => {
     });
 
     it('surfaces template field matches and system ownership', async () => {
-        mockPrisma.$queryRaw.mockResolvedValue([
+        mockSearchRows([
             {
                 type: 'template',
                 id: 'template-1',
@@ -182,5 +192,19 @@ describe('universal search', () => {
             matchedField: 'field name',
             context: { ownership: 'system' },
         });
+    });
+
+    it('uses fuzzy trigram candidates only when the literal probe is empty', async () => {
+        mockSearchRows([], false);
+
+        const response = await request(app)
+            .get('/api/v1/search?q=hodie')
+            .set('Authorization', `Bearer ${token}`);
+
+        expect(response.status).toBe(200);
+        expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(2);
+        expect(mockPrisma.$queryRaw.mock.calls[1].slice(1)).toEqual(
+            expect.arrayContaining([expect.stringContaining('search_text %')])
+        );
     });
 });

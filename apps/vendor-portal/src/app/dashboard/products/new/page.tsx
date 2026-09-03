@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import Link from 'next/link';
@@ -15,14 +15,31 @@ interface CharacteristicInput {
     measurement: string;
 }
 
+interface TemplateField {
+    name: string;
+    measurement?: string;
+}
+
+interface ProductTemplate {
+    id: string;
+    name: string;
+    fields: TemplateField[];
+}
+
+interface ProductCategory extends CategoryOption {
+    defaultTemplate?: ProductTemplate | null;
+}
+
 export default function NewProductPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
     // Data lists
-    const [categories, setCategories] = useState<any[]>([]);
-    const [templates, setTemplates] = useState<any[]>([]);
+    const [categories, setCategories] = useState<ProductCategory[]>([]);
+    const [templates, setTemplates] = useState<ProductTemplate[]>([]);
+    const [dependenciesLoading, setDependenciesLoading] = useState(true);
+    const [dependenciesError, setDependenciesError] = useState('');
 
     // Form State
     const [baseName, setBaseName] = useState('');
@@ -37,21 +54,31 @@ export default function NewProductPage() {
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState('');
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [catRes, tempRes] = await Promise.all([
-                    api.getCategories(),
-                    api.getTemplates(),
-                ]);
-                if (catRes.success) setCategories(catRes.data || []);
-                if (tempRes.success) setTemplates(tempRes.data || []);
-            } catch (err) {
-                console.error('Failed to load form dependencies', err);
+    const fetchDependencies = useCallback(async () => {
+        setDependenciesLoading(true);
+        setDependenciesError('');
+        try {
+            const [categoryResponse, templateResponse] = await Promise.all([
+                api.getCategories(),
+                api.getTemplates(),
+            ]);
+            if (!categoryResponse.success || !templateResponse.success) {
+                throw new Error('The product catalog options could not be loaded.');
             }
-        };
-        fetchData();
+            setCategories(categoryResponse.data || []);
+            setTemplates(templateResponse.data || []);
+        } catch (dependencyError: any) {
+            setDependenciesError(
+                dependencyError?.message || 'The product catalog options could not be loaded.'
+            );
+        } finally {
+            setDependenciesLoading(false);
+        }
     }, []);
+
+    useEffect(() => {
+        void fetchDependencies();
+    }, [fetchDependencies]);
 
     const handleAddCharacteristic = () => {
         setCharacteristics([...characteristics, { name: '', value: '', measurement: '' }]);
@@ -77,12 +104,12 @@ export default function NewProductPage() {
         const templateId = e.target.value;
         if (!templateId) return;
 
-        const template = templates.find((t) => t.id === templateId);
+        const template = templates.find((item) => item.id === templateId);
         if (template && template.fields) {
-            const newChars = template.fields.map((f: any) => ({
-                name: f.name,
+            const newChars = template.fields.map((field) => ({
+                name: field.name,
                 value: '',
-                measurement: f.measurement || '',
+                measurement: field.measurement || '',
             }));
             setCharacteristics([...characteristics, ...newChars]);
         }
@@ -100,7 +127,7 @@ export default function NewProductPage() {
             );
             if (!preserve) {
                 setCharacteristics(
-                    (defaultTemplate?.fields || []).map((field: any) => ({
+                    (defaultTemplate?.fields || []).map((field) => ({
                         name: field.name,
                         value: '',
                         measurement: field.measurement || '',
@@ -109,7 +136,7 @@ export default function NewProductPage() {
             }
         } else if (defaultTemplate?.fields) {
             setCharacteristics(
-                defaultTemplate.fields.map((field: any) => ({
+                defaultTemplate.fields.map((field) => ({
                     name: field.name,
                     value: '',
                     measurement: field.measurement || '',
@@ -123,10 +150,17 @@ export default function NewProductPage() {
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.size > 2 * 1024 * 1024) {
-                alert('Image must be less than 2MB');
+            if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+                setError('Choose a JPEG, PNG, or WebP image.');
+                e.target.value = '';
                 return;
             }
+            if (file.size > 2 * 1024 * 1024) {
+                setError('Image must be 2 MB or smaller.');
+                e.target.value = '';
+                return;
+            }
+            setError('');
             setImageFile(file);
             const reader = new FileReader();
             reader.onloadend = () => {
@@ -209,8 +243,28 @@ export default function NewProductPage() {
             </div>
 
             {error && (
-                <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-400">
+                <div
+                    role="alert"
+                    className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-400"
+                >
                     {error}
+                </div>
+            )}
+
+            {dependenciesError && (
+                <div
+                    role="alert"
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200"
+                >
+                    <span>{dependenciesError}</span>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void fetchDependencies()}
+                    >
+                        Retry loading options
+                    </Button>
                 </div>
             )}
 
@@ -261,9 +315,15 @@ export default function NewProductPage() {
                                 <div className="space-y-1.5">
                                     <Label>Category *</Label>
                                     <SearchableCategorySelect
-                                        categories={categories as CategoryOption[]}
+                                        categories={categories}
                                         value={categoryId}
                                         onChange={handleCategoryChange}
+                                        disabled={dependenciesLoading || Boolean(dependenciesError)}
+                                        placeholder={
+                                            dependenciesLoading
+                                                ? 'Loading categories…'
+                                                : 'Search categories…'
+                                        }
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -278,7 +338,9 @@ export default function NewProductPage() {
                                     >
                                         <option value={ProductStatus.DRAFT}>Draft</option>
                                         <option value={ProductStatus.ACTIVE}>Active</option>
-                                        <option value={ProductStatus.DISCONTINUED}>Discontinued</option>
+                                        <option value={ProductStatus.DISCONTINUED}>
+                                            Discontinued
+                                        </option>
                                     </select>
                                 </div>
                             </div>
@@ -296,14 +358,18 @@ export default function NewProductPage() {
                                     >
                                         <option value={ProductStatus.DRAFT}>Draft</option>
                                         <option value={ProductStatus.ACTIVE}>Active</option>
-                                        <option value={ProductStatus.DISCONTINUED}>Discontinued</option>
+                                        <option value={ProductStatus.DISCONTINUED}>
+                                            Discontinued
+                                        </option>
                                     </select>
                                 </div>
                                 <label className="flex items-center gap-3 self-end rounded-lg border border-slate-800 bg-slate-950 px-4 py-2.5 text-sm text-slate-300">
                                     <input
                                         type="checkbox"
                                         checked={generateQrCode}
-                                        onChange={(event) => setGenerateQrCode(event.target.checked)}
+                                        onChange={(event) =>
+                                            setGenerateQrCode(event.target.checked)
+                                        }
                                         className="h-4 w-4 rounded border-slate-700 bg-slate-900 text-indigo-500"
                                     />
                                     Generate a QR code
@@ -330,6 +396,7 @@ export default function NewProductPage() {
                                 </h2>
                                 <select
                                     onChange={handleTemplateSelect}
+                                    disabled={dependenciesLoading || Boolean(dependenciesError)}
                                     className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-sm text-slate-300 focus:ring-2 focus:ring-indigo-500"
                                     defaultValue=""
                                 >
@@ -461,7 +528,13 @@ export default function NewProductPage() {
                         </div>
 
                         <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-                            <Button type="submit" disabled={loading} className="w-full">
+                            <Button
+                                type="submit"
+                                disabled={
+                                    loading || dependenciesLoading || Boolean(dependenciesError)
+                                }
+                                className="w-full"
+                            >
                                 {loading ? (
                                     <Spinner size={5} className="mr-2" />
                                 ) : (

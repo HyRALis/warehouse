@@ -107,4 +107,23 @@ describe('NewProductPage', () => {
             'R2 upload temporarily failed'
         );
     });
+
+    it('keeps creation disabled until catalog options load and provides a retry', async () => {
+        const user = userEvent.setup();
+        apiMock.getCategories.mockRejectedValueOnce(
+            new Error('Categories temporarily unavailable')
+        );
+        render(<NewProductPage />);
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+            'Categories temporarily unavailable'
+        );
+        expect(screen.getByRole('button', { name: 'Save Product' })).toBeDisabled();
+
+        await user.click(screen.getByRole('button', { name: 'Retry loading options' }));
+        await waitFor(() =>
+            expect(screen.getByRole('combobox', { name: 'Category' })).not.toBeDisabled()
+        );
+        expect(apiMock.getCategories).toHaveBeenCalledTimes(2);
+    });
 });

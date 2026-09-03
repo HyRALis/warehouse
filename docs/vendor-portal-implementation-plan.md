@@ -109,21 +109,21 @@ The menu must support keyboard navigation, accessible labels, focus management, 
 
 Seed exactly 126 system categories: 14 roots and eight selectable children per root. Every root includes an Other fallback. System categories use `vendorId = null`, a stable unique code, aliases, a breadcrumb path, and an optional default template.
 
-| Root | Selectable children |
-|---|---|
-| Food & Beverage | Snacks; Confectionery; Bakery; Pantry & Dry Goods; Fresh & Chilled; Frozen Foods; Beverages; Other Food & Beverage |
-| Clothing & Accessories | Tops; Bottoms; Dresses & One-Pieces; Outerwear; Underwear & Sleepwear; Footwear; Bags & Accessories; Other Clothing |
-| Beauty & Personal Care | Skincare; Hair Care; Makeup; Fragrance; Bath & Body; Nail Care; Grooming; Other Beauty |
-| Electronics | Phones & Tablets; Audio; Cameras; TVs & Displays; Smart Home; Wearables; Gaming Hardware; Other Electronics |
-| Computers & Technology | Laptops & Desktops; Components; Storage; Networking; Keyboards & Mice; Printers & Scanners; Cables & Adapters; Other Technology |
-| Home & Kitchen | Cookware; Tableware; Small Appliances; Furniture; Bedding & Bath; Home Decor; Cleaning Supplies; Other Home & Kitchen |
-| Arts, Crafts & Handmade | Art Supplies; Craft Supplies; Sewing & Textiles; Jewelry; Ceramics; Woodwork; Stationery; Other Handmade |
-| Creator Merchandise | Branded Apparel; Hats & Accessories; Prints & Posters; Stickers; Mugs & Drinkware; Books & Media; Collectibles; Other Creator Merchandise |
-| Sports & Outdoors | Fitness Equipment; Outdoor Recreation; Team Sports; Cycling; Running; Camping & Hiking; Sportswear; Other Sports |
-| Health & Wellness | Vitamins & Supplements; First Aid; Medical Devices; Oral Care; Personal Hygiene; Mobility & Accessibility; Wellness Products; Other Health |
-| Baby, Kids & Toys | Baby Care; Feeding; Kids Clothing; Nursery; Educational Toys; Games & Puzzles; Outdoor Toys; Other Kids & Toys |
-| Pet Supplies | Pet Food; Treats; Health & Grooming; Toys; Beds & Habitats; Collars & Leashes; Aquatic Supplies; Other Pet Supplies |
-| Automotive | Parts; Tools & Equipment; Car Care; Oils & Fluids; Vehicle Electronics; Interior Accessories; Exterior Accessories; Other Automotive |
+| Root                       | Selectable children                                                                                                                                       |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Food & Beverage            | Snacks; Confectionery; Bakery; Pantry & Dry Goods; Fresh & Chilled; Frozen Foods; Beverages; Other Food & Beverage                                        |
+| Clothing & Accessories     | Tops; Bottoms; Dresses & One-Pieces; Outerwear; Underwear & Sleepwear; Footwear; Bags & Accessories; Other Clothing                                       |
+| Beauty & Personal Care     | Skincare; Hair Care; Makeup; Fragrance; Bath & Body; Nail Care; Grooming; Other Beauty                                                                    |
+| Electronics                | Phones & Tablets; Audio; Cameras; TVs & Displays; Smart Home; Wearables; Gaming Hardware; Other Electronics                                               |
+| Computers & Technology     | Laptops & Desktops; Components; Storage; Networking; Keyboards & Mice; Printers & Scanners; Cables & Adapters; Other Technology                           |
+| Home & Kitchen             | Cookware; Tableware; Small Appliances; Furniture; Bedding & Bath; Home Decor; Cleaning Supplies; Other Home & Kitchen                                     |
+| Arts, Crafts & Handmade    | Art Supplies; Craft Supplies; Sewing & Textiles; Jewelry; Ceramics; Woodwork; Stationery; Other Handmade                                                  |
+| Creator Merchandise        | Branded Apparel; Hats & Accessories; Prints & Posters; Stickers; Mugs & Drinkware; Books & Media; Collectibles; Other Creator Merchandise                 |
+| Sports & Outdoors          | Fitness Equipment; Outdoor Recreation; Team Sports; Cycling; Running; Camping & Hiking; Sportswear; Other Sports                                          |
+| Health & Wellness          | Vitamins & Supplements; First Aid; Medical Devices; Oral Care; Personal Hygiene; Mobility & Accessibility; Wellness Products; Other Health                |
+| Baby, Kids & Toys          | Baby Care; Feeding; Kids Clothing; Nursery; Educational Toys; Games & Puzzles; Outdoor Toys; Other Kids & Toys                                            |
+| Pet Supplies               | Pet Food; Treats; Health & Grooming; Toys; Beds & Habitats; Collars & Leashes; Aquatic Supplies; Other Pet Supplies                                       |
+| Automotive                 | Parts; Tools & Equipment; Car Care; Oils & Fluids; Vehicle Electronics; Interior Accessories; Exterior Accessories; Other Automotive                      |
 | Office & Business Supplies | Office Supplies; Paper & Packaging; Office Furniture; Point of Sale; Safety Equipment; Industrial Consumables; Shipping Supplies; Other Business Supplies |
 
 ### Searchable selection
@@ -227,14 +227,14 @@ PostgreSQL normalized `searchText` fields and `pg_trgm` indexes provide initial 
 
 ```ts
 interface CategoryOption {
-  id: string;
-  code: string;
-  name: string;
-  path: string;
-  aliases: string[];
-  parentId: string;
-  defaultTemplateId: string | null;
-  source: 'SYSTEM' | 'VENDOR';
+    id: string;
+    code: string;
+    name: string;
+    path: string;
+    aliases: string[];
+    parentId: string;
+    defaultTemplateId: string | null;
+    source: 'SYSTEM' | 'VENDOR';
 }
 ```
 
@@ -258,15 +258,15 @@ Product list responses include `primaryVersion` and `versionCount`. Product crea
 type SearchResultType = 'PRODUCT' | 'CATEGORY' | 'TEMPLATE';
 
 interface UniversalSearchResult {
-  type: SearchResultType;
-  id: string;
-  title: string;
-  subtitle: string;
-  href: string;
-  status?: ProductStatus;
-  imageUrl?: string | null;
-  versionId?: string;
-  matchedOn?: string;
+    type: SearchResultType;
+    id: string;
+    title: string;
+    subtitle: string;
+    href: string;
+    status?: ProductStatus;
+    imageUrl?: string | null;
+    versionId?: string;
+    matchedOn?: string;
 }
 ```
 
@@ -326,21 +326,21 @@ Existing accounts keep their passwords. The cutover revokes legacy sessions and 
 
 Every stage uses a `codex/` branch and produces a pull request targeting `develop`. Backend capabilities merge before their dependent frontend work. Pull requests are opened only after their scoped verification passes, are not merged automatically, and merge in numerical order.
 
-| Order | Branch | Pull request | Purpose |
-|---|---|---|---|
-| 00 | `codex/docs-vendor-completion-roadmap` | `docs(vendor): define final Prisma and identity completion roadmap` | Make this document and the decision log the authoritative completion contract. |
-| 01 | `codex/backend-vendor-prisma-7` | `chore(database): upgrade vendor platform to Prisma 7` | Modernize persistence independently before adding authentication models. |
-| 02 | `codex/backend-vendor-better-auth` | `feat(auth): add Better Auth users, organizations, and secure sessions` | Separate people and organizations and provide verified, revocable, MFA-capable authentication. |
-| 03 | `codex/backend-vendor-entitlements` | `feat(platform): add portal subscriptions and vendor-profile tenancy` | Separate portal entitlement from producer identity and migrate catalog ownership safely. |
-| 04 | `codex/frontend-vendor-auth` | `feat(portal): migrate vendor authentication and organization onboarding` | Move registration, login, verification, reset, MFA, sessions, and active Organization context to the accepted backend contract. |
-| 05 | `codex/frontend-vendor-member-access` | `feat(portal): add member invitations and vendor portal access` | Let an Owner invite members and control access without introducing future inventory roles. |
-| 06 | `codex/backend-vendor-catalog-hardening` | `chore(vendor): harden catalog tenancy and product lifecycle APIs` | Complete Vendor Profile authorization and product/version invariants. |
-| 07 | `codex/backend-vendor-media-import-search` | `chore(vendor): harden R2 media, imports, exports, and search` | Verify the highest-risk external and bulk-data boundaries before release. |
-| 08 | `codex/backend-vendor-auth-cleanup` | `refactor(auth): remove transitional vendor authentication fields` | Remove legacy authentication and ownership only after the cutover is proven. |
-| 09 | `codex/frontend-vendor-product-hardening` | `chore(portal): harden product and version workflows` | Finish product-first flows against the new Organization and Vendor Profile context. |
-| 10 | `codex/frontend-vendor-catalog-search-hardening` | `chore(portal): harden catalog, search, and import workflows` | Complete advanced catalog and bulk workflows without expanding scope. |
-| 11 | `codex/frontend-vendor-accessibility` | `chore(portal): complete vendor accessibility and responsive behavior` | Make the finished workflows usable by keyboard, screen reader, desktop, and mobile users. |
-| 12 | `codex/release-vendor-portal` | `chore(vendor): verify and document vendor portal release` | Produce release evidence and documentation without adding business features. |
+| Order | Branch                                           | Pull request                                                              | Purpose                                                                                                                         |
+| ----- | ------------------------------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| 00    | `codex/docs-vendor-completion-roadmap`           | `docs(vendor): define final Prisma and identity completion roadmap`       | Make this document and the decision log the authoritative completion contract.                                                  |
+| 01    | `codex/backend-vendor-prisma-7`                  | `chore(database): upgrade vendor platform to Prisma 7`                    | Modernize persistence independently before adding authentication models.                                                        |
+| 02    | `codex/backend-vendor-better-auth`               | `feat(auth): add Better Auth users, organizations, and secure sessions`   | Separate people and organizations and provide verified, revocable, MFA-capable authentication.                                  |
+| 03    | `codex/backend-vendor-entitlements`              | `feat(platform): add portal subscriptions and vendor-profile tenancy`     | Separate portal entitlement from producer identity and migrate catalog ownership safely.                                        |
+| 04    | `codex/frontend-vendor-auth`                     | `feat(portal): migrate vendor authentication and organization onboarding` | Move registration, login, verification, reset, MFA, sessions, and active Organization context to the accepted backend contract. |
+| 05    | `codex/frontend-vendor-member-access`            | `feat(portal): add member invitations and vendor portal access`           | Let an Owner invite members and control access without introducing future inventory roles.                                      |
+| 06    | `codex/backend-vendor-catalog-hardening`         | `chore(vendor): harden catalog tenancy and product lifecycle APIs`        | Complete Vendor Profile authorization and product/version invariants.                                                           |
+| 07    | `codex/backend-vendor-media-import-search`       | `chore(vendor): harden R2 media, imports, exports, and search`            | Verify the highest-risk external and bulk-data boundaries before release.                                                       |
+| 08    | `codex/backend-vendor-auth-cleanup`              | `refactor(auth): remove transitional vendor authentication fields`        | Remove legacy authentication and ownership only after the cutover is proven.                                                    |
+| 09    | `codex/frontend-vendor-product-hardening`        | `chore(portal): harden product and version workflows`                     | Finish product-first flows against the new Organization and Vendor Profile context.                                             |
+| 10    | `codex/frontend-vendor-catalog-search-hardening` | `chore(portal): harden catalog, search, and import workflows`             | Complete advanced catalog and bulk workflows without expanding scope.                                                           |
+| 11    | `codex/frontend-vendor-accessibility`            | `chore(portal): complete vendor accessibility and responsive behavior`    | Make the finished workflows usable by keyboard, screen reader, desktop, and mobile users.                                       |
+| 12    | `codex/release-vendor-portal`                    | `chore(vendor): verify and document vendor portal release`                | Produce release evidence and documentation without adding business features.                                                    |
 
 ### Stage details
 
@@ -356,9 +356,15 @@ PR 06 completes profile-scoped authorization across products, versions, categori
 
 PR 07 completes R2 upload/deletion/rollback tests, version-owned media behavior, CSV limits and row errors, profile-aware import/export, and universal-search isolation and the 10,000-product benchmark.
 
-PR 08 removes handwritten JWT/session code, the temporary facade, credential fields from the former Vendor data, and transitional ownership columns only after the frontend cutover and migration audits pass.
+PR 08 removes handwritten JWT/session code, the former Vendor data, compatibility triggers, and
+transitional ownership columns after the migration audits pass. The established `/api/v1/auth`
+URLs remain temporarily as thin Better Auth-backed routes while the stacked frontend branch still
+uses them; they no longer read or write a legacy credential or session system.
 
-PRs 09 through 11 finish the quick-create, product/version, catalog/template, universal-search, CSV, mobile, keyboard, focus, screen-reader, and responsive behavior already defined in this blueprint.
+PR 09 finishes the product-first editor, recoverable category/template loading, version lifecycle
+and copy safeguards, client-side media feedback, and isolated Storybook coverage. It does not alter
+the search API or its ranking. PRs 10 and 11 then finish catalog/template, universal-search, CSV,
+mobile, keyboard, focus, screen-reader, and responsive behavior already defined in this blueprint.
 
 PR 12 contains only clean-install and upgrade verification, release notes, security and license evidence, setup/migration/rollback documentation, final screenshots, and regenerated Markdown/DOCX artifacts.
 

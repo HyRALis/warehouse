@@ -5,4 +5,5 @@ dist
 .turbo
 .next
 coverage
+storybook-static
 packages/database/src/generated/prisma
