@@ -102,41 +102,31 @@ export class PlatformController {
         try {
             if (ownerRequired(req, res)) return;
 
-            const profile = await prisma.$transaction(async (transaction) => {
-                const profile = await transaction.vendorProfile.update({
-                    where: { id: req.vendorProfileId! },
-                    data: {
-                        ...(req.body.displayName !== undefined && {
-                            displayName: req.body.displayName,
-                        }),
-                        ...(req.body.description !== undefined && {
-                            description: req.body.description,
-                        }),
-                        ...(req.body.websiteUrl !== undefined && {
-                            websiteUrl: req.body.websiteUrl,
-                        }),
-                        ...(req.body.logoUrl !== undefined && { logoUrl: req.body.logoUrl }),
-                    },
-                    select: {
-                        id: true,
-                        organizationId: true,
-                        profileKey: true,
-                        displayName: true,
-                        description: true,
-                        websiteUrl: true,
-                        logoUrl: true,
-                        createdAt: true,
-                        updatedAt: true,
-                    },
-                });
-
-                if (req.body.displayName !== undefined) {
-                    await transaction.vendor.update({
-                        where: { id: req.vendorId! },
-                        data: { companyName: req.body.displayName },
-                    });
-                }
-                return profile;
+            const profile = await prisma.vendorProfile.update({
+                where: { id: req.vendorProfileId! },
+                data: {
+                    ...(req.body.displayName !== undefined && {
+                        displayName: req.body.displayName,
+                    }),
+                    ...(req.body.description !== undefined && {
+                        description: req.body.description,
+                    }),
+                    ...(req.body.websiteUrl !== undefined && {
+                        websiteUrl: req.body.websiteUrl,
+                    }),
+                    ...(req.body.logoUrl !== undefined && { logoUrl: req.body.logoUrl }),
+                },
+                select: {
+                    id: true,
+                    organizationId: true,
+                    profileKey: true,
+                    displayName: true,
+                    description: true,
+                    websiteUrl: true,
+                    logoUrl: true,
+                    createdAt: true,
+                    updatedAt: true,
+                },
             });
             res.status(200).json({ success: true, data: profile });
         } catch (error) {

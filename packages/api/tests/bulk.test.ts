@@ -13,7 +13,6 @@ const categoryId = '32dbce22-6db5-4e2c-9b59-06ed5460a7e3';
 describe('bulk product operations', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendorId });
         mockPrisma.category.findMany.mockResolvedValue([
             { id: categoryId, code: 'creator-merchandise', name: 'Creator Merchandise' },
         ]);
@@ -44,7 +43,6 @@ describe('bulk product operations', () => {
         expect(mockPrisma.product.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 data: expect.objectContaining({
-                    vendorId,
                     vendorProfileId: vendorId,
                     status: 'ACTIVE',
                 }),

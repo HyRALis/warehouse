@@ -9,51 +9,31 @@ import { applyBetterAuthHeaders } from '../services/better-auth-response.service
 import { hashPassword, isLegacyBcryptHash } from '../services/password.service';
 import { createVendorProfile, VENDOR_PORTAL_KEY } from '../services/vendor-profile.service';
 
-const publicVendor = (vendor: {
-    id: string;
-    email: string;
-    companyName: string;
-    createdAt: Date;
-}) => ({
-    id: vendor.id,
-    email: vendor.email,
-    companyName: vendor.companyName,
-    createdAt: vendor.createdAt,
-});
-
 const normalizeEmail = (email: string): string => email.trim().toLowerCase();
 
 const conflictError = (error: unknown): boolean =>
     error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 
 export class AuthController {
-    /**
-     * Transitional registration contract. Identity, credential account, Organization, Owner
-     * membership, and legacy Vendor context are created atomically; Better Auth then creates the
-     * database-backed session returned through its native cookie.
-     */
+    /** Create the Better Auth identity and complete Vendor Portal Organization graph atomically. */
     static async register(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
             const email = normalizeEmail(req.body.email);
             const { password, companyName } = req.body;
             const passwordHash = await hashPassword(password);
             const userId = crypto.randomUUID();
-            const vendorId = crypto.randomUUID();
+            const vendorProfileId = crypto.randomUUID();
             const organizationId = crypto.randomUUID();
             const now = new Date();
 
-            const vendor = await prisma.$transaction(
+            const created = await prisma.$transaction(
                 async (transaction) => {
-                    const createdVendor = await transaction.vendor.create({
-                        data: { id: vendorId, email, passwordHash, companyName },
-                    });
-                    await transaction.user.create({
+                    const user = await transaction.user.create({
                         data: {
                             id: userId,
                             name: companyName,
                             email,
                             emailVerified: false,
-                            legacyVendorId: vendorId,
                             createdAt: now,
                             updatedAt: now,
                         },
@@ -113,14 +93,13 @@ export class AuthController {
                             updatedByUserId: userId,
                         },
                     });
-                    await createVendorProfile(transaction, {
+                    const profile = await createVendorProfile(transaction, {
                         organizationId,
-                        profileId: vendorId,
+                        profileId: vendorProfileId,
                         profileKey: 'primary',
                         displayName: companyName,
-                        legacyVendorId: vendorId,
                     });
-                    return createdVendor;
+                    return { user, profile };
                 },
                 { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
             );
@@ -146,7 +125,14 @@ export class AuthController {
 
             res.status(201).json({
                 success: true,
-                data: { vendor: publicVendor(vendor) },
+                data: {
+                    vendor: {
+                        id: created.profile.id,
+                        email: created.user.email,
+                        companyName: created.profile.displayName,
+                        createdAt: created.profile.createdAt,
+                    },
+                },
             });
         } catch (error) {
             if (conflictError(error)) {
@@ -157,7 +143,7 @@ export class AuthController {
         }
     }
 
-    /** Login through Better Auth while preserving the existing response envelope. */
+    /** Sign in through Better Auth and transparently rehash a migrated bcrypt credential. */
     static async login(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
             const email = normalizeEmail(req.body.email);
@@ -184,61 +170,29 @@ export class AuthController {
             }
 
             const signedInUser = response as typeof response & {
-                user?: {
-                    id?: string;
-                    name?: string;
-                    email?: string;
-                    emailVerified?: boolean;
-                    image?: string | null;
-                };
+                user?: { id?: string; name?: string; email?: string; emailVerified?: boolean };
             };
-            const identity = signedInUser.user?.id
-                ? await prisma.user.findUnique({
-                      where: { id: signedInUser.user.id },
-                      select: {
-                          legacyVendor: {
-                              select: {
-                                  id: true,
-                                  email: true,
-                                  companyName: true,
-                                  createdAt: true,
-                                  deletedAt: true,
-                              },
-                          },
-                          accounts: {
-                              where: { issuer: 'local:credential', providerId: 'credential' },
-                              take: 1,
-                              select: { id: true, password: true },
-                          },
-                      },
-                  })
-                : null;
-
-            if (!identity || identity.legacyVendor?.deletedAt) {
+            if (!signedInUser.user?.id) {
                 res.status(401).json({ success: false, message: 'Invalid credentials' });
                 return;
             }
 
-            const credential = identity.accounts[0];
-            if (credential && isLegacyBcryptHash(credential.password)) {
+            const credential = await prisma.account.findFirst({
+                where: {
+                    userId: signedInUser.user.id,
+                    issuer: 'local:credential',
+                    providerId: 'credential',
+                },
+                select: { id: true, password: true },
+            });
+            if (credential?.password && isLegacyBcryptHash(credential.password)) {
                 await prisma.account.update({
                     where: { id: credential.id },
                     data: { password: await hashPassword(req.body.password) },
                 });
             }
 
-            if (!identity.legacyVendor) {
-                res.status(200).json({
-                    success: true,
-                    data: { user: signedInUser.user },
-                });
-                return;
-            }
-
-            res.status(200).json({
-                success: true,
-                data: { vendor: publicVendor(identity.legacyVendor) },
-            });
+            res.status(200).json({ success: true, data: { user: signedInUser.user } });
         } catch (error) {
             if (isAPIError(error)) {
                 res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -264,10 +218,7 @@ export class AuthController {
     static async forgotPassword(req: Request, res: Response, next: NextFunction): Promise<void> {
         try {
             await auth.api.requestPasswordReset({
-                body: {
-                    email: normalizeEmail(req.body.email),
-                    redirectTo: '/reset-password',
-                },
+                body: { email: normalizeEmail(req.body.email), redirectTo: '/reset-password' },
                 headers: fromNodeHeaders(req.headers),
             });
             res.status(200).json({
@@ -310,23 +261,32 @@ export class AuthController {
 
     static async getMe(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
-            const vendor = await prisma.vendor.findFirst({
-                where: { id: req.vendorId, deletedAt: null },
-                select: {
-                    id: true,
-                    email: true,
-                    companyName: true,
-                    createdAt: true,
-                    updatedAt: true,
-                },
-            });
+            const [user, profile] = await Promise.all([
+                prisma.user.findUnique({
+                    where: { id: req.userId! },
+                    select: { email: true },
+                }),
+                prisma.vendorProfile.findFirst({
+                    where: { id: req.vendorProfileId!, deletedAt: null },
+                    select: { id: true, displayName: true, createdAt: true, updatedAt: true },
+                }),
+            ]);
 
-            if (!vendor) {
-                res.status(404).json({ success: false, message: 'Vendor not found' });
+            if (!user || !profile) {
+                res.status(404).json({ success: false, message: 'Vendor Profile not found' });
                 return;
             }
 
-            res.status(200).json({ success: true, data: vendor });
+            res.status(200).json({
+                success: true,
+                data: {
+                    id: profile.id,
+                    email: user.email,
+                    companyName: profile.displayName,
+                    createdAt: profile.createdAt,
+                    updatedAt: profile.updatedAt,
+                },
+            });
         } catch (error) {
             next(error);
         }

@@ -17,7 +17,8 @@
         "seed:verify": "tsx prisma/verify-system-catalog.ts",
         "benchmark:search": "tsx prisma/benchmark-vendor-search.ts",
         "auth:verify-migration": "tsx prisma/verify-better-auth-migration.ts",
-        "entitlements:verify-migration": "tsx prisma/verify-vendor-entitlements-migration.ts"
+        "entitlements:verify-migration": "tsx prisma/verify-vendor-entitlements-migration.ts",
+        "auth:verify-cleanup": "tsx prisma/verify-vendor-auth-cleanup.ts"
     },
     "dependencies": {
         "@prisma/adapter-pg": "7.10.0",

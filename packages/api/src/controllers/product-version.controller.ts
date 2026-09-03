@@ -171,7 +171,6 @@ export class ProductVersionController {
 
     static async create(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
-            const vendorId = req.vendorId!;
             const vendorProfileId = req.vendorProfileId!;
             const productId = req.params.productId;
             const {
@@ -251,7 +250,6 @@ export class ProductVersionController {
                     const version = await tx.productVersion.create({
                         data: {
                             productId,
-                            vendorId,
                             vendorProfileId,
                             versionNumber: (latest?.versionNumber || 0) + 1,
                             label,

@@ -9,7 +9,6 @@ const templateId = 'e5a99c9c-939c-4aa4-ad30-f8dfe099bd97';
 describe('templates', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendorId });
     });
 
     it('lists system templates and templates owned by the authenticated vendor', async () => {
@@ -30,7 +29,6 @@ describe('templates', () => {
     it('allows reading and duplicating a system template without mutating it', async () => {
         const systemTemplate = {
             id: templateId,
-            vendorId: null,
             vendorProfileId: null,
             name: 'Apparel',
             fields: [{ name: 'Material' }],
@@ -39,7 +37,7 @@ describe('templates', () => {
         mockPrisma.characteristicTemplate.create.mockResolvedValue({
             ...systemTemplate,
             id: 'copy-1',
-            vendorId,
+            vendorProfileId: vendorId,
             name: 'Creator Apparel',
         });
 
@@ -51,7 +49,6 @@ describe('templates', () => {
         expect(response.status).toBe(201);
         expect(mockPrisma.characteristicTemplate.create).toHaveBeenCalledWith({
             data: expect.objectContaining({
-                vendorId,
                 vendorProfileId: vendorId,
                 name: 'Creator Apparel',
                 fields: systemTemplate.fields,
@@ -63,7 +60,6 @@ describe('templates', () => {
     it('denies updates to system templates', async () => {
         mockPrisma.characteristicTemplate.findFirst.mockResolvedValue({
             id: templateId,
-            vendorId: null,
             vendorProfileId: null,
         });
 
@@ -97,7 +93,6 @@ describe('templates', () => {
     it('prevents deleting a custom template used by categories', async () => {
         mockPrisma.characteristicTemplate.findFirst.mockResolvedValue({
             id: templateId,
-            vendorId,
             vendorProfileId: vendorId,
         });
         mockPrisma.category.count.mockResolvedValue(3);

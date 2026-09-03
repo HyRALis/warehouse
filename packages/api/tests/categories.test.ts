@@ -9,7 +9,6 @@ const categoryId = '32dbce22-6db5-4e2c-9b59-06ed5460a7e3';
 describe('categories', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendorId });
     });
 
     it('lists only system and current-vendor categories', async () => {
@@ -42,7 +41,6 @@ describe('categories', () => {
     it('forbids editing a system category or another vendor’s category', async () => {
         mockPrisma.category.findFirst.mockResolvedValue({
             id: categoryId,
-            vendorId: null,
             vendorProfileId: null,
         });
 
@@ -92,7 +90,6 @@ describe('categories', () => {
     it('prevents deletion while products or child categories still reference it', async () => {
         mockPrisma.category.findFirst.mockResolvedValue({
             id: categoryId,
-            vendorId,
             vendorProfileId: vendorId,
         });
         mockPrisma.product.count.mockResolvedValue(2);

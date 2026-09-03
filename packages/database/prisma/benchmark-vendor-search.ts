@@ -145,14 +145,14 @@ const benchmarkQuery = async (
 
 async function main(): Promise<void> {
     const profile = await prisma.vendorProfile.findFirst({
-        where: { deletedAt: null, legacyVendorId: { not: null } },
-        select: { id: true, legacyVendorId: true },
+        where: { deletedAt: null },
+        select: { id: true },
         orderBy: { createdAt: 'asc' },
     });
 
-    if (!profile?.legacyVendorId) {
+    if (!profile) {
         throw new Error(
-            'Search benchmark needs an existing migrated or registered Vendor Profile. Seed and register a vendor first.'
+            'Search benchmark needs an existing Vendor Profile. Register a vendor first.'
         );
     }
 
@@ -197,36 +197,26 @@ async function main(): Promise<void> {
         await prisma.$transaction(
             async (transaction) => {
                 const setupStartedAt = performance.now();
-                // The compatibility triggers perform a profile lookup per row. The benchmark
-                // supplies both validated ownership keys, so bypass them while loading only.
-                await transaction.$executeRawUnsafe(
-                    'ALTER TABLE products DISABLE TRIGGER products_sync_vendor_profile_ownership'
-                );
-                await transaction.$executeRawUnsafe(
-                    'ALTER TABLE product_versions DISABLE TRIGGER product_versions_sync_vendor_profile_ownership'
-                );
                 await transaction.$executeRawUnsafe(
                     `
                         INSERT INTO products (
-                            id, vendor_id, vendor_profile_id, category_id, sku, base_name,
+                            id, vendor_profile_id, category_id, sku, base_name,
                             status, characteristics, search_text, created_at, updated_at
                         )
                         SELECT
                             md5($1 || ':product:' || series::text),
                             $2,
                             $3,
-                            $4,
-                            $5 || '-P-' || lpad(series::text, 5, '0'),
+                            $4 || '-P-' || lpad(series::text, 5, '0'),
                             'Benchmark Inventory Item ' || lpad(series::text, 5, '0'),
                             'ACTIVE'::"ProductStatus",
                             '[]'::jsonb,
-                            $7 || ' benchmark inventory item ' || lpad(series::text, 5, '0') || ' ' || lower($5) || '-p-' || lpad(series::text, 5, '0'),
+                            $6 || ' benchmark inventory item ' || lpad(series::text, 5, '0') || ' ' || lower($4) || '-p-' || lpad(series::text, 5, '0'),
                             now(),
                             now()
-                        FROM generate_series(1, $6::integer) AS series
+                        FROM generate_series(1, $5::integer) AS series
                     `,
                     runToken,
-                    profile.legacyVendorId,
                     profile.id,
                     category.id,
                     skuPrefix,
@@ -237,7 +227,7 @@ async function main(): Promise<void> {
                 await transaction.$executeRawUnsafe(
                     `
                         INSERT INTO product_versions (
-                            id, product_id, vendor_id, vendor_profile_id, version_number,
+                            id, product_id, vendor_profile_id, version_number,
                             label, sku, status, characteristics, is_primary, search_text,
                             created_at, updated_at
                         )
@@ -245,32 +235,24 @@ async function main(): Promise<void> {
                             md5($1 || ':version:' || series::text),
                             md5($1 || ':product:' || series::text),
                             $2,
-                            $3,
                             1,
                             'Original',
-                            $4 || '-V-' || lpad(series::text, 5, '0'),
+                            $3 || '-V-' || lpad(series::text, 5, '0'),
                             'ACTIVE'::"ProductStatus",
                             '[]'::jsonb,
                             true,
-                            $6 || ' benchmark inventory item ' || lpad(series::text, 5, '0') || ' original ' || lower($4) || '-v-' || lpad(series::text, 5, '0'),
+                            $5 || ' benchmark inventory item ' || lpad(series::text, 5, '0') || ' original ' || lower($3) || '-v-' || lpad(series::text, 5, '0'),
                             now(),
                             now()
-                        FROM generate_series(1, $5::integer) AS series
+                        FROM generate_series(1, $4::integer) AS series
                     `,
                     runToken,
-                    profile.legacyVendorId,
                     profile.id,
                     skuPrefix,
                     CORPUS_SIZE,
                     runMarker
                 );
 
-                await transaction.$executeRawUnsafe(
-                    'ALTER TABLE products ENABLE TRIGGER products_sync_vendor_profile_ownership'
-                );
-                await transaction.$executeRawUnsafe(
-                    'ALTER TABLE product_versions ENABLE TRIGGER product_versions_sync_vendor_profile_ownership'
-                );
                 console.log(
                     `Temporary benchmark corpus loaded in ${round(performance.now() - setupStartedAt)} ms.`
                 );

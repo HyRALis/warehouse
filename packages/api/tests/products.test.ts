@@ -21,7 +21,6 @@ const productId = '9cc10440-333c-4f0a-92be-082962cfa80f';
 
 const product = {
     id: productId,
-    vendorId,
     vendorProfileId: vendorId,
     categoryId,
     sku: 'SKU-1',
@@ -39,7 +38,6 @@ const product = {
 const version = {
     id: '4a48cdb1-b253-4c6d-bd51-2dfb24dd4b51',
     productId,
-    vendorId,
     vendorProfileId: vendorId,
     versionNumber: 1,
     label: 'Original',
@@ -59,7 +57,6 @@ const version = {
 describe('products', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendorId });
         mockPrisma.$queryRaw.mockResolvedValue([{ id: productId }]);
     });
 
@@ -116,7 +113,6 @@ describe('products', () => {
         expect(mockPrisma.productVersion.create).toHaveBeenCalledWith({
             data: expect.objectContaining({
                 productId,
-                vendorId,
                 vendorProfileId: vendorId,
                 label: 'Original',
                 versionNumber: 1,

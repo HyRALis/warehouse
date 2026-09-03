@@ -23,7 +23,7 @@ const copyId = '02fa660b-58a8-41d7-9e20-ed32b3ce517b';
 
 const product = {
     id: productId,
-    vendorId,
+    vendorProfileId: vendorId,
     baseName: 'Creator Hoodie',
     status: 'ACTIVE',
     deletedAt: null,
@@ -33,7 +33,7 @@ const product = {
 const original = {
     id: originalId,
     productId,
-    vendorId,
+    vendorProfileId: vendorId,
     versionNumber: 1,
     label: 'Original',
     sku: 'HOODIE-ORIGINAL',
@@ -61,7 +61,6 @@ const copied = {
 describe('product versions', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendorId });
         mockPrisma.$queryRaw.mockResolvedValue([{ id: productId }]);
     });
 
@@ -226,7 +225,6 @@ describe('product versions', () => {
             .send({ label: 'Blocked', mode: 'BLANK' });
         expect(createResponse.status).toBe(404);
 
-        mockPrisma.vendor.findFirst.mockResolvedValue({ id: otherVendorId });
         mockPrisma.productVersion.findFirst.mockResolvedValue(null);
         const detailResponse = await request(app)
             .get(`/api/v1/products/${productId}/versions/${copyId}`)

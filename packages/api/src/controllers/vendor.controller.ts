@@ -4,6 +4,7 @@ import prisma from '@inventory-system/database';
 import { auth } from '../auth';
 import { AuthRequest } from '../middleware/auth';
 import { applyBetterAuthHeaders } from '../services/better-auth-response.service';
+import { VENDOR_PORTAL_KEY } from '../services/vendor-profile.service';
 
 const isOwner = (role: string | undefined): boolean =>
     role
@@ -12,7 +13,9 @@ const isOwner = (role: string | undefined): boolean =>
         .includes('owner') ?? false;
 
 const requireOwner = (req: AuthRequest, res: Response): boolean => {
-    if (isOwner(req.memberRole) && req.vendorId) return false;
+    if (isOwner(req.memberRole) && req.userId && req.organizationId && req.vendorProfileId) {
+        return false;
+    }
     res.status(403).json({
         success: false,
         code: 'OWNER_REQUIRED',
@@ -22,72 +25,64 @@ const requireOwner = (req: AuthRequest, res: Response): boolean => {
 };
 
 export class VendorController {
-    /**
-     * Update vendor profile
-     */
+    /** Compatibility endpoint backed only by User, Organization, and Vendor Profile records. */
     static async updateProfile(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             if (requireOwner(req, res)) return;
-            const { companyName } = req.body;
+            const companyName = req.body.companyName?.trim();
             const email = req.body.email?.trim().toLowerCase();
-            const vendorId = req.vendorId!;
 
             if (email) {
-                const existingVendor = await prisma.vendor.findFirst({
-                    where: { email, id: { not: vendorId } },
+                const existingUser = await prisma.user.findFirst({
+                    where: { email, id: { not: req.userId! } },
+                    select: { id: true },
                 });
-
-                if (existingVendor) {
+                if (existingUser) {
                     res.status(409).json({ success: false, message: 'Email already in use' });
                     return;
                 }
             }
 
-            const updatedVendor = await prisma.$transaction(async (transaction) => {
-                const vendor = await transaction.vendor.update({
-                    where: { id: vendorId },
-                    data: {
-                        ...(companyName && { companyName }),
-                        ...(email && { email }),
-                    },
-                    select: {
-                        id: true,
-                        email: true,
-                        companyName: true,
-                        createdAt: true,
-                        updatedAt: true,
-                    },
-                });
-
-                await transaction.user.update({
-                    where: { legacyVendorId: vendorId },
+            const updated = await prisma.$transaction(async (transaction) => {
+                const user = await transaction.user.update({
+                    where: { id: req.userId! },
                     data: {
                         ...(companyName && { name: companyName }),
                         ...(email && { email, emailVerified: false }),
                     },
+                    select: { email: true },
                 });
                 if (companyName) {
-                    await transaction.vendorProfile.update({
-                        where: { id: req.vendorProfileId! },
-                        data: { displayName: companyName },
+                    await transaction.organization.update({
+                        where: { id: req.organizationId! },
+                        data: { name: companyName },
                     });
                 }
-                return vendor;
+                const profile = await transaction.vendorProfile.update({
+                    where: { id: req.vendorProfileId! },
+                    data: { ...(companyName && { displayName: companyName }) },
+                    select: { id: true, displayName: true, createdAt: true, updatedAt: true },
+                });
+
+                return {
+                    id: profile.id,
+                    email: user.email,
+                    companyName: profile.displayName,
+                    createdAt: profile.createdAt,
+                    updatedAt: profile.updatedAt,
+                };
             });
 
-            res.status(200).json({ success: true, data: updatedVendor });
+            res.status(200).json({ success: true, data: updated });
         } catch (error) {
             next(error);
         }
     }
 
-    /**
-     * Soft delete vendor account
-     */
+    /** Deactivate this Organization's Vendor Portal without deleting a multi-organization User. */
     static async deleteAccount(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             if (requireOwner(req, res)) return;
-            const vendorId = req.vendorId!;
 
             const { headers } = await auth.api.signOut({
                 returnHeaders: true,
@@ -95,27 +90,38 @@ export class VendorController {
             });
             applyBetterAuthHeaders(res, headers);
 
+            const deactivatedAt = new Date();
             await prisma.$transaction(async (transaction) => {
-                const identity = await transaction.user.findUniqueOrThrow({
-                    where: { legacyVendorId: vendorId },
-                    select: { id: true },
+                await transaction.session.deleteMany({
+                    where: { activeOrganizationId: req.organizationId! },
                 });
-                await transaction.session.deleteMany({ where: { userId: identity.id } });
-                await transaction.verification.deleteMany({
-                    // Better Auth reset records store the target User ID as their value.
-                    where: { value: identity.id },
+                await transaction.verification.deleteMany({ where: { value: req.userId! } });
+                await transaction.vendorProfile.update({
+                    where: { id: req.vendorProfileId! },
+                    data: { deletedAt: deactivatedAt },
                 });
-                await transaction.vendor.update({
-                    where: { id: vendorId },
-                    data: { deletedAt: new Date(), tokenVersion: { increment: 1 } },
+                await transaction.organizationPortalSubscription.update({
+                    where: {
+                        organizationId_portalKey: {
+                            organizationId: req.organizationId!,
+                            portalKey: VENDOR_PORTAL_KEY,
+                        },
+                    },
+                    data: { status: 'CANCELLED', endsAt: deactivatedAt },
                 });
-                await transaction.vendorProfile.updateMany({
-                    where: { legacyVendorId: vendorId, deletedAt: null },
-                    data: { deletedAt: new Date() },
+                await transaction.memberPortalAccess.updateMany({
+                    where: {
+                        portalKey: VENDOR_PORTAL_KEY,
+                        member: { organizationId: req.organizationId! },
+                    },
+                    data: { enabled: false, updatedByUserId: req.userId! },
                 });
             });
 
-            res.status(200).json({ success: true, message: 'Account deleted successfully' });
+            res.status(200).json({
+                success: true,
+                message: 'Vendor Portal access deactivated successfully',
+            });
         } catch (error) {
             next(error);
         }

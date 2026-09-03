@@ -21,7 +21,7 @@ export class TemplateController {
                     OR: [{ vendorProfileId: null }, { vendorProfileId: req.vendorProfileId }],
                 },
                 include: { _count: { select: { defaultForCategories: true } } },
-                orderBy: [{ vendorId: 'asc' }, { name: 'asc' }],
+                orderBy: [{ vendorProfileId: 'asc' }, { name: 'asc' }],
             });
             res.status(200).json({ success: true, data: templates });
         } catch (error) {
@@ -68,7 +68,6 @@ export class TemplateController {
             const name = req.body.name || `${source.name} copy`;
             const template = await prisma.characteristicTemplate.create({
                 data: {
-                    vendorId: req.vendorId!,
                     vendorProfileId: req.vendorProfileId!,
                     name,
                     fields: source.fields as Prisma.InputJsonValue,
@@ -91,7 +90,6 @@ export class TemplateController {
                 data: {
                     name,
                     fields,
-                    vendorId: req.vendorId!,
                     vendorProfileId: req.vendorProfileId!,
                     searchText: templateSearchText(name, fields),
                 },

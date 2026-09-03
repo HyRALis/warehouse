@@ -229,7 +229,6 @@ export class ProductController {
                 versionStatus,
                 status,
             } = req.body;
-            const vendorId = req.vendorId!;
             const vendorProfileId = req.vendorProfileId!;
 
             const category = await prisma.category.findFirst({
@@ -263,7 +262,6 @@ export class ProductController {
                         characteristics: parsedCharacteristics,
                         status: resolvedProductStatus,
                         searchText,
-                        vendorId,
                         vendorProfileId,
                     },
                 });
@@ -271,7 +269,6 @@ export class ProductController {
                 const initialVersion = await tx.productVersion.create({
                     data: {
                         productId: newProduct.id,
-                        vendorId,
                         vendorProfileId,
                         versionNumber: 1,
                         label: 'Original',
@@ -717,7 +714,6 @@ export class ProductController {
                 return;
             }
 
-            const vendorId = req.vendorId!;
             const vendorProfileId = req.vendorProfileId!;
             const categories =
                 (await prisma.category.findMany({
@@ -1032,7 +1028,6 @@ export class ProductController {
                         async (tx: Prisma.TransactionClient) => {
                             const product = await tx.product.create({
                                 data: {
-                                    vendorId,
                                     vendorProfileId,
                                     categoryId: primary.categoryId,
                                     baseName: primary.productName,
@@ -1055,7 +1050,6 @@ export class ProductController {
                                     await tx.productVersion.create({
                                         data: {
                                             productId: product.id,
-                                            vendorId,
                                             vendorProfileId,
                                             versionNumber: index + 1,
                                             label: row.versionLabel,

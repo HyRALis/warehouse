@@ -13,7 +13,6 @@ export interface CategoryResponse {
     name: string;
     aliases?: string[];
     parentId?: string | null;
-    vendorId?: string | null;
     vendorProfileId?: string | null;
     defaultTemplateId?: string | null;
     defaultTemplate?: {

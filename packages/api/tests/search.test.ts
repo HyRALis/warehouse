@@ -13,7 +13,6 @@ const mockSearchRows = (rows: unknown[], literalMatch = true) => {
 describe('universal search', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendorId });
         mockPrisma.$queryRaw.mockResolvedValue([]);
     });
 

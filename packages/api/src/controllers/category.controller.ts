@@ -88,7 +88,6 @@ export class CategoryController {
                     parentId,
                     defaultTemplateId,
                     aliases,
-                    vendorId: req.vendorId!,
                     vendorProfileId: req.vendorProfileId!,
                     searchText: categorySearchText(name, aliases, parentName),
                 },
