@@ -26,7 +26,12 @@ const categories: CategoryOption[] = [
             },
         ],
     },
-    { id: 'custom', name: 'Limited Editions', vendorId: 'vendor-1', aliases: ['drops'] },
+    {
+        id: 'custom',
+        name: 'Limited Editions',
+        vendorProfileId: 'vendor-profile-1',
+        aliases: ['drops'],
+    },
 ];
 
 describe('SearchableCategorySelect', () => {
@@ -41,7 +46,10 @@ describe('SearchableCategorySelect', () => {
         await user.type(input, 'smartphones');
         await user.click(screen.getByRole('option', { name: /Phones & Tablets/ }));
 
-        expect(onChange).toHaveBeenCalledWith('phones', expect.objectContaining({ path: 'Electronics / Phones & Tablets' }));
+        expect(onChange).toHaveBeenCalledWith(
+            'phones',
+            expect.objectContaining({ path: 'Electronics / Phones & Tablets' })
+        );
     });
 
     it('supports keyboard selection and Escape dismissal', async () => {
