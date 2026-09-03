@@ -361,7 +361,10 @@ transitional ownership columns after the migration audits pass. The established 
 URLs remain temporarily as thin Better Auth-backed routes while the stacked frontend branch still
 uses them; they no longer read or write a legacy credential or session system.
 
-PRs 09 through 11 finish the quick-create, product/version, catalog/template, universal-search, CSV, mobile, keyboard, focus, screen-reader, and responsive behavior already defined in this blueprint.
+PR 09 finishes the product-first editor, recoverable category/template loading, version lifecycle
+and copy safeguards, client-side media feedback, and isolated Storybook coverage. It does not alter
+the search API or its ranking. PRs 10 and 11 then finish catalog/template, universal-search, CSV,
+mobile, keyboard, focus, screen-reader, and responsive behavior already defined in this blueprint.
 
 PR 12 contains only clean-install and upgrade verification, release notes, security and license evidence, setup/migration/rollback documentation, final screenshots, and regenerated Markdown/DOCX artifacts.
 
