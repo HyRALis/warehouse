@@ -29,7 +29,7 @@ const authHeaders = (): Headers => {
     return headers;
 };
 
-describe('Better Auth compatibility facade', () => {
+describe('Better Auth Vendor Portal bridge', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         (hashPassword as jest.Mock).mockResolvedValue('scrypt$new-password-hash');
@@ -47,9 +47,11 @@ describe('Better Auth compatibility facade', () => {
         mockAuthApi.sendVerificationEmail.mockResolvedValue({ status: true });
     });
 
-    it('creates identity, organization, owner membership, and legacy Vendor atomically', async () => {
-        mockPrisma.vendor.create.mockResolvedValue(vendor);
-        mockPrisma.user.create.mockResolvedValue({ id: 'user-1' });
+    it('creates identity, organization, owner membership, and Vendor Profile atomically', async () => {
+        mockPrisma.user.create.mockResolvedValue({
+            id: 'user-1',
+            email: vendor.email,
+        });
         mockPrisma.account.create.mockResolvedValue({ id: 'account-1' });
         mockPrisma.organization.create.mockResolvedValue({ id: 'organization-1' });
         mockPrisma.member.create.mockResolvedValue({ id: 'member-1' });
@@ -58,7 +60,11 @@ describe('Better Auth compatibility facade', () => {
             id: 'subscription-1',
         });
         mockPrisma.memberPortalAccess.create.mockResolvedValue({ id: 'access-1' });
-        mockPrisma.vendorProfile.create.mockResolvedValue({ id: vendor.id });
+        mockPrisma.vendorProfile.create.mockResolvedValue({
+            id: vendor.id,
+            displayName: vendor.companyName,
+            createdAt: vendor.createdAt,
+        });
 
         const response = await request(app).post('/api/v1/auth/register').send({
             email: 'Owner@Example.com',
@@ -77,7 +83,6 @@ describe('Better Auth compatibility facade', () => {
                 data: expect.objectContaining({
                     email: vendor.email,
                     emailVerified: false,
-                    legacyVendorId: expect.any(String),
                 }),
             })
         );
@@ -106,10 +111,9 @@ describe('Better Auth compatibility facade', () => {
     });
 
     it('upgrades a migrated bcrypt credential after the first successful login', async () => {
-        mockPrisma.user.findUnique.mockResolvedValue({
-            id: 'user-1',
-            legacyVendor: vendor,
-            accounts: [{ id: 'account-1', password: vendor.passwordHash }],
+        mockPrisma.account.findFirst.mockResolvedValue({
+            id: 'account-1',
+            password: vendor.passwordHash,
         });
         (isLegacyBcryptHash as jest.Mock).mockReturnValue(true);
 
@@ -119,14 +123,14 @@ describe('Better Auth compatibility facade', () => {
         });
 
         expect(response.status).toBe(200);
-        expect(response.body.data.vendor.id).toBe(vendor.id);
+        expect(response.body.data.user.id).toBe('user-1');
         expect(mockPrisma.account.update).toHaveBeenCalledWith({
             where: { id: 'account-1' },
             data: { password: 'scrypt$new-password-hash' },
         });
     });
 
-    it('returns a valid compatibility response for an invited member without a legacy Vendor', async () => {
+    it('returns a valid Better Auth user response for an invited member', async () => {
         mockAuthApi.signInEmail.mockResolvedValueOnce({
             headers: authHeaders(),
             response: {
@@ -138,10 +142,9 @@ describe('Better Auth compatibility facade', () => {
                 },
             },
         });
-        mockPrisma.user.findUnique.mockResolvedValue({
-            id: 'invited-user',
-            legacyVendor: null,
-            accounts: [{ id: 'account-2', password: 'scrypt$member-password-hash' }],
+        mockPrisma.account.findFirst.mockResolvedValue({
+            id: 'account-2',
+            password: 'scrypt$member-password-hash',
         });
         (isLegacyBcryptHash as jest.Mock).mockReturnValue(false);
 
@@ -160,7 +163,7 @@ describe('Better Auth compatibility facade', () => {
     });
 
     it('rejects invalid credentials without revealing whether the account exists', async () => {
-        mockPrisma.user.findUnique.mockResolvedValue(null);
+        mockAuthApi.signInEmail.mockRejectedValueOnce({ isBetterAuthApiError: true });
 
         const response = await request(app).post('/api/v1/auth/login').send({
             email: vendor.email,
@@ -172,11 +175,6 @@ describe('Better Auth compatibility facade', () => {
     });
 
     it('revokes the current Better Auth session and clears its cookie on logout', async () => {
-        mockPrisma.user.findUnique.mockResolvedValue({
-            legacyVendorId: vendor.id,
-            legacyVendor: { deletedAt: null },
-        });
-
         const response = await request(app)
             .post('/api/v1/auth/logout')
             .set('Authorization', `Bearer ${generateTestToken(vendor.id)}`);

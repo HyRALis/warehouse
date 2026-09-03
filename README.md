@@ -10,9 +10,9 @@ OmniStock is a monorepo for the vendor-facing catalog portal and the inventory p
 
 ## Local setup
 
-1. Copy `.env.example` to `.env` and replace `DATABASE_URL`, `JWT_SECRET`, and
-   `BETTER_AUTH_SECRET`. Both secrets must be unique and at least 32 characters; they must not
-   share a value. Configure SMTP when verification, invitation, and reset links need delivery.
+1. Copy `.env.example` to `.env` and replace `DATABASE_URL` and `BETTER_AUTH_SECRET`. The
+   authentication secret must be unique and contain at least 32 characters. Configure SMTP when
+   verification, invitation, and reset links need delivery.
 2. Install the locked dependency graph:
 
     ```sh
@@ -74,6 +74,14 @@ existing-user cutover, email settings, verification, and rollback procedure.
 See [Vendor entitlements and Vendor Profile migration](docs/vendor-entitlements-migration.md) for
 the Organization subscription/access rules, primary profile ownership, migration audit, and
 staged-rollout compatibility behavior.
+See [Vendor catalog tenancy and lifecycle hardening](docs/vendor-catalog-hardening.md) for
+cross-profile isolation, system-record immutability, primary-version consistency, and concurrency
+rules.
+See [Vendor media, import, export, and search hardening](docs/vendor-media-import-search-hardening.md)
+for R2 lifecycle safeguards, CSV boundaries, tenant-scoped search, and the repeatable 20,000-row
+development benchmark.
+See [Vendor authentication cleanup and rollback](docs/vendor-auth-cleanup.md) for the destructive
+legacy removal gate, deployment order, final ownership model, verification, and recovery options.
 
 CI also starts PostgreSQL, applies the migration history, boots the compiled API, and runs `node tools/smoke-api.mjs`. The same smoke script can validate a deployed environment by setting `API_SMOKE_BASE_URL` to its API origin; it creates and then deactivates an isolated test vendor.
 

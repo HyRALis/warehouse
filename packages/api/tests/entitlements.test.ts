@@ -20,10 +20,6 @@ const activeSubscription = () => ({
 describe('Vendor Portal entitlements', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockPrisma.user.findUnique.mockResolvedValue({
-            legacyVendorId: userId,
-            legacyVendor: { deletedAt: null },
-        });
         mockPrisma.member.findUnique.mockResolvedValue({
             id: memberId,
             organizationId,
@@ -35,7 +31,6 @@ describe('Vendor Portal entitlements', () => {
         mockPrisma.memberPortalAccess.findUnique.mockResolvedValue({ enabled: true });
         mockPrisma.vendorProfile.findUnique.mockResolvedValue({
             id: userId,
-            legacyVendorId: userId,
             deletedAt: null,
         });
         mockPrisma.product.count.mockResolvedValue(0);
@@ -83,10 +78,6 @@ describe('Vendor Portal entitlements', () => {
                 activeOrganizationId: organizationId,
             },
         });
-        mockPrisma.user.findUnique.mockResolvedValueOnce({
-            legacyVendorId: null,
-            legacyVendor: null,
-        });
         mockPrisma.member.findUnique.mockResolvedValueOnce({
             id: 'member:invited-user',
             organizationId,
@@ -94,7 +85,6 @@ describe('Vendor Portal entitlements', () => {
         });
         mockPrisma.vendorProfile.findUnique.mockResolvedValueOnce({
             id: userId,
-            legacyVendorId: userId,
             deletedAt: null,
         });
 
@@ -124,10 +114,10 @@ describe('Vendor Portal entitlements', () => {
 
         expect(response.status).toBe(403);
         expect(response.body.code).toBe('OWNER_REQUIRED');
-        expect(mockPrisma.vendor.update).not.toHaveBeenCalled();
+        expect(mockPrisma.vendorProfile.update).not.toHaveBeenCalled();
     });
 
-    it('lets an Owner update producer-facing Vendor Profile fields transactionally', async () => {
+    it('lets an Owner update producer-facing Vendor Profile fields', async () => {
         mockPrisma.vendorProfile.update.mockResolvedValue({
             id: userId,
             organizationId,
@@ -155,10 +145,14 @@ describe('Vendor Portal entitlements', () => {
             displayName: 'Updated Producer',
             description: 'Independent producer',
         });
-        expect(mockPrisma.$transaction).toHaveBeenCalled();
-        expect(mockPrisma.vendor.update).toHaveBeenCalledWith({
+        expect(mockPrisma.vendorProfile.update).toHaveBeenCalledWith({
             where: { id: userId },
-            data: { companyName: 'Updated Producer' },
+            data: {
+                displayName: 'Updated Producer',
+                description: 'Independent producer',
+                websiteUrl: 'https://producer.example',
+            },
+            select: expect.any(Object),
         });
     });
 
