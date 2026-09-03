@@ -41,6 +41,10 @@ OmniStock is a monorepo for the vendor-facing catalog portal and the inventory p
 
 The vendor portal is available at `http://localhost:3000`; the API defaults to `http://localhost:4000`. Liveness and database readiness probes are exposed at `/health` and `/ready` on the API host.
 
+The browser uses `NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1` for platform APIs and
+`NEXT_PUBLIC_API_ORIGIN=http://localhost:4000` for native Better Auth calls. The origin is
+derived from the API URL when the second value is omitted.
+
 Uploaded images use the development-only local storage adapter and are served under `/uploads`. Production configuration requires the R2 driver and a CDN/public delivery origin; the disposable CI smoke environment is the only explicit local-storage exception. Direct browser uploads and image transformation are still scheduled for Phase 3.
 
 ## Verification
@@ -82,6 +86,10 @@ for R2 lifecycle safeguards, CSV boundaries, tenant-scoped search, and the repea
 development benchmark.
 See [Vendor authentication cleanup and rollback](docs/vendor-auth-cleanup.md) for the destructive
 legacy removal gate, deployment order, final ownership model, verification, and recovery options.
+See [Vendor Portal frontend authentication](docs/vendor-frontend-auth.md) for session hydration,
+Organization switching, email verification, MFA, active-session controls, and frontend rollback.
+See [Vendor Portal member invitations and access](docs/vendor-member-access.md) for the invitation
+lifecycle, Owner controls, explicit portal access, tenancy rules, verification, and rollback.
 
 CI also starts PostgreSQL, applies the migration history, boots the compiled API, and runs `node tools/smoke-api.mjs`. The same smoke script can validate a deployed environment by setting `API_SMOKE_BASE_URL` to its API origin; it creates and then deactivates an isolated test vendor.
 

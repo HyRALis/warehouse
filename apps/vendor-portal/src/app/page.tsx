@@ -7,18 +7,18 @@ import { useAuth } from '@/context/AuthContext';
 import { Spinner } from '@inventory-system/ui';
 
 export default function LandingPage() {
-    const { vendor, loading } = useAuth();
+    const { user, loading } = useAuth();
     const router = useRouter();
 
     useEffect(() => {
         if (!loading) {
-            if (vendor) {
+            if (user) {
                 router.push('/dashboard');
             } else {
                 router.push('/login');
             }
         }
-    }, [vendor, loading, router]);
+    }, [user, loading, router]);
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-slate-950">

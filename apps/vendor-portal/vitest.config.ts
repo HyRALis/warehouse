@@ -6,6 +6,9 @@ export default defineConfig({
         environment: 'jsdom',
         setupFiles: ['./src/test/setup.ts'],
         css: false,
+        // Turbo runs the API Jest suite beside Vitest. Bound the browser-test worker pool so the
+        // two runners cannot exhaust process/memory limits on Windows or small CI executors.
+        maxWorkers: 4,
     },
     resolve: {
         alias: {
