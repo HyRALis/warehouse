@@ -13,20 +13,17 @@ const prismaConfig = path.resolve(databaseRoot, '../../prisma.config.ts');
 const prismaCli = createRequire(import.meta.url).resolve('prisma/build/index.js');
 
 const runPrisma = async (databaseUrl: string, ...args: string[]): Promise<void> => {
-    await execFileAsync(
-        process.execPath,
-        [prismaCli, ...args, '--config', prismaConfig],
-        {
-            cwd: databaseRoot,
-            env: { ...process.env, DATABASE_URL: databaseUrl },
-            timeout: 120_000,
-            windowsHide: true,
-        }
-    );
+    await execFileAsync(process.execPath, [prismaCli, ...args, '--config', prismaConfig], {
+        cwd: databaseRoot,
+        env: { ...process.env, DATABASE_URL: databaseUrl },
+        timeout: 120_000,
+        windowsHide: true,
+    });
 };
 
-const integrationTest =
-    ['true', 'local'].includes(process.env.RUN_DATABASE_INTEGRATION ?? '') ? test : test.skip;
+const integrationTest = ['true', 'local'].includes(process.env.RUN_DATABASE_INTEGRATION ?? '')
+    ? test
+    : test.skip;
 
 interface TestDatabase {
     url: string;
@@ -100,16 +97,71 @@ integrationTest(
             where: { vendorId: null, parentId: { not: null } },
             select: { id: true },
         });
-        const vendor = await prisma.vendor.create({
-            data: {
-                email: 'prisma-7-migration@example.test',
-                passwordHash: 'preserved-bcrypt-hash',
-                companyName: 'Migration Fixture Vendor',
-            },
+        const { vendor, vendorProfile } = await prisma.$transaction(async (transaction) => {
+            const vendor = await transaction.vendor.create({
+                data: {
+                    email: 'prisma-7-migration@example.test',
+                    passwordHash: 'preserved-bcrypt-hash',
+                    companyName: 'Migration Fixture Vendor',
+                },
+            });
+            const user = await transaction.user.create({
+                data: {
+                    id: 'prisma-7-migration-user',
+                    name: vendor.companyName,
+                    email: vendor.email,
+                    emailVerified: true,
+                    legacyVendorId: vendor.id,
+                },
+            });
+            const organization = await transaction.organization.create({
+                data: {
+                    id: 'prisma-7-migration-organization',
+                    name: vendor.companyName,
+                    slug: 'prisma-7-migration-organization',
+                    createdAt: new Date(),
+                },
+            });
+            const member = await transaction.member.create({
+                data: {
+                    id: 'prisma-7-migration-member',
+                    organizationId: organization.id,
+                    userId: user.id,
+                    role: 'owner',
+                    createdAt: new Date(),
+                },
+            });
+            const vendorProfile = await transaction.vendorProfile.create({
+                data: {
+                    id: vendor.id,
+                    organizationId: organization.id,
+                    profileKey: 'primary',
+                    displayName: vendor.companyName,
+                    legacyVendorId: vendor.id,
+                },
+            });
+            await transaction.organizationPortalSubscription.create({
+                data: {
+                    organizationId: organization.id,
+                    portalKey: 'vendor',
+                    status: 'ACTIVE',
+                },
+            });
+            await transaction.memberPortalAccess.create({
+                data: {
+                    memberId: member.id,
+                    portalKey: 'vendor',
+                    enabled: true,
+                    grantedByUserId: user.id,
+                    updatedByUserId: user.id,
+                },
+            });
+            return { vendor, vendorProfile };
         });
         const product = await prisma.product.create({
             data: {
                 vendorId: vendor.id,
+                vendorProfileId: vendorProfile.id,
                 categoryId: category.id,
                 sku: 'MIGRATION-SKU-001',
                 baseName: 'Migration Fixture Product',
@@ -122,6 +174,7 @@ integrationTest(
             data: {
                 productId: product.id,
                 vendorId: vendor.id,
+                vendorProfileId: vendorProfile.id,
                 versionNumber: 1,
                 label: 'Original',
                 sku: product.sku,
@@ -139,6 +192,7 @@ integrationTest(
             include: { versions: true },
         });
         assert.equal(preserved.vendorId, vendor.id);
+        assert.equal(preserved.vendorProfileId, vendorProfile.id);
         assert.equal(preserved.sku, 'MIGRATION-SKU-001');
         assert.deepEqual(preserved.characteristics, [{ name: 'Color', value: 'Blue' }]);
         assert.equal(preserved.versions.length, 1);

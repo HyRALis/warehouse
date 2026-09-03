@@ -27,7 +27,9 @@ const effectiveStatus = (
 
 const serializeVersion = <
     T extends { isPrimary: boolean; status: ProductStatus; product: { status: ProductStatus } },
->(version: T) => ({
+>(
+    version: T
+) => ({
     ...version,
     effectiveStatus: effectiveStatus(version.product.status, version.status),
     canDelete: !version.isPrimary,
@@ -38,7 +40,7 @@ const buildSearchText = (...values: Array<string | null | undefined>) =>
 
 const generateVersionSku = async (
     tx: Prisma.TransactionClient,
-    vendorId: string,
+    vendorProfileId: string,
     baseName: string,
     label: string
 ): Promise<string> => {
@@ -54,9 +56,12 @@ const generateVersionSku = async (
         const suffix = Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, '0');
         const candidate = `${prefix}-${suffix}`;
         const [product, version] = await Promise.all([
-            tx.product.findFirst({ where: { vendorId, sku: candidate }, select: { id: true } }),
+            tx.product.findFirst({
+                where: { vendorProfileId, sku: candidate },
+                select: { id: true },
+            }),
             tx.productVersion.findFirst({
-                where: { vendorId, sku: candidate },
+                where: { vendorProfileId, sku: candidate },
                 select: { id: true },
             }),
         ]);
@@ -94,7 +99,11 @@ export class ProductVersionController {
     static async list(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const product = await prisma.product.findFirst({
-                where: { id: req.params.productId, vendorId: req.vendorId, deletedAt: null },
+                where: {
+                    id: req.params.productId,
+                    vendorProfileId: req.vendorProfileId,
+                    deletedAt: null,
+                },
                 select: { id: true, status: true },
             });
             if (!product) {
@@ -103,7 +112,11 @@ export class ProductVersionController {
             }
 
             const versions = await prisma.productVersion.findMany({
-                where: { productId: product.id, vendorId: req.vendorId, deletedAt: null },
+                where: {
+                    productId: product.id,
+                    vendorProfileId: req.vendorProfileId,
+                    deletedAt: null,
+                },
                 include: versionInclude,
                 orderBy: { versionNumber: 'asc' },
             });
@@ -119,7 +132,7 @@ export class ProductVersionController {
                 where: {
                     id: req.params.versionId,
                     productId: req.params.productId,
-                    vendorId: req.vendorId,
+                    vendorProfileId: req.vendorProfileId,
                     deletedAt: null,
                     product: { deletedAt: null },
                 },
@@ -138,6 +151,7 @@ export class ProductVersionController {
     static async create(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const vendorId = req.vendorId!;
+            const vendorProfileId = req.vendorProfileId!;
             const productId = req.params.productId;
             const {
                 label,
@@ -154,7 +168,7 @@ export class ProductVersionController {
             } = req.body;
 
             const product = await prisma.product.findFirst({
-                where: { id: productId, vendorId, deletedAt: null },
+                where: { id: productId, vendorProfileId, deletedAt: null },
                 select: { id: true, baseName: true, status: true },
             });
             if (!product) {
@@ -164,7 +178,7 @@ export class ProductVersionController {
 
             const created = await prisma.$transaction(
                 async (tx: Prisma.TransactionClient) => {
-                    await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId} AND vendor_id = ${vendorId} AND deleted_at IS NULL FOR UPDATE`;
+                    await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId} AND vendor_profile_id = ${vendorProfileId} AND deleted_at IS NULL FOR UPDATE`;
 
                     const source =
                         mode === 'COPY'
@@ -172,7 +186,7 @@ export class ProductVersionController {
                                   where: {
                                       id: sourceVersionId,
                                       productId,
-                                      vendorId,
+                                      vendorProfileId,
                                       deletedAt: null,
                                   },
                                   include: { images: { orderBy: { sortOrder: 'asc' } } },
@@ -192,7 +206,7 @@ export class ProductVersionController {
                     });
                     const resolvedSku =
                         sku?.trim() ||
-                        (await generateVersionSku(tx, vendorId, product.baseName, label));
+                        (await generateVersionSku(tx, vendorProfileId, product.baseName, label));
                     const resolvedCharacteristics = (characteristics ??
                         source?.characteristics ??
                         []) as Prisma.InputJsonValue;
@@ -211,6 +225,7 @@ export class ProductVersionController {
                         data: {
                             productId,
                             vendorId,
+                            vendorProfileId,
                             versionNumber: (latest?.versionNumber || 0) + 1,
                             label,
                             sku: resolvedSku,
@@ -292,19 +307,19 @@ export class ProductVersionController {
 
     static async update(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
-            const vendorId = req.vendorId!;
+            const vendorProfileId = req.vendorProfileId!;
             const { productId, versionId } = req.params;
             const { label, sku, barcode, status, characteristics, designNotes, generateQrCode } =
                 req.body;
 
             const updated = await prisma.$transaction(
                 async (tx: Prisma.TransactionClient) => {
-                    await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId} AND vendor_id = ${vendorId} AND deleted_at IS NULL FOR UPDATE`;
+                    await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId} AND vendor_profile_id = ${vendorProfileId} AND deleted_at IS NULL FOR UPDATE`;
                     const existing = await tx.productVersion.findFirst({
                         where: {
                             id: versionId,
                             productId,
-                            vendorId,
+                            vendorProfileId,
                             deletedAt: null,
                             product: { deletedAt: null },
                         },
@@ -389,16 +404,16 @@ export class ProductVersionController {
 
     static async setPrimary(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
-            const vendorId = req.vendorId!;
+            const vendorProfileId = req.vendorProfileId!;
             const { productId, versionId } = req.params;
             await prisma.$transaction(
                 async (tx: Prisma.TransactionClient) => {
-                    await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId} AND vendor_id = ${vendorId} AND deleted_at IS NULL FOR UPDATE`;
+                    await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId} AND vendor_profile_id = ${vendorProfileId} AND deleted_at IS NULL FOR UPDATE`;
                     const version = await tx.productVersion.findFirst({
                         where: {
                             id: versionId,
                             productId,
-                            vendorId,
+                            vendorProfileId,
                             deletedAt: null,
                             product: { deletedAt: null },
                         },
@@ -451,7 +466,7 @@ export class ProductVersionController {
                 where: {
                     id: versionId,
                     productId,
-                    vendorId: req.vendorId,
+                    vendorProfileId: req.vendorProfileId,
                     deletedAt: null,
                     product: { deletedAt: null },
                 },
@@ -471,7 +486,7 @@ export class ProductVersionController {
             }
 
             const versionCount = await prisma.productVersion.count({
-                where: { productId, vendorId: req.vendorId, deletedAt: null },
+                where: { productId, vendorProfileId: req.vendorProfileId, deletedAt: null },
             });
             if (versionCount <= 1) {
                 res.status(409).json({
@@ -501,7 +516,7 @@ export class ProductVersionController {
                 where: {
                     id: { in: [leftId, rightId] },
                     productId,
-                    vendorId: req.vendorId,
+                    vendorProfileId: req.vendorProfileId,
                     deletedAt: null,
                     product: { deletedAt: null },
                 },
@@ -546,7 +561,7 @@ export class ProductVersionController {
                 where: {
                     id: versionId,
                     productId,
-                    vendorId: req.vendorId,
+                    vendorProfileId: req.vendorProfileId,
                     deletedAt: null,
                     product: { deletedAt: null },
                 },
@@ -561,7 +576,10 @@ export class ProductVersionController {
                 return;
             }
             if (version.images.length >= 4) {
-                res.status(400).json({ success: false, message: 'Maximum of 4 images per version' });
+                res.status(400).json({
+                    success: false,
+                    message: 'Maximum of 4 images per version',
+                });
                 return;
             }
 

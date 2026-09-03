@@ -21,7 +21,9 @@ describe('templates', () => {
 
         expect(response.status).toBe(200);
         expect(mockPrisma.characteristicTemplate.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({ where: { OR: [{ vendorId: null }, { vendorId }] } })
+            expect.objectContaining({
+                where: { OR: [{ vendorProfileId: null }, { vendorProfileId: vendorId }] },
+            })
         );
     });
 
@@ -29,6 +31,7 @@ describe('templates', () => {
         const systemTemplate = {
             id: templateId,
             vendorId: null,
+            vendorProfileId: null,
             name: 'Apparel',
             fields: [{ name: 'Material' }],
         };
@@ -49,6 +52,7 @@ describe('templates', () => {
         expect(mockPrisma.characteristicTemplate.create).toHaveBeenCalledWith({
             data: expect.objectContaining({
                 vendorId,
+                vendorProfileId: vendorId,
                 name: 'Creator Apparel',
                 fields: systemTemplate.fields,
             }),
@@ -60,6 +64,7 @@ describe('templates', () => {
         mockPrisma.characteristicTemplate.findUnique.mockResolvedValue({
             id: templateId,
             vendorId: null,
+            vendorProfileId: null,
         });
 
         const response = await request(app)
@@ -75,6 +80,7 @@ describe('templates', () => {
         mockPrisma.characteristicTemplate.findUnique.mockResolvedValue({
             id: templateId,
             vendorId,
+            vendorProfileId: vendorId,
         });
         mockPrisma.category.count.mockResolvedValue(3);
 

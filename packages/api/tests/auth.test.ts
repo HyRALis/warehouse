@@ -1,10 +1,7 @@
 import request from 'supertest';
 import { app } from '../src/index';
 import { generateTestToken, mockAuthApi, mockPrisma } from './setup';
-import {
-    hashPassword,
-    isLegacyBcryptHash,
-} from '../src/services/password.service';
+import { hashPassword, isLegacyBcryptHash } from '../src/services/password.service';
 
 jest.mock('../src/services/password.service', () => ({
     hashPassword: jest.fn(),
@@ -56,6 +53,12 @@ describe('Better Auth compatibility facade', () => {
         mockPrisma.account.create.mockResolvedValue({ id: 'account-1' });
         mockPrisma.organization.create.mockResolvedValue({ id: 'organization-1' });
         mockPrisma.member.create.mockResolvedValue({ id: 'member-1' });
+        mockPrisma.portal.upsert.mockResolvedValue({ key: 'vendor' });
+        mockPrisma.organizationPortalSubscription.create.mockResolvedValue({
+            id: 'subscription-1',
+        });
+        mockPrisma.memberPortalAccess.create.mockResolvedValue({ id: 'access-1' });
+        mockPrisma.vendorProfile.create.mockResolvedValue({ id: vendor.id });
 
         const response = await request(app).post('/api/v1/auth/register').send({
             email: 'Owner@Example.com',
@@ -81,6 +84,23 @@ describe('Better Auth compatibility facade', () => {
         expect(mockPrisma.member.create).toHaveBeenCalledWith(
             expect.objectContaining({ data: expect.objectContaining({ role: 'owner' }) })
         );
+        expect(mockPrisma.organizationPortalSubscription.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({ portalKey: 'vendor', status: 'ACTIVE' }),
+        });
+        expect(mockPrisma.memberPortalAccess.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+                memberId: 'member-1',
+                portalKey: 'vendor',
+                enabled: true,
+            }),
+        });
+        expect(mockPrisma.vendorProfile.create).toHaveBeenCalledWith({
+            data: expect.objectContaining({
+                id: expect.any(String),
+                profileKey: 'primary',
+                displayName: vendor.companyName,
+            }),
+        });
         expect(mockAuthApi.signInEmail).toHaveBeenCalled();
         expect(mockAuthApi.sendVerificationEmail).toHaveBeenCalled();
     });
@@ -104,6 +124,39 @@ describe('Better Auth compatibility facade', () => {
             where: { id: 'account-1' },
             data: { password: 'scrypt$new-password-hash' },
         });
+    });
+
+    it('returns a valid compatibility response for an invited member without a legacy Vendor', async () => {
+        mockAuthApi.signInEmail.mockResolvedValueOnce({
+            headers: authHeaders(),
+            response: {
+                user: {
+                    id: 'invited-user',
+                    name: 'Invited Member',
+                    email: 'member@example.com',
+                    emailVerified: true,
+                },
+            },
+        });
+        mockPrisma.user.findUnique.mockResolvedValue({
+            id: 'invited-user',
+            legacyVendor: null,
+            accounts: [{ id: 'account-2', password: 'scrypt$member-password-hash' }],
+        });
+        (isLegacyBcryptHash as jest.Mock).mockReturnValue(false);
+
+        const response = await request(app).post('/api/v1/auth/login').send({
+            email: 'member@example.com',
+            password: 'correct-password',
+        });
+
+        expect(response.status).toBe(200);
+        expect(response.body.data.user).toMatchObject({
+            id: 'invited-user',
+            email: 'member@example.com',
+        });
+        expect(response.body.data.vendor).toBeUndefined();
+        expect(response.headers['set-cookie'][0]).toContain('better-auth.session_token=');
     });
 
     it('rejects invalid credentials without revealing whether the account exists', async () => {

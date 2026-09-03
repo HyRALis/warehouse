@@ -51,7 +51,7 @@ export class SearchController {
     static async universal(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const startedAt = performance.now();
-            const vendorId = req.vendorId as string;
+            const vendorProfileId = req.vendorProfileId as string;
             const query = String(req.query.q).trim();
             const normalizedQuery = query.toLocaleLowerCase();
             const escapedQuery = escapeLike(normalizedQuery);
@@ -95,7 +95,7 @@ export class SearchController {
                     JOIN categories c ON c.id = p.category_id
                     LEFT JOIN categories pc ON pc.id = c.parent_id
                     WHERE ${selectedTypes.includes('product')}
-                      AND p.vendor_id = ${vendorId}
+                      AND p.vendor_profile_id = ${vendorProfileId}
                       AND p.deleted_at IS NULL
                       AND (
                           lower(p.sku) = ${normalizedQuery}
@@ -139,7 +139,7 @@ export class SearchController {
                     JOIN categories c ON c.id = p.category_id
                     LEFT JOIN categories pc ON pc.id = c.parent_id
                     WHERE ${selectedTypes.includes('version')}
-                      AND pv.vendor_id = ${vendorId}
+                      AND pv.vendor_profile_id = ${vendorProfileId}
                       AND pv.deleted_at IS NULL
                       AND p.deleted_at IS NULL
                       AND (
@@ -173,12 +173,12 @@ export class SearchController {
                         jsonb_build_object(
                             'categoryCode', c.code,
                             'breadcrumb', concat_ws(' / ', pc.name, c.name),
-                            'ownership', CASE WHEN c.vendor_id IS NULL THEN 'system' ELSE 'vendor' END
+                            'ownership', CASE WHEN c.vendor_profile_id IS NULL THEN 'system' ELSE 'vendor' END
                         ) AS context
                     FROM categories c
                     LEFT JOIN categories pc ON pc.id = c.parent_id
                     WHERE ${selectedTypes.includes('category')}
-                      AND (c.vendor_id IS NULL OR c.vendor_id = ${vendorId})
+                      AND (c.vendor_profile_id IS NULL OR c.vendor_profile_id = ${vendorProfileId})
                       AND (
                           lower(coalesce(c.code, '')) = ${normalizedQuery}
                           OR c.search_text ILIKE ${containsPattern} ESCAPE '\\'
@@ -192,7 +192,7 @@ export class SearchController {
                         'template'::text AS type,
                         t.id,
                         t.name AS title,
-                        CASE WHEN t.vendor_id IS NULL THEN 'System template' ELSE 'Custom template' END AS subtitle,
+                        CASE WHEN t.vendor_profile_id IS NULL THEN 'System template' ELSE 'Custom template' END AS subtitle,
                         '/dashboard/templates?template=' || t.id AS href,
                         CASE
                             WHEN lower(coalesce(t.key, '')) = ${normalizedQuery} THEN 1250
@@ -209,11 +209,11 @@ export class SearchController {
                             ELSE 'field name'
                         END AS "matchedField",
                         jsonb_build_object(
-                            'ownership', CASE WHEN t.vendor_id IS NULL THEN 'system' ELSE 'vendor' END
+                            'ownership', CASE WHEN t.vendor_profile_id IS NULL THEN 'system' ELSE 'vendor' END
                         ) AS context
                     FROM characteristic_templates t
                     WHERE ${selectedTypes.includes('template')}
-                      AND (t.vendor_id IS NULL OR t.vendor_id = ${vendorId})
+                      AND (t.vendor_profile_id IS NULL OR t.vendor_profile_id = ${vendorProfileId})
                       AND (
                           lower(coalesce(t.key, '')) = ${normalizedQuery}
                           OR t.search_text ILIKE ${containsPattern} ESCAPE '\\'

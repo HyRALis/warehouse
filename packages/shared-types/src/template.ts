@@ -16,6 +16,7 @@ export interface UpdateTemplateRequest {
 export interface TemplateResponse {
     id: string;
     vendorId: string | null;
+    vendorProfileId?: string | null;
     key?: string | null;
     name: string;
     fields: TemplateField[];

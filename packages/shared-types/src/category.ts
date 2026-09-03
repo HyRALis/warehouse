@@ -14,6 +14,7 @@ export interface CategoryResponse {
     aliases?: string[];
     parentId?: string | null;
     vendorId?: string | null;
+    vendorProfileId?: string | null;
     defaultTemplateId?: string | null;
     defaultTemplate?: {
         id: string;

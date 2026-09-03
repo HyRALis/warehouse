@@ -33,16 +33,27 @@ describe('bulk product operations', () => {
         const response = await request(app)
             .post('/api/v1/products/import')
             .set('Authorization', `Bearer ${token}`)
-            .attach('file', Buffer.from(csv), { filename: 'products.csv', contentType: 'text/csv' });
+            .attach('file', Buffer.from(csv), {
+                filename: 'products.csv',
+                contentType: 'text/csv',
+            });
 
         expect(response.status).toBe(200);
         expect(response.body.data.imported).toBe(1);
         expect(response.body.data.importedVersions).toBe(1);
         expect(mockPrisma.product.create).toHaveBeenCalledWith(
-            expect.objectContaining({ data: expect.objectContaining({ vendorId, status: 'ACTIVE' }) })
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    vendorId,
+                    vendorProfileId: vendorId,
+                    status: 'ACTIVE',
+                }),
+            })
         );
         expect(mockPrisma.productVersion.create).toHaveBeenCalledWith(
-            expect.objectContaining({ data: expect.objectContaining({ label: 'Original', sku: 'SKU-1' }) })
+            expect.objectContaining({
+                data: expect.objectContaining({ label: 'Original', sku: 'SKU-1' }),
+            })
         );
     });
 
@@ -56,13 +67,22 @@ describe('bulk product operations', () => {
         const response = await request(app)
             .post('/api/v1/products/import')
             .set('Authorization', `Bearer ${token}`)
-            .attach('file', Buffer.from(csv), { filename: 'products.csv', contentType: 'text/csv' });
+            .attach('file', Buffer.from(csv), {
+                filename: 'products.csv',
+                contentType: 'text/csv',
+            });
 
         expect(response.status).toBe(200);
-        expect(response.body.data).toMatchObject({ importedProducts: 1, importedVersions: 2, failedRows: 0 });
+        expect(response.body.data).toMatchObject({
+            importedProducts: 1,
+            importedVersions: 2,
+            failedRows: 0,
+        });
         expect(mockPrisma.productVersion.create).toHaveBeenCalledTimes(2);
         expect(mockPrisma.product.create).toHaveBeenCalledWith(
-            expect.objectContaining({ data: expect.objectContaining({ sku: 'HOODIE-BLK', barcode: '111' }) })
+            expect.objectContaining({
+                data: expect.objectContaining({ sku: 'HOODIE-BLK', barcode: '111' }),
+            })
         );
     });
 
@@ -85,12 +105,17 @@ describe('bulk product operations', () => {
         };
         row[field] = value;
         const headers = Object.keys(row).join(',');
-        const csv = `${headers}\n${Object.values(row).map((item) => JSON.stringify(item)).join(',')}`;
+        const csv = `${headers}\n${Object.values(row)
+            .map((item) => JSON.stringify(item))
+            .join(',')}`;
 
         const response = await request(app)
             .post('/api/v1/products/import')
             .set('Authorization', `Bearer ${token}`)
-            .attach('file', Buffer.from(csv), { filename: 'products.csv', contentType: 'text/csv' });
+            .attach('file', Buffer.from(csv), {
+                filename: 'products.csv',
+                contentType: 'text/csv',
+            });
 
         expect(response.status).toBe(200);
         expect(response.body.data.importedProducts).toBe(0);
@@ -102,18 +127,26 @@ describe('bulk product operations', () => {
             { id: categoryId, code: 'system-creator', name: 'Creator Merchandise' },
             { id: 'vendor-category', code: null, name: 'Creator Merchandise' },
         ]);
-        const ambiguous = 'productName,categoryName,sku\nCreator Hoodie,Creator Merchandise,HOODIE-1';
+        const ambiguous =
+            'productName,categoryName,sku\nCreator Hoodie,Creator Merchandise,HOODIE-1';
         const ambiguousResponse = await request(app)
             .post('/api/v1/products/import')
             .set('Authorization', `Bearer ${token}`)
-            .attach('file', Buffer.from(ambiguous), { filename: 'products.csv', contentType: 'text/csv' });
+            .attach('file', Buffer.from(ambiguous), {
+                filename: 'products.csv',
+                contentType: 'text/csv',
+            });
         expect(ambiguousResponse.body.data.errors[0].code).toBe('CATEGORY_AMBIGUOUS');
 
-        const unauthorized = 'productName,categoryId,sku\nCreator Hoodie,other-vendor-category,HOODIE-2';
+        const unauthorized =
+            'productName,categoryId,sku\nCreator Hoodie,other-vendor-category,HOODIE-2';
         const unauthorizedResponse = await request(app)
             .post('/api/v1/products/import')
             .set('Authorization', `Bearer ${token}`)
-            .attach('file', Buffer.from(unauthorized), { filename: 'products.csv', contentType: 'text/csv' });
+            .attach('file', Buffer.from(unauthorized), {
+                filename: 'products.csv',
+                contentType: 'text/csv',
+            });
         expect(unauthorizedResponse.body.data.errors[0].code).toBe('CATEGORY_NOT_AVAILABLE');
     });
 
@@ -126,20 +159,33 @@ describe('bulk product operations', () => {
         const response = await request(app)
             .post('/api/v1/products/import')
             .set('Authorization', `Bearer ${token}`)
-            .attach('file', Buffer.from(csv), { filename: 'products.csv', contentType: 'text/csv' });
+            .attach('file', Buffer.from(csv), {
+                filename: 'products.csv',
+                contentType: 'text/csv',
+            });
 
         expect(response.body.data.importedProducts).toBe(0);
-        expect(response.body.data.errors).toEqual(expect.arrayContaining([expect.objectContaining({ row: 3, code: 'IDENTIFIER_CONFLICT' })]));
+        expect(response.body.data.errors).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ row: 3, code: 'IDENTIFIER_CONFLICT' }),
+            ])
+        );
         expect(mockPrisma.product.create).not.toHaveBeenCalled();
     });
 
     it('enforces the 1,000-row and 5 MB limits', async () => {
-        const rows = Array.from({ length: 1001 }, (_, index) => `Product ${index},creator-merchandise,SKU-${index}`);
+        const rows = Array.from(
+            { length: 1001 },
+            (_, index) => `Product ${index},creator-merchandise,SKU-${index}`
+        );
         const tooManyRows = ['productName,categoryCode,sku', ...rows].join('\n');
         const rowResponse = await request(app)
             .post('/api/v1/products/import')
             .set('Authorization', `Bearer ${token}`)
-            .attach('file', Buffer.from(tooManyRows), { filename: 'products.csv', contentType: 'text/csv' });
+            .attach('file', Buffer.from(tooManyRows), {
+                filename: 'products.csv',
+                contentType: 'text/csv',
+            });
         expect(rowResponse.status).toBe(400);
         expect(rowResponse.body.code).toBe('CSV_ROW_LIMIT_EXCEEDED');
 
@@ -147,23 +193,44 @@ describe('bulk product operations', () => {
         const sizeResponse = await request(app)
             .post('/api/v1/products/import')
             .set('Authorization', `Bearer ${token}`)
-            .attach('file', Buffer.alloc(5 * 1024 * 1024 + 1, 'a'), { filename: 'products.csv', contentType: 'text/csv' });
+            .attach('file', Buffer.alloc(5 * 1024 * 1024 + 1, 'a'), {
+                filename: 'products.csv',
+                contentType: 'text/csv',
+            });
         consoleError.mockRestore();
         expect(sizeResponse.status).toBe(400);
         expect(sizeResponse.body.code).toBe('UPLOAD_ERROR');
     });
 
     it('exports primary and secondary versions for only the authenticated vendor', async () => {
-        mockPrisma.product.findMany.mockResolvedValue([{
-            id: 'product-1',
-            baseName: 'Creator Hoodie',
-            status: 'ACTIVE',
-            category: { code: 'creator-merchandise', name: 'Creator Merchandise' },
-            versions: [
-                { label: 'Black', status: 'ACTIVE', sku: 'HOODIE-BLK', barcode: '111', characteristics: [], designNotes: null, isPrimary: true },
-                { label: 'White', status: 'DRAFT', sku: 'HOODIE-WHT', barcode: null, characteristics: [], designNotes: 'Summer', isPrimary: false },
-            ],
-        }]);
+        mockPrisma.product.findMany.mockResolvedValue([
+            {
+                id: 'product-1',
+                baseName: 'Creator Hoodie',
+                status: 'ACTIVE',
+                category: { code: 'creator-merchandise', name: 'Creator Merchandise' },
+                versions: [
+                    {
+                        label: 'Black',
+                        status: 'ACTIVE',
+                        sku: 'HOODIE-BLK',
+                        barcode: '111',
+                        characteristics: [],
+                        designNotes: null,
+                        isPrimary: true,
+                    },
+                    {
+                        label: 'White',
+                        status: 'DRAFT',
+                        sku: 'HOODIE-WHT',
+                        barcode: null,
+                        characteristics: [],
+                        designNotes: 'Summer',
+                        isPrimary: false,
+                    },
+                ],
+            },
+        ]);
 
         const response = await request(app)
             .get('/api/v1/products/export')
@@ -175,7 +242,9 @@ describe('bulk product operations', () => {
         expect(response.text).toContain('HOODIE-BLK');
         expect(response.text).toContain('HOODIE-WHT');
         expect(mockPrisma.product.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({ where: { vendorId, deletedAt: null } })
+            expect.objectContaining({
+                where: { vendorProfileId: vendorId, deletedAt: null },
+            })
         );
     });
 });
