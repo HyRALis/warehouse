@@ -4,20 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { Edit3, FolderTree, Plus, Search, ShieldCheck, Trash2, X } from 'lucide-react';
 import { Badge, Button, Card, CardContent, Input, Label, Spinner } from '@inventory-system/ui';
+import type { CategoryResponse } from '@inventory-system/shared-types';
 
 interface TemplateSummary { id: string; name: string }
-interface Category {
-    id: string;
-    code?: string | null;
-    name: string;
-    aliases?: string[];
-    parentId?: string | null;
-    defaultTemplateId?: string | null;
-    vendorId?: string | null;
+type Category = CategoryResponse & {
     parent?: { id: string; name: string } | null;
     defaultTemplate?: TemplateSummary | null;
     _count?: { products: number; children: number };
-}
+};
 
 const emptyForm = { name: '', aliases: '', parentId: '', defaultTemplateId: '' };
 
@@ -60,7 +54,8 @@ export default function CategoriesPage() {
     const [categories, setCategories] = useState<Category[]>([]);
     const [templates, setTemplates] = useState<TemplateSummary[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const [loadError, setLoadError] = useState('');
+    const [actionError, setActionError] = useState('');
     const [query, setQuery] = useState('');
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -68,13 +63,14 @@ export default function CategoriesPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const fetchCatalog = useCallback(async () => {
-        setError('');
+        setLoadError('');
+        setLoading(true);
         try {
             const [categoryResponse, templateResponse] = await Promise.all([api.getCategories(), api.getTemplates()]);
             setCategories(categoryResponse.data || []);
             setTemplates(templateResponse.data || []);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to load categories');
+            setLoadError(err instanceof Error ? err.message : 'Failed to load categories');
         } finally {
             setLoading(false);
         }
@@ -85,11 +81,11 @@ export default function CategoriesPage() {
         if (new URLSearchParams(window.location.search).get('create') === 'true') setShowForm(true);
     }, [fetchCatalog]);
 
-    const startCreate = () => { setEditingId(null); setForm(emptyForm); setError(''); setShowForm(true); };
+    const startCreate = () => { setEditingId(null); setForm(emptyForm); setActionError(''); setShowForm(true); };
     const startEdit = (category: Category) => {
         setEditingId(category.id);
         setForm({ name: category.name, aliases: category.aliases?.join(', ') ?? '', parentId: category.parentId ?? '', defaultTemplateId: category.defaultTemplateId ?? '' });
-        setError('');
+        setActionError('');
         setShowForm(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -98,7 +94,7 @@ export default function CategoriesPage() {
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
         setIsSubmitting(true);
-        setError('');
+        setActionError('');
         const payload = {
             name: form.name.trim(),
             aliases: form.aliases.split(',').map((alias) => alias.trim()).filter(Boolean),
@@ -110,7 +106,7 @@ export default function CategoriesPage() {
             closeForm();
             await fetchCatalog();
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Could not save category');
+            setActionError(err instanceof Error ? err.message : 'Could not save category');
         } finally {
             setIsSubmitting(false);
         }
@@ -118,12 +114,12 @@ export default function CategoriesPage() {
 
     const handleDelete = async (category: Category) => {
         if (!window.confirm(`Delete “${category.name}”?`)) return;
-        setError('');
+        setActionError('');
         try {
             await api.deleteCategory(category.id);
             await fetchCatalog();
         } catch (err) {
-            setError(err instanceof ApiError ? err.message : 'Could not delete category');
+            setActionError(err instanceof ApiError ? err.message : 'Could not delete category');
         }
     };
 
@@ -132,11 +128,9 @@ export default function CategoriesPage() {
         if (!needle) return categories;
         return categories.filter((category) => [category.name, category.code, category.parent?.name, ...(category.aliases ?? [])].filter(Boolean).some((value) => String(value).toLocaleLowerCase().includes(needle)));
     }, [categories, query]);
-    const customCategories = filtered.filter((category) => category.vendorId);
-    const systemCategories = filtered.filter((category) => !category.vendorId);
+    const customCategories = filtered.filter((category) => category.vendorProfileId);
+    const systemCategories = filtered.filter((category) => !category.vendorProfileId);
     const parentOptions = categories.filter((category) => category.id !== editingId);
-
-    if (loading) return <div className="flex justify-center p-20"><Spinner size={8} /></div>;
 
     return (
         <div className="mx-auto max-w-5xl space-y-6">
@@ -146,12 +140,20 @@ export default function CategoriesPage() {
                     <h1 className="text-2xl font-bold text-white">Categories</h1>
                     <p className="mt-1 text-sm text-slate-400">Use the built-in catalog immediately. Add a custom category only when your product needs one.</p>
                 </div>
-                <Button onClick={startCreate}><Plus className="mr-2 h-4 w-4" /> Add custom category</Button>
+                <Button onClick={startCreate} disabled={loading || Boolean(loadError)}><Plus className="mr-2 h-4 w-4" /> Add custom category</Button>
             </header>
 
-            {error && <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</div>}
+            {loadError && (
+                <div role="alert" className="flex flex-col gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 sm:flex-row sm:items-center sm:justify-between">
+                    <span>{loadError}</span>
+                    <Button variant="secondary" size="sm" onClick={() => void fetchCatalog()}>Try again</Button>
+                </div>
+            )}
+            {actionError && <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{actionError}</div>}
 
-            {showForm && (
+            {loading && <div className="flex justify-center p-20" role="status" aria-label="Loading categories"><Spinner size={8} /></div>}
+
+            {!loading && !loadError && showForm && (
                 <Card><CardContent className="p-5">
                     <div className="mb-4 flex items-center justify-between"><h2 className="font-semibold text-white">{editingId ? 'Edit custom category' : 'New custom category'}</h2><Button variant="ghost" size="icon" aria-label="Close category form" onClick={closeForm}><X className="h-4 w-4" /></Button></div>
                     <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
@@ -164,17 +166,17 @@ export default function CategoriesPage() {
                 </CardContent></Card>
             )}
 
-            <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" /><Input aria-label="Search categories" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-10" placeholder="Search name, code, alias, or parent…" /></div>
+            {!loading && !loadError && <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" /><Input aria-label="Search categories" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-10" placeholder="Search name, code, alias, or parent…" /></div>}
 
-            <section aria-labelledby="custom-categories-heading">
+            {!loading && !loadError && <section aria-labelledby="custom-categories-heading">
                 <div className="mb-2 flex items-center justify-between"><h2 id="custom-categories-heading" className="font-semibold text-white">Your custom categories</h2><span className="text-xs text-slate-500">{customCategories.length} shown</span></div>
                 <Card><CardContent className="p-0">{customCategories.length ? customCategories.map((category) => <CategoryRow key={category.id} category={category} editable onEdit={startEdit} onDelete={handleDelete} />) : <p className="p-6 text-center text-sm text-slate-500">{query ? 'No custom categories match your search.' : 'You do not need to create a category before adding a product.'}</p>}</CardContent></Card>
-            </section>
+            </section>}
 
-            <section aria-labelledby="system-categories-heading">
+            {!loading && !loadError && <section aria-labelledby="system-categories-heading">
                 <div className="mb-2 flex items-center justify-between"><h2 id="system-categories-heading" className="font-semibold text-white">Built-in catalog</h2><span className="text-xs text-slate-500">Managed by OmniStock · {systemCategories.length} shown</span></div>
                 <Card><CardContent className="max-h-[34rem] overflow-y-auto p-0">{systemCategories.length ? systemCategories.map((category) => <CategoryRow key={category.id} category={category} editable={false} onEdit={startEdit} onDelete={handleDelete} />) : <p className="p-6 text-center text-sm text-slate-500">No system categories match your search.</p>}</CardContent></Card>
-            </section>
+            </section>}
         </div>
     );
 }

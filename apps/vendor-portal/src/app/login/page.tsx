@@ -1,19 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Mail, Lock, Package2 } from 'lucide-react';
 import Link from 'next/link';
-import { api } from '@/lib/api';
 import { Button, Input, Label, Spinner } from '@inventory-system/ui';
+
+const getSafeReturnTo = () => {
+    if (typeof window === 'undefined') return '/dashboard';
+    const value = new URLSearchParams(window.location.search).get('returnTo');
+    return value?.startsWith('/') && !value.startsWith('//') ? value : '/dashboard';
+};
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const { login } = useAuth();
+    const { login, user, loading } = useAuth();
     const router = useRouter();
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -22,19 +27,25 @@ export default function LoginPage() {
         setIsSubmitting(true);
 
         try {
-            const res = await api.login({ email, password });
-            if (res.success && res.data) {
-                login(res.data);
-                router.push('/dashboard');
-            } else {
-                setError(res.message || 'Login failed');
-            }
+            const result = await login(email, password);
+            const returnTo = getSafeReturnTo();
+            router.push(
+                result.twoFactorRequired
+                    ? `/two-factor?returnTo=${encodeURIComponent(returnTo)}`
+                    : returnTo
+            );
         } catch (err: any) {
             setError(err.message || 'An error occurred during login');
         } finally {
             setIsSubmitting(false);
         }
     };
+
+    useEffect(() => {
+        if (!loading && user) router.replace(getSafeReturnTo());
+    }, [loading, router, user]);
+
+    if (!loading && user) return null;
 
     return (
         <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-slate-950 p-4">
@@ -54,6 +65,11 @@ export default function LoginPage() {
                 <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-xl backdrop-blur-sm">
                     <h2 className="mb-6 text-xl font-semibold text-white">Sign In</h2>
 
+                    <div className="mb-6 rounded-lg border border-indigo-500/20 bg-indigo-500/10 p-3 text-xs leading-5 text-indigo-200">
+                        Existing accounts were moved to secure sessions. Sign in again with your
+                        current password; no password reset is required.
+                    </div>
+
                     {error && (
                         <div className="mb-6 rounded-lg border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-400">
                             {error}
@@ -62,12 +78,13 @@ export default function LoginPage() {
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div className="space-y-1.5">
-                            <Label>Email Address</Label>
+                            <Label htmlFor="login-email">Email Address</Label>
                             <div className="relative">
                                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                                     <Mail className="h-5 w-5 text-slate-500" />
                                 </div>
                                 <Input
+                                    id="login-email"
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
@@ -79,12 +96,13 @@ export default function LoginPage() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label>Password</Label>
+                            <Label htmlFor="login-password">Password</Label>
                             <div className="relative">
                                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                                     <Lock className="h-5 w-5 text-slate-500" />
                                 </div>
                                 <Input
+                                    id="login-password"
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
@@ -99,6 +117,15 @@ export default function LoginPage() {
                             {isSubmitting ? <Spinner size={5} className="mr-2" /> : 'Sign In'}
                         </Button>
                     </form>
+
+                    <div className="mt-4 text-center text-sm">
+                        <Link
+                            href="/forgot-password"
+                            className="text-indigo-400 hover:text-indigo-300"
+                        >
+                            Forgot your password?
+                        </Link>
+                    </div>
 
                     <div className="mt-6 text-center text-sm text-slate-400">
                         Don{"'"}t have an account?{' '}

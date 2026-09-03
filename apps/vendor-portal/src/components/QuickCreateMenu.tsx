@@ -83,16 +83,29 @@ export default function QuickCreateMenu({ variant = 'header', className }: Quick
             event.preventDefault();
             itemRefs.current[event.key === 'Home' ? 0 : actions.length - 1]?.focus();
         }
+        if (variant === 'floating' && event.key === 'Tab') {
+            const items = [triggerRef.current, ...itemRefs.current].filter(
+                (item): item is HTMLButtonElement | HTMLAnchorElement => Boolean(item)
+            );
+            const first = items[0];
+            const last = items[items.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last?.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first?.focus();
+            }
+        }
     };
 
     return (
-        <div ref={rootRef} className={cn('relative', className)}>
+        <div ref={rootRef} className={cn('relative', className)} onKeyDown={handleMenuKeyDown}>
             {variant === 'floating' && open && (
-                <button
-                    type="button"
-                    aria-label="Dismiss quick create menu"
+                <div
+                    aria-hidden="true"
                     className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm md:hidden"
-                    onClick={() => close(true)}
+                    onMouseDown={() => close(true)}
                 />
             )}
             <button
@@ -123,7 +136,6 @@ export default function QuickCreateMenu({ variant = 'header', className }: Quick
                     id={menuId}
                     role="menu"
                     aria-label="Create"
-                    onKeyDown={handleMenuKeyDown}
                     className={cn(
                         'z-50 rounded-2xl border border-slate-700 bg-slate-900 p-3 shadow-2xl shadow-black/40',
                         variant === 'floating'

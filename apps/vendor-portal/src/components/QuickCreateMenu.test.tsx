@@ -44,4 +44,16 @@ describe('QuickCreateMenu', () => {
         await user.click(screen.getByRole('button', { name: 'Close quick create menu' }));
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     });
+
+    it('keeps keyboard focus inside the mobile floating menu', async () => {
+        const user = userEvent.setup();
+        render(<QuickCreateMenu variant="floating" />);
+        const trigger = screen.getByRole('button', { name: 'Open quick create menu' });
+
+        await user.click(trigger);
+        await user.tab({ shift: true });
+        expect(screen.getByRole('menuitem', { name: /Add Category/ })).toHaveFocus();
+        await user.tab();
+        expect(screen.getByRole('button', { name: 'Close quick create menu' })).toHaveFocus();
+    });
 });

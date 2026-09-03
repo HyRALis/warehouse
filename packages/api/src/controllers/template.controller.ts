@@ -5,6 +5,11 @@ import { AuthRequest } from '../middleware/auth';
 const templateSearchText = (name: string, fields: unknown): string =>
     `${name} ${JSON.stringify(fields)}`.trim().toLocaleLowerCase();
 
+const findAvailableTemplate = (id: string, vendorProfileId: string) =>
+    prisma.characteristicTemplate.findFirst({
+        where: { id, OR: [{ vendorProfileId: null }, { vendorProfileId }] },
+    });
+
 export class TemplateController {
     /**
      * List templates
@@ -16,7 +21,7 @@ export class TemplateController {
                     OR: [{ vendorProfileId: null }, { vendorProfileId: req.vendorProfileId }],
                 },
                 include: { _count: { select: { defaultForCategories: true } } },
-                orderBy: [{ vendorId: 'asc' }, { name: 'asc' }],
+                orderBy: [{ vendorProfileId: 'asc' }, { name: 'asc' }],
             });
             res.status(200).json({ success: true, data: templates });
         } catch (error) {
@@ -63,7 +68,6 @@ export class TemplateController {
             const name = req.body.name || `${source.name} copy`;
             const template = await prisma.characteristicTemplate.create({
                 data: {
-                    vendorId: req.vendorId!,
                     vendorProfileId: req.vendorProfileId!,
                     name,
                     fields: source.fields as Prisma.InputJsonValue,
@@ -86,7 +90,6 @@ export class TemplateController {
                 data: {
                     name,
                     fields,
-                    vendorId: req.vendorId!,
                     vendorProfileId: req.vendorProfileId!,
                     searchText: templateSearchText(name, fields),
                 },
@@ -105,17 +108,18 @@ export class TemplateController {
             const { id } = req.params;
             const { name, fields } = req.body;
 
-            const template = await prisma.characteristicTemplate.findUnique({ where: { id } });
+            const template = await findAvailableTemplate(id, req.vendorProfileId!);
 
             if (!template) {
                 res.status(404).json({ success: false, message: 'Template not found' });
                 return;
             }
-            if (
-                template.vendorProfileId !== req.vendorProfileId ||
-                template.vendorProfileId === null
-            ) {
-                res.status(403).json({ success: false, message: 'Cannot edit this template' });
+            if (template.vendorProfileId === null) {
+                res.status(403).json({
+                    success: false,
+                    code: 'SYSTEM_TEMPLATE_READ_ONLY',
+                    message: 'System templates are read-only',
+                });
                 return;
             }
 
@@ -144,18 +148,19 @@ export class TemplateController {
         try {
             const { id } = req.params;
 
-            const template = await prisma.characteristicTemplate.findUnique({ where: { id } });
+            const template = await findAvailableTemplate(id, req.vendorProfileId!);
 
             if (!template) {
                 res.status(404).json({ success: false, message: 'Template not found' });
                 return;
             }
 
-            if (
-                template.vendorProfileId !== req.vendorProfileId ||
-                template.vendorProfileId === null
-            ) {
-                res.status(403).json({ success: false, message: 'Cannot delete this template' });
+            if (template.vendorProfileId === null) {
+                res.status(403).json({
+                    success: false,
+                    code: 'SYSTEM_TEMPLATE_READ_ONLY',
+                    message: 'System templates are read-only',
+                });
                 return;
             }
 

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Mail, Lock, Package2, Building } from 'lucide-react';
 import Link from 'next/link';
-import { api } from '@/lib/api';
 import { Button, Input, Label, Spinner } from '@inventory-system/ui';
 
 export default function RegisterPage() {
@@ -14,7 +13,7 @@ export default function RegisterPage() {
     const [companyName, setCompanyName] = useState('');
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const { login } = useAuth();
+    const { register } = useAuth();
     const router = useRouter();
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -23,13 +22,8 @@ export default function RegisterPage() {
         setIsSubmitting(true);
 
         try {
-            const res = await api.register({ email, password, companyName });
-            if (res.success && res.data) {
-                login(res.data);
-                router.push('/dashboard');
-            } else {
-                setError(res.message || 'Registration failed');
-            }
+            await register(email, password, companyName);
+            router.push('/verify-email?sent=1');
         } catch (err: any) {
             setError(err.message || 'An error occurred during registration');
         } finally {
@@ -48,11 +42,16 @@ export default function RegisterPage() {
                         <Package2 className="h-6 w-6 text-white" />
                     </div>
                     <h1 className="text-2xl font-bold text-white">OmniStock</h1>
-                    <p className="mt-1 text-slate-400">Vendor Application</p>
+                    <p className="mt-1 text-slate-400">Create your vendor workspace</p>
                 </div>
 
                 <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-xl backdrop-blur-sm">
                     <h2 className="mb-6 text-xl font-semibold text-white">Create Account</h2>
+
+                    <p className="mb-6 text-sm leading-6 text-slate-400">
+                        This creates your organization, activates its Vendor Portal access, and
+                        prepares a primary producer profile in one step.
+                    </p>
 
                     {error && (
                         <div className="mb-6 rounded-lg border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-400">
@@ -62,12 +61,13 @@ export default function RegisterPage() {
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div className="space-y-1.5">
-                            <Label>Company Name</Label>
+                            <Label htmlFor="register-company">Company Name</Label>
                             <div className="relative">
                                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                                     <Building className="h-5 w-5 text-slate-500" />
                                 </div>
                                 <Input
+                                    id="register-company"
                                     type="text"
                                     value={companyName}
                                     onChange={(e) => setCompanyName(e.target.value)}
@@ -79,12 +79,13 @@ export default function RegisterPage() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label>Email Address</Label>
+                            <Label htmlFor="register-email">Email Address</Label>
                             <div className="relative">
                                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                                     <Mail className="h-5 w-5 text-slate-500" />
                                 </div>
                                 <Input
+                                    id="register-email"
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
@@ -96,12 +97,13 @@ export default function RegisterPage() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label>Password</Label>
+                            <Label htmlFor="register-password">Password</Label>
                             <div className="relative">
                                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                                     <Lock className="h-5 w-5 text-slate-500" />
                                 </div>
                                 <Input
+                                    id="register-password"
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}

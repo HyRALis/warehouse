@@ -23,40 +23,15 @@ enum PortalSubscriptionStatus {
   CANCELLED
 }
 
-model Vendor {
-  id                     String    @id @default(uuid())
-  email                  String    @unique
-  passwordHash           String    @map("password_hash")
-  companyName            String    @map("company_name")
-  createdAt              DateTime  @default(now()) @map("created_at")
-  updatedAt              DateTime  @updatedAt @map("updated_at")
-  deletedAt              DateTime? @map("deleted_at")
-  tokenVersion           Int       @default(0) @map("token_version")
-  passwordResetTokenHash String?   @unique @map("password_reset_token_hash")
-  passwordResetExpiresAt DateTime? @map("password_reset_expires_at")
-
-  products                Product[]
-  productVersions         ProductVersion[]
-  categories              Category[]
-  characteristicTemplates CharacteristicTemplate[]
-  identityUser            User?
-  vendorProfile           VendorProfile?
-
-  @@map("vendors")
-}
-
 model User {
-  id               String   @id
-  name             String
-  email            String   @unique
-  emailVerified    Boolean  @default(false)
-  image            String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  twoFactorEnabled Boolean? @default(false)
-  legacyVendorId   String?  @unique
-
-  legacyVendor        Vendor?              @relation(fields: [legacyVendorId], references: [id], onDelete: Restrict)
+  id                  String               @id
+  name                String
+  email               String               @unique
+  emailVerified       Boolean              @default(false)
+  image               String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  twoFactorEnabled    Boolean?             @default(false)
   sessions            Session[]
   accounts            Account[]
   members             Member[]
@@ -248,13 +223,11 @@ model VendorProfile {
   description    String?
   websiteUrl     String?   @map("website_url")
   logoUrl        String?   @map("logo_url")
-  legacyVendorId String?   @unique @map("legacy_vendor_id")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
 
   organization            Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  legacyVendor            Vendor?                  @relation(fields: [legacyVendorId], references: [id], onDelete: Restrict)
   products                Product[]
   productVersions         ProductVersion[]
   categories              Category[]
@@ -272,7 +245,6 @@ model Category {
   aliases           String[] @default([])
   searchText        String   @default("") @map("search_text")
   parentId          String?  @map("parent_id")
-  vendorId          String?  @map("vendor_id")
   vendorProfileId   String?  @map("vendor_profile_id")
   defaultTemplateId String?  @map("default_template_id")
   createdAt         DateTime @default(now()) @map("created_at")
@@ -280,12 +252,10 @@ model Category {
 
   parent          Category?               @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children        Category[]              @relation("CategoryHierarchy")
-  vendor          Vendor?                 @relation(fields: [vendorId], references: [id], onDelete: Restrict)
   vendorProfile   VendorProfile?          @relation(fields: [vendorProfileId], references: [id], onDelete: Restrict)
   defaultTemplate CharacteristicTemplate? @relation("CategoryDefaultTemplate", fields: [defaultTemplateId], references: [id], onDelete: SetNull)
   products        Product[]
 
-  @@index([vendorId])
   @@index([vendorProfileId])
   @@index([parentId])
   @@index([defaultTemplateId])
@@ -295,7 +265,6 @@ model Category {
 
 model Product {
   id              String        @id @default(uuid())
-  vendorId        String        @map("vendor_id")
   vendorProfileId String        @map("vendor_profile_id")
   categoryId      String        @map("category_id")
   sku             String
@@ -310,15 +279,12 @@ model Product {
   updatedAt       DateTime      @updatedAt @map("updated_at")
   deletedAt       DateTime?     @map("deleted_at")
 
-  vendor        Vendor           @relation(fields: [vendorId], references: [id], onDelete: Restrict)
   vendorProfile VendorProfile    @relation(fields: [vendorProfileId], references: [id], onDelete: Restrict)
   category      Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   images        ProductImage[]
   versions      ProductVersion[]
 
-  @@unique([vendorId, sku])
   @@unique([vendorProfileId, sku])
-  @@index([vendorId, deletedAt])
   @@index([vendorProfileId, deletedAt])
   @@index([categoryId])
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "products_search_text_trgm_idx")
@@ -328,7 +294,6 @@ model Product {
 model ProductVersion {
   id              String        @id @default(uuid())
   productId       String        @map("product_id")
-  vendorId        String        @map("vendor_id")
   vendorProfileId String        @map("vendor_profile_id")
   versionNumber   Int           @map("version_number")
   label           String
@@ -345,17 +310,13 @@ model ProductVersion {
   deletedAt       DateTime?     @map("deleted_at")
 
   product       Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
-  vendor        Vendor         @relation(fields: [vendorId], references: [id], onDelete: Restrict)
   vendorProfile VendorProfile  @relation(fields: [vendorProfileId], references: [id], onDelete: Restrict)
   images        ProductImage[]
 
   @@unique([productId, versionNumber])
-  @@unique([vendorId, sku])
-  @@unique([vendorId, barcode])
   @@unique([vendorProfileId, sku])
   @@unique([vendorProfileId, barcode])
   @@index([productId, deletedAt])
-  @@index([vendorId, deletedAt])
   @@index([vendorProfileId, deletedAt])
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "product_versions_search_text_trgm_idx")
   @@map("product_versions")
@@ -379,7 +340,6 @@ model ProductImage {
 
 model CharacteristicTemplate {
   id              String   @id @default(uuid())
-  vendorId        String?  @map("vendor_id")
   vendorProfileId String?  @map("vendor_profile_id")
   key             String?  @unique
   name            String
@@ -388,11 +348,9 @@ model CharacteristicTemplate {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
-  vendor               Vendor?        @relation(fields: [vendorId], references: [id], onDelete: Restrict)
   vendorProfile        VendorProfile? @relation(fields: [vendorProfileId], references: [id], onDelete: Restrict)
   defaultForCategories Category[]     @relation("CategoryDefaultTemplate")
 
-  @@index([vendorId])
   @@index([vendorProfileId])
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "characteristic_templates_search_text_trgm_idx")
   @@map("characteristic_templates")

@@ -154,6 +154,9 @@ export default function UniversalSearch() {
                 onClick={() => setOpen(true)}
                 className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-400 transition-colors hover:border-slate-600 hover:bg-slate-800 hover:text-slate-200 sm:w-72"
                 aria-label="Search products, versions, categories, and templates"
+                aria-haspopup="dialog"
+                aria-expanded={open}
+                aria-controls="universal-search-dialog"
             >
                 <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span className="truncate">Search everything...</span>
@@ -171,12 +174,16 @@ export default function UniversalSearch() {
                     }}
                 >
                     <section
+                        id="universal-search-dialog"
                         role="dialog"
                         aria-modal="true"
-                        aria-label="Universal search"
+                        aria-labelledby="universal-search-title"
                         onKeyDown={handleDialogKeyDown}
                         className="flex h-full w-full flex-col overflow-hidden border-slate-700 bg-slate-900 shadow-2xl shadow-black/40 sm:h-auto sm:max-h-[72vh] sm:max-w-2xl sm:rounded-2xl sm:border"
                     >
+                        <h2 id="universal-search-title" className="sr-only">
+                            Universal search
+                        </h2>
                         <div className="flex items-center gap-3 border-b border-slate-800 px-4 py-3">
                             {loading ? (
                                 <Loader2 className="h-5 w-5 shrink-0 animate-spin text-indigo-400" />
@@ -190,8 +197,11 @@ export default function UniversalSearch() {
                                 ref={inputRef}
                                 id="universal-search-input"
                                 role="combobox"
-                                aria-expanded="true"
-                                aria-controls="universal-search-results"
+                                aria-expanded={results.length > 0}
+                                aria-controls={
+                                    results.length > 0 ? 'universal-search-options' : undefined
+                                }
+                                aria-autocomplete="list"
                                 aria-activedescendant={
                                     results[activeIndex] ? `search-result-${activeIndex}` : undefined
                                 }
@@ -212,12 +222,18 @@ export default function UniversalSearch() {
 
                         <div
                             id="universal-search-results"
-                            role="listbox"
-                            aria-label="Search suggestions"
+                            aria-busy={loading}
                             className="flex-1 overflow-y-auto p-3"
                         >
+                            <div className="sr-only" role="status" aria-live="polite">
+                                {loading
+                                    ? 'Searching'
+                                    : error
+                                      ? ''
+                                      : `${results.length} search suggestion${results.length === 1 ? '' : 's'} available`}
+                            </div>
                             {!query.trim() && (
-                                <div className="px-4 py-12 text-center">
+                                <div className="px-4 py-12 text-center" role="status">
                                     <Search className="mx-auto h-8 w-8 text-slate-700" />
                                     <p className="mt-3 text-sm text-slate-400">
                                         Search names, identifiers, categories, and template fields.
@@ -225,7 +241,7 @@ export default function UniversalSearch() {
                                 </div>
                             )}
                             {error && (
-                                <div className="flex flex-col items-center px-4 py-10 text-center">
+                                <div className="flex flex-col items-center px-4 py-10 text-center" role="alert">
                                     <AlertCircle className="h-7 w-7 text-rose-400" />
                                     <p className="mt-3 text-sm text-slate-300">{error}</p>
                                     <button
@@ -238,38 +254,53 @@ export default function UniversalSearch() {
                                 </div>
                             )}
                             {!loading && !error && query.trim() && groups.length === 0 && (
-                                <p className="px-4 py-12 text-center text-sm text-slate-400">
+                                <p className="px-4 py-12 text-center text-sm text-slate-400" role="status">
                                     No matches for “{query.trim()}”. Try a name, SKU, barcode, or category.
                                 </p>
                             )}
-                            {!error &&
-                                groups.map((group) => (
-                                    <div key={group.type} className="mb-3 last:mb-0">
-                                        <h2 className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
-                                            {group.label}
-                                        </h2>
-                                        <div className="space-y-1">
-                                            {group.results.map((result) => {
-                                                const resultIndex = results.findIndex(
-                                                    (candidate) =>
-                                                        candidate.type === result.type &&
-                                                        candidate.id === result.id
-                                                );
-                                                return (
-                                                    <SearchResultRow
-                                                        key={`${result.type}-${result.id}`}
-                                                        id={`search-result-${resultIndex}`}
-                                                        result={result}
-                                                        query={query.trim()}
-                                                        active={resultIndex === activeIndex}
-                                                        onSelect={close}
-                                                        option
-                                                    />
-                                                );
-                                            })}
+                            {!error && groups.length > 0 && (
+                                <div
+                                    id="universal-search-options"
+                                    role="listbox"
+                                    aria-label="Search suggestions"
+                                >
+                                    {groups.map((group) => (
+                                        <div
+                                            key={group.type}
+                                            role="group"
+                                            aria-labelledby={`search-group-${group.type}`}
+                                            className="mb-3 last:mb-0"
+                                        >
+                                            <h3
+                                                id={`search-group-${group.type}`}
+                                                className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500"
+                                            >
+                                                {group.label}
+                                            </h3>
+                                            <div className="space-y-1">
+                                                {group.results.map((result) => {
+                                                    const resultIndex = results.findIndex(
+                                                        (candidate) =>
+                                                            candidate.type === result.type &&
+                                                            candidate.id === result.id
+                                                    );
+                                                    return (
+                                                        <SearchResultRow
+                                                            key={`${result.type}-${result.id}`}
+                                                            id={`search-result-${resultIndex}`}
+                                                            result={result}
+                                                            query={query.trim()}
+                                                            active={resultIndex === activeIndex}
+                                                            onSelect={close}
+                                                            option
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         {query.trim() && !error && (

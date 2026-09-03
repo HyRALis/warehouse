@@ -63,6 +63,12 @@ jobs:
             - name: Test
               run: npm test
 
+            - name: Install browser for responsive workflow tests
+              run: npx playwright install --with-deps chromium
+
+            - name: Test responsive vendor workflows
+              run: npm run test:e2e --workspace @inventory-system/vendor-portal
+
             - name: Lint
               run: npm run lint
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import {
     UploadCloud,
@@ -40,11 +40,23 @@ export default function BulkOperationsPage() {
     const [importing, setImporting] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [result, setResult] = useState<ImportResponse | null>(null);
+    const [exportError, setExportError] = useState('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const clearFile = () => {
+        setFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
 
     const selectFile = (nextFile: File | null) => {
         setResult(null);
+        if (nextFile && !nextFile.name.toLocaleLowerCase().endsWith('.csv')) {
+            clearFile();
+            setResult({ success: false, message: 'Choose a file with the .csv extension.' });
+            return;
+        }
         if (nextFile && nextFile.size > MAX_CSV_BYTES) {
-            setFile(null);
+            clearFile();
             setResult({ success: false, message: 'CSV files must be 5 MB or smaller.' });
             return;
         }
@@ -60,17 +72,20 @@ export default function BulkOperationsPage() {
             formData.append('file', file);
             const res = (await api.importCSV(formData)) as ImportResponse;
             setResult(res);
-        } catch (err: any) {
-            setResult({ success: false, message: err.message || 'Import failed' });
+            if (res.success) clearFile();
+        } catch (error) {
+            setResult({
+                success: false,
+                message: error instanceof Error ? error.message : 'Import failed',
+            });
         } finally {
             setImporting(false);
-            setFile(null);
         }
     };
 
     const handleExport = async () => {
         setExporting(true);
-        setResult(null);
+        setExportError('');
         try {
             const blob = await api.exportCSV();
             const url = URL.createObjectURL(blob);
@@ -80,10 +95,7 @@ export default function BulkOperationsPage() {
             link.click();
             URL.revokeObjectURL(url);
         } catch (error) {
-            setResult({
-                success: false,
-                message: error instanceof Error ? error.message : 'Export failed',
-            });
+            setExportError(error instanceof Error ? error.message : 'Export failed');
         } finally {
             setExporting(false);
         }
@@ -124,9 +136,11 @@ export default function BulkOperationsPage() {
                     <CardContent>
                         <div className="group relative rounded-xl border-2 border-dashed border-slate-700 bg-slate-950 p-8 text-center transition-colors hover:border-indigo-500/50">
                             <input
+                                ref={fileInputRef}
                                 type="file"
-                                accept=".csv"
+                                accept=".csv,text/csv"
                                 aria-label="Choose product CSV"
+                                disabled={importing}
                                 onChange={(e) => selectFile(e.target.files?.[0] || null)}
                                 className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
                             />
@@ -143,6 +157,14 @@ export default function BulkOperationsPage() {
                             )}
                         </div>
 
+                        {file && !importing && (
+                            <div className="mt-2 flex justify-end">
+                                <Button variant="ghost" size="sm" onClick={clearFile}>
+                                    Remove selected file
+                                </Button>
+                            </div>
+                        )}
+
                         <Button
                             onClick={handleImport}
                             disabled={!file || importing}
@@ -153,6 +175,7 @@ export default function BulkOperationsPage() {
 
                         {result && (
                             <div
+                                role={result.success ? 'status' : 'alert'}
                                 className={`mt-4 rounded-lg border p-4 ${!result.success ? 'border-rose-500/20 bg-rose-500/10' : hasRowErrors ? 'border-amber-500/20 bg-amber-500/10' : 'border-emerald-500/20 bg-emerald-500/10'}`}
                             >
                                 <div className="mb-2 flex items-center gap-2">
@@ -191,6 +214,11 @@ export default function BulkOperationsPage() {
                     </CardHeader>
 
                     <CardContent>
+                        {exportError && (
+                            <div role="alert" className="mb-4 rounded-lg border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-300">
+                                {exportError}
+                            </div>
+                        )}
                         <p className="mb-6 text-sm text-slate-400">
                             Download the entire catalog with category codes, separate product and version states, identifiers, design notes, characteristics, and primary-version flags.
                         </p>

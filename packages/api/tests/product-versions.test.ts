@@ -23,16 +23,17 @@ const copyId = '02fa660b-58a8-41d7-9e20-ed32b3ce517b';
 
 const product = {
     id: productId,
-    vendorId,
+    vendorProfileId: vendorId,
     baseName: 'Creator Hoodie',
     status: 'ACTIVE',
     deletedAt: null,
+    category: { name: 'Apparel' },
 };
 
 const original = {
     id: originalId,
     productId,
-    vendorId,
+    vendorProfileId: vendorId,
     versionNumber: 1,
     label: 'Original',
     sku: 'HOODIE-ORIGINAL',
@@ -60,7 +61,6 @@ const copied = {
 describe('product versions', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendorId });
         mockPrisma.$queryRaw.mockResolvedValue([{ id: productId }]);
     });
 
@@ -125,7 +125,10 @@ describe('product versions', () => {
         });
         expect(mockPrisma.product.update).toHaveBeenCalledWith({
             where: { id: productId },
-            data: expect.objectContaining({ sku: copied.sku }),
+            data: expect.objectContaining({
+                sku: copied.sku,
+                searchText: expect.stringContaining(copied.sku.toLowerCase()),
+            }),
         });
     });
 
@@ -151,6 +154,10 @@ describe('product versions', () => {
             where: { id: copyId },
             data: { deletedAt: expect.any(Date), status: 'DISCONTINUED' },
         });
+        expect(mockPrisma.$transaction).toHaveBeenCalledWith(
+            expect.any(Function),
+            expect.objectContaining({ isolationLevel: 'Serializable' })
+        );
     });
 
     it('reports effective lifecycle status for product and version combinations', async () => {
@@ -192,6 +199,24 @@ describe('product versions', () => {
         expect(StorageService.deleteFile).not.toHaveBeenCalled();
     });
 
+    it('deletes the R2 object after its final media reference is removed', async () => {
+        mockPrisma.product.findFirst.mockResolvedValue({ ...product, imageUrl: null });
+        mockPrisma.productImage.findFirst.mockResolvedValue({
+            ...original.images[0],
+            productId,
+            productVersionId: originalId,
+        });
+        mockPrisma.productImage.count.mockResolvedValue(0);
+        mockPrisma.productImage.delete.mockResolvedValue(original.images[0]);
+
+        const response = await request(app)
+            .delete(`/api/v1/products/${productId}/images/image-1`)
+            .set('Authorization', `Bearer ${token}`);
+
+        expect(response.status).toBe(200);
+        expect(StorageService.deleteFile).toHaveBeenCalledWith(original.images[0].imageUrl);
+    });
+
     it('denies cross-vendor product and version access', async () => {
         mockPrisma.product.findFirst.mockResolvedValue(null);
         const createResponse = await request(app)
@@ -200,7 +225,6 @@ describe('product versions', () => {
             .send({ label: 'Blocked', mode: 'BLANK' });
         expect(createResponse.status).toBe(404);
 
-        mockPrisma.vendor.findFirst.mockResolvedValue({ id: otherVendorId });
         mockPrisma.productVersion.findFirst.mockResolvedValue(null);
         const detailResponse = await request(app)
             .get(`/api/v1/products/${productId}/versions/${copyId}`)
@@ -220,5 +244,43 @@ describe('product versions', () => {
 
         expect(response.status).toBe(409);
         expect(response.body.code).toBe('IDENTIFIER_CONFLICT');
+    });
+
+    it('rechecks product ownership under the row lock before creating a version', async () => {
+        mockPrisma.product.findFirst.mockResolvedValue(product);
+        mockPrisma.$queryRaw.mockResolvedValueOnce([]);
+
+        const response = await request(app)
+            .post(`/api/v1/products/${productId}/versions`)
+            .set('Authorization', `Bearer ${token}`)
+            .send({ label: 'Racing version', mode: 'BLANK', generateQrCode: false });
+
+        expect(response.status).toBe(404);
+        expect(response.body.code).toBe('PRODUCT_NOT_FOUND');
+        expect(mockPrisma.productVersion.create).not.toHaveBeenCalled();
+    });
+
+    it('removes an uploaded object when the version-image database write fails', async () => {
+        const imageUrl = 'https://media.example.test/products/failed.webp';
+        mockPrisma.productVersion.findFirst.mockResolvedValue({
+            ...copied,
+            images: [],
+            isPrimary: false,
+        });
+        (StorageService.uploadFile as jest.Mock).mockResolvedValue(imageUrl);
+        mockPrisma.productImage.create.mockRejectedValue(new Error('database unavailable'));
+        const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        const response = await request(app)
+            .post(`/api/v1/products/${productId}/versions/${copyId}/images`)
+            .set('Authorization', `Bearer ${token}`)
+            .attach('image', Buffer.from([0xff, 0xd8, 0xff]), {
+                filename: 'version.jpg',
+                contentType: 'image/jpeg',
+            });
+
+        consoleError.mockRestore();
+        expect(response.status).toBe(500);
+        expect(StorageService.deleteFile).toHaveBeenCalledWith(imageUrl);
     });
 });
