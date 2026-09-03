@@ -1,7 +1,7 @@
 {
     "name": "inventory-system",
     "private": true,
-    "packageManager": "npm@11.2.0",
+    "packageManager": "npm@11.6.2",
     "engines": {
         "node": ">=22 <25",
         "npm": ">=11"
@@ -11,6 +11,7 @@
         "packages/*"
     ],
     "devDependencies": {
+        "auth": "^1.7.2",
         "prisma": "7.10.0",
         "turbo": "2.10.8"
     },

@@ -9,6 +9,8 @@ const environmentSchema = z
         NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
         PORT: z.coerce.number().int().positive().default(4000),
         JWT_SECRET: z.string().min(32, 'JWT_SECRET must contain at least 32 characters'),
+        BETTER_AUTH_SECRET: z.string().min(32).optional(),
+        BETTER_AUTH_URL: z.string().url().optional(),
         CORS_ORIGINS: z.string().default('http://localhost:3000'),
         API_PUBLIC_URL: z.string().url().default('http://localhost:4000'),
         UPLOAD_DIR: z.string().optional(),
@@ -20,6 +22,14 @@ const environmentSchema = z
         R2_SECRET_ACCESS_KEY: z.string().optional(),
         R2_PUBLIC_URL: z.string().url().optional(),
         TRUST_PROXY: z.enum(['true', 'false']).default('false'),
+        AUTH_CLIENT_IP_HEADER: z.enum(['cf-connecting-ip', 'x-real-ip']).optional(),
+        AUTH_EMAIL_MODE: z.enum(['log', 'smtp']).default('log'),
+        AUTH_EMAIL_FROM: z.string().optional(),
+        SMTP_HOST: z.string().optional(),
+        SMTP_PORT: z.coerce.number().int().positive().default(587),
+        SMTP_SECURE: z.enum(['true', 'false']).default('false'),
+        SMTP_USER: z.string().optional(),
+        SMTP_PASSWORD: z.string().optional(),
     })
     .superRefine((environment, context) => {
         if (environment.NODE_ENV === 'production' && !process.env.CORS_ORIGINS) {
@@ -69,6 +79,26 @@ const environmentSchema = z
                 }
             }
         }
+
+        if (environment.AUTH_EMAIL_MODE === 'smtp') {
+            for (const field of ['AUTH_EMAIL_FROM', 'SMTP_HOST'] as const) {
+                if (!environment[field]) {
+                    context.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        path: [field],
+                        message: `${field} is required when AUTH_EMAIL_MODE=smtp`,
+                    });
+                }
+            }
+
+            if (Boolean(environment.SMTP_USER) !== Boolean(environment.SMTP_PASSWORD)) {
+                context.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ['SMTP_USER'],
+                    message: 'SMTP_USER and SMTP_PASSWORD must be configured together',
+                });
+            }
+        }
     });
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);
@@ -86,6 +116,8 @@ export const config = {
     nodeEnv: environment.NODE_ENV,
     port: environment.PORT,
     jwtSecret: environment.JWT_SECRET,
+    betterAuthSecret: environment.BETTER_AUTH_SECRET ?? environment.JWT_SECRET,
+    betterAuthUrl: (environment.BETTER_AUTH_URL ?? environment.API_PUBLIC_URL).replace(/\/$/, ''),
     corsOrigins: environment.CORS_ORIGINS.split(',')
         .map((origin) => origin.trim())
         .filter(Boolean),
@@ -103,6 +135,19 @@ export const config = {
               }
             : null,
     trustProxy: environment.TRUST_PROXY === 'true',
+    authClientIpHeader: environment.AUTH_CLIENT_IP_HEADER,
+    authEmail:
+        environment.AUTH_EMAIL_MODE === 'smtp'
+            ? {
+                  mode: 'smtp' as const,
+                  from: environment.AUTH_EMAIL_FROM!,
+                  host: environment.SMTP_HOST!,
+                  port: environment.SMTP_PORT,
+                  secure: environment.SMTP_SECURE === 'true',
+                  user: environment.SMTP_USER,
+                  password: environment.SMTP_PASSWORD,
+              }
+            : { mode: 'log' as const },
     sessionCookieName: 'vendor_session',
     sessionDurationMs: 7 * 24 * 60 * 60 * 1000,
 } as const;

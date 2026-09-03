@@ -1,7 +1,9 @@
 import { Response, NextFunction } from 'express';
+import { fromNodeHeaders } from 'better-auth/node';
 import prisma from '@inventory-system/database';
+import { auth } from '../auth';
 import { AuthRequest } from '../middleware/auth';
-import { clearSessionCookie } from '../services/session.service';
+import { applyBetterAuthHeaders } from '../services/better-auth-response.service';
 
 export class VendorController {
     /**
@@ -9,7 +11,8 @@ export class VendorController {
      */
     static async updateProfile(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
-            const { companyName, email } = req.body;
+            const { companyName } = req.body;
+            const email = req.body.email?.trim().toLowerCase();
             const vendorId = req.vendorId!;
 
             if (email) {
@@ -23,19 +26,30 @@ export class VendorController {
                 }
             }
 
-            const updatedVendor = await prisma.vendor.update({
-                where: { id: vendorId },
-                data: {
-                    ...(companyName && { companyName }),
-                    ...(email && { email }),
-                },
-                select: {
-                    id: true,
-                    email: true,
-                    companyName: true,
-                    createdAt: true,
-                    updatedAt: true,
-                },
+            const updatedVendor = await prisma.$transaction(async (transaction) => {
+                const vendor = await transaction.vendor.update({
+                    where: { id: vendorId },
+                    data: {
+                        ...(companyName && { companyName }),
+                        ...(email && { email }),
+                    },
+                    select: {
+                        id: true,
+                        email: true,
+                        companyName: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
+                });
+
+                await transaction.user.update({
+                    where: { legacyVendorId: vendorId },
+                    data: {
+                        ...(companyName && { name: companyName }),
+                        ...(email && { email, emailVerified: false }),
+                    },
+                });
+                return vendor;
             });
 
             res.status(200).json({ success: true, data: updatedVendor });
@@ -51,12 +65,28 @@ export class VendorController {
         try {
             const vendorId = req.vendorId!;
 
-            await prisma.vendor.update({
-                where: { id: vendorId },
-                data: { deletedAt: new Date(), tokenVersion: { increment: 1 } },
+            const { headers } = await auth.api.signOut({
+                returnHeaders: true,
+                headers: fromNodeHeaders(req.headers),
+            });
+            applyBetterAuthHeaders(res, headers);
+
+            await prisma.$transaction(async (transaction) => {
+                const identity = await transaction.user.findUniqueOrThrow({
+                    where: { legacyVendorId: vendorId },
+                    select: { id: true },
+                });
+                await transaction.session.deleteMany({ where: { userId: identity.id } });
+                await transaction.verification.deleteMany({
+                    // Better Auth reset records store the target User ID as their value.
+                    where: { value: identity.id },
+                });
+                await transaction.vendor.update({
+                    where: { id: vendorId },
+                    data: { deletedAt: new Date(), tokenVersion: { increment: 1 } },
+                });
             });
 
-            clearSessionCookie(res);
             res.status(200).json({ success: true, message: 'Account deleted successfully' });
         } catch (error) {
             next(error);

@@ -1,7 +1,9 @@
 import express, { Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import { toNodeHandler } from 'better-auth/node';
 import prisma, { disconnectDatabase } from '@inventory-system/database';
+import { auth } from './auth';
 import authRoutes from './routes/auth.routes';
 import productRoutes from './routes/product.routes';
 import categoryRoutes from './routes/category.routes';
@@ -37,6 +39,7 @@ app.use(
         exposedHeaders: ['X-Request-Id', 'Content-Disposition'],
     })
 );
+app.all('/api/auth/*', toNodeHandler(auth));
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/health', (_req, res) => {
