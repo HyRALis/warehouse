@@ -366,7 +366,8 @@ and copy safeguards, client-side media feedback, and isolated Storybook coverage
 the search API or its ranking. PR 10 corrects the final legacy ownership assumption and completes
 retryable category/template, bounded universal-search, and CSV failure states without adding new
 search infrastructure. PR 11 then finishes mobile, keyboard, focus, screen-reader, and responsive
-behavior already defined in this blueprint.
+behavior with skip navigation, modal focus boundaries, live search semantics, reduced-motion
+support, jest-axe component audits, and desktop/mobile Playwright coverage.
 
 PR 12 contains only clean-install and upgrade verification, release notes, security and license evidence, setup/migration/rollback documentation, final screenshots, and regenerated Markdown/DOCX artifacts.
 

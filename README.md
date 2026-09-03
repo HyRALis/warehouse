@@ -96,6 +96,9 @@ coverage, verification, and rollback.
 See [Vendor catalog, search, and CSV workflow hardening](docs/vendor-catalog-search-import-hardening.md)
 for advanced catalog ownership, recoverable loading/import/export behavior, intentionally bounded
 search, verification, and rollback.
+See [Vendor accessibility and responsive hardening](docs/vendor-accessibility-responsive-hardening.md)
+for focus behavior, semantic announcements, reduced motion, image handling, jest-axe/Playwright
+coverage, CI commands, limitations, and rollback.
 
 CI also starts PostgreSQL, applies the migration history, boots the compiled API, and runs `node tools/smoke-api.mjs`. The same smoke script can validate a deployed environment by setting `API_SMOKE_BASE_URL` to its API origin; it creates and then deactivates an isolated test vendor.
 
