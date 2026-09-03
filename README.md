@@ -93,6 +93,9 @@ lifecycle, Owner controls, explicit portal access, tenancy rules, verification, 
 See [Vendor product and version workflow hardening](docs/vendor-product-workflow-hardening.md) for
 the product-first editor, recoverable dependency/media errors, lifecycle behavior, Storybook
 coverage, verification, and rollback.
+See [Vendor catalog, search, and CSV workflow hardening](docs/vendor-catalog-search-import-hardening.md)
+for advanced catalog ownership, recoverable loading/import/export behavior, intentionally bounded
+search, verification, and rollback.
 
 CI also starts PostgreSQL, applies the migration history, boots the compiled API, and runs `node tools/smoke-api.mjs`. The same smoke script can validate a deployed environment by setting `API_SMOKE_BASE_URL` to its API origin; it creates and then deactivates an isolated test vendor.
 

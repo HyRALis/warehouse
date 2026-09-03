@@ -363,8 +363,10 @@ uses them; they no longer read or write a legacy credential or session system.
 
 PR 09 finishes the product-first editor, recoverable category/template loading, version lifecycle
 and copy safeguards, client-side media feedback, and isolated Storybook coverage. It does not alter
-the search API or its ranking. PRs 10 and 11 then finish catalog/template, universal-search, CSV,
-mobile, keyboard, focus, screen-reader, and responsive behavior already defined in this blueprint.
+the search API or its ranking. PR 10 corrects the final legacy ownership assumption and completes
+retryable category/template, bounded universal-search, and CSV failure states without adding new
+search infrastructure. PR 11 then finishes mobile, keyboard, focus, screen-reader, and responsive
+behavior already defined in this blueprint.
 
 PR 12 contains only clean-install and upgrade verification, release notes, security and license evidence, setup/migration/rollback documentation, final screenshots, and regenerated Markdown/DOCX artifacts.
 
