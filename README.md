@@ -22,7 +22,14 @@ OmniStock is a monorepo for the vendor-facing catalog portal and the inventory p
    ```sh
    npm run generate --workspace @inventory-system/database
    npm run migrate:dev --workspace @inventory-system/database
+   npm run seed --workspace @inventory-system/database
    ```
+
+   Prisma 7 loads the database connection through the root `prisma.config.ts` and
+   generates its ESM client into an ignored source directory. Seeding is explicit; migrations
+   do not run it automatically. The PostgreSQL adapter defaults to 10 connections, a 5-second
+   connection timeout, and a 30-second idle timeout. Override those values with the documented
+   `PRISMA_POOL_*` environment variables only when the deployment capacity requires it.
 
 4. Start the portal and API together:
 
@@ -44,6 +51,17 @@ npm test
 npm run lint
 npm run audit:prod
 ```
+
+Run the clean/current-data database migration test with Docker:
+
+```sh
+npm run test:integration --workspace @inventory-system/database
+```
+
+If Docker is unavailable but the configured PostgreSQL role can create databases, use
+`test:integration:local`. It creates a uniquely named temporary database and removes it after
+the test. See [Prisma 7 migration and rollback](docs/prisma-7-upgrade.md) for architecture,
+verification, and rollback details.
 
 Browser sessions use an HttpOnly, SameSite cookie. Production startup requires explicit CORS origins, a public API URL, and a strong JWT secret.
 

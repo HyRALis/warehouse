@@ -1,4 +1,4 @@
-import { ProductStatus } from './product';
+import type { ProductStatus } from './product.js';
 
 export const PRODUCT_CSV_COLUMNS = [
     'productReference',

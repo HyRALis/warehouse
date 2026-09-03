@@ -1,7 +1,5 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import prisma, { Prisma, type PrismaClient } from '../src/index.js';
 import { SYSTEM_CATEGORIES, SYSTEM_TEMPLATES, validateSystemCatalog } from './system-catalog';
-
-const prisma = new PrismaClient();
 
 function templateSearchText(name: string, key: string, fields: unknown): string {
     return `${name} ${key} ${JSON.stringify(fields)}`.toLowerCase();
