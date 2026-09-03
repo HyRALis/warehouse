@@ -1,22 +1,24 @@
 # Vendor Portal Implementation Blueprint
 
-**Status:** Phase 0 implemented; Vendor Portal completion approved  
-**Reviewed:** 2026-08-28  
-**Primary audience:** First-time producers, creators, influencers, small brands, and growing vendors  
+**Status:** Product roadmap stages 00-09 merged; final platform and release completion approved\
+**Reviewed:** 2026-09-01\
+**Primary audience:** First-time producers, creators, influencers, small brands, and growing vendors\
 **Repository baseline:** Next.js Vendor Portal, Express API, PostgreSQL/Prisma, Cloudflare R2
 
 ## 1. Executive summary
 
-The immediate product goal is to finish a simple, product-first Vendor Portal. A new vendor should be able to register, choose from a ready-made taxonomy, apply a relevant product template, and create the first product without first configuring categories or templates.
+The immediate product goal is to finish a simple, product-first Vendor Portal on a platform foundation that can support additional subscribed portals later. A new vendor should be able to register, create an organization and vendor profile, choose from a ready-made taxonomy, apply a relevant product template, and create the first product without first configuring categories or templates.
 
-The completion scope adds four capabilities to the stabilized Phase 0 foundation:
+Product roadmap stages 00 through 09 have delivered four core capabilities on the stabilized Phase 0 foundation:
 
 1. A floating quick-create menu with Add Product as the dominant action.
 2. A searchable, seeded category and template library.
 3. Sellable product versions with independent characteristics, designs, media, identifiers, and lifecycle states.
 4. Universal search across products, versions, categories, and templates.
 
-Draft, Active, and Discontinued remain explicit states for both products and versions. The Inventory Portal is strategically important but is not part of this delivery plan. Enterprise vendor functions are deferred until the small-vendor workflow has been validated.
+The remaining release scope upgrades Prisma 5 to Prisma 7, replaces the handwritten authentication system with Better Auth, separates users and organizations from the vendor profile, adds organization-owned portal subscriptions and member portal access, and completes release hardening. Draft, Active, and Discontinued remain explicit states for both products and versions.
+
+The Inventory Portal is strategically important but is not part of this implementation run. It will begin in a separate chat only after this Vendor Portal release is complete.
 
 ## 2. Product principles
 
@@ -28,6 +30,10 @@ Draft, Active, and Discontinued remain explicit states for both products and ver
 - System categories and templates are read-only. Vendors may create private records or duplicate a system template.
 - Product versions model sellable editions that may coexist, not immutable edit-history snapshots.
 - Every query and mutation is tenant-scoped at the API and service layers.
+- A User, Organization, portal subscription, and Vendor Profile are separate domain concepts.
+- Organizations own portal subscriptions; Vendor Profiles own vendor catalog data.
+- Owners may invite members and grant or revoke Vendor Portal access.
+- Authentication and tenancy migrations are additive and verified before transitional fields are removed.
 - PostgreSQL remains the search source of truth until measured usage justifies another service.
 
 ## 3. Completion scope
@@ -43,31 +49,36 @@ Draft, Active, and Discontinued remain explicit states for both products and ver
 - Vendor-owned category and template management under an Advanced navigation group.
 - Version-aware CSV import/export for files up to 5 MB or 1,000 rows.
 - Cloudflare R2 media behavior already established in Phase 0.
+- Prisma 7 with the PostgreSQL driver adapter and an explicit generated client.
+- Better Auth email/password authentication, verification, reset, MFA, recovery codes, and revocable sessions.
+- Organizations, Owner and Member memberships, invitations, Vendor Portal subscriptions, and per-member Vendor Portal access.
+- A primary Vendor Profile that is distinct from the Organization and owns products, versions, categories, templates, media, and import/export activity.
 
 ### Deferred
 
 - Inventory management portal and stock ledger.
 - Immutable edit revision history.
 - Product family variant matrices for size/color combinations beyond sellable versions.
-- Teams, invitations, complex RBAC, SSO, SCIM, and organization switching.
+- Custom job roles, granular inventory permissions, SSO, SCIM, and enterprise directory synchronization.
+- Subscription billing, plans, checkout, invoices, taxation, and payment-provider webhooks.
+- Multiple active Vendor Profiles per Organization and profile-switching UI.
 - Brand verification, moderation, publication review, canonical merge workflows, and retailer adoption.
 - Asynchronous spreadsheet jobs, SFTP, ERP/PIM connectors, public APIs, and webhooks.
 - OpenSearch, analytics warehouse, and microservice extraction.
 
 ## 4. Current implementation baseline
 
-Phase 0 already provides aligned portal/API contracts, cookie sessions with revocation, validated runtime configuration, tenant-scoped category writes, dedicated image/CSV middleware, Cloudflare R2 and local storage drivers, probes, request IDs, CI, repaired tests, and setup documentation.
+Phase 0 already provides aligned portal/API contracts, cookie sessions with revocation, validated runtime configuration, tenant-scoped category writes, dedicated image/CSV middleware, Cloudflare R2 and local storage drivers, probes, request IDs, CI, repaired tests, and setup documentation. Product roadmap stages 00 through 09 are merged on the remote `develop` branch.
 
-The remaining usability gaps are concrete:
+The remote `develop` branch is the authoritative implementation base for this release. Work from `main` is intentionally excluded for now and may be evaluated separately after the Vendor Portal release. The unfinished Stage 10 worktree is preserved as evidence but is not treated as completed release work.
 
-- The header plus action links directly to Add Product instead of offering a create menu.
-- The mobile floating plus also links directly to Add Product.
-- Product category selection is a native non-searchable select.
-- The database has no system categories or system templates after migration.
-- Templates are vendor-only and cannot be bound as category defaults.
-- Search exists only on the product-list page and covers name and SKU.
-- Product edits overwrite one row; there is no sellable version model.
-- The product detail edit action is not implemented.
+The remaining platform and release gaps are concrete:
+
+- Prisma 5 uses the pre-Prisma-7 client and datasource configuration.
+- The Vendor record still combines a person, authentication credentials, tenant identity, and producer profile.
+- The handwritten authentication implementation does not provide organization membership, invitations, MFA, or portal entitlements.
+- Catalog ownership is expressed as `vendorId` instead of the explicit Vendor Profile boundary.
+- Stage 10 migration, R2, search, browser, accessibility, and release evidence is incomplete.
 
 ## 5. Target navigation and quick-create experience
 
@@ -269,92 +280,112 @@ interface UniversalSearchResult {
 - Export primary and secondary versions.
 - Keep processing synchronous for this small-vendor release.
 
-## 12. Ordered implementation roadmap
+## 12. Platform identity and subscription model
 
-Every stage uses a `codex/` feature branch and produces a merge request targeting `develop`. Branches are stacked and must merge in numerical order.
+### Domain relationships
 
-### Stage 00 - roadmap and contracts
+```text
+User
+  -> OrganizationMembership
+       -> Organization
+            -> OrganizationPortalSubscription
+            -> MemberPortalAccess
+            -> VendorProfile
+                 -> Products, versions, categories, templates, media, imports and exports
+```
 
-Branch: `codex/vendor-00-roadmap-contracts`
+A User is a person. An Organization owns subscriptions to application portals. A membership connects the User to the Organization. A portal subscription enables the Organization to use a portal. Member Portal Access enables a non-owner member to enter that subscribed portal. A Vendor Profile is the producer identity and owns Vendor Portal data; it is not the Organization itself.
 
-- Replace the active enterprise/inventory roadmap with this Vendor Portal completion plan.
-- Lock lifecycle, search, seed, API, migration, test, and rollback contracts.
-- Regenerate, sanitize, render, and visually verify the Google Docs-ready document.
+Registration creates a User, Organization, Owner membership, active Vendor Portal subscription, Owner access, and primary Vendor Profile in one transaction. Owners implicitly access every active subscription their Organization owns. Invited members require explicit Vendor Portal access. The last Owner cannot be removed, demoted, or locked out.
 
-### Stage 01 - data foundation
+The first release seeds only the stable `vendor` portal key. Subscription status is `ACTIVE`, `SUSPENDED`, or `CANCELLED`, with start and optional end dates. Subscription records are entitlements rather than billing records. Plans, checkout, invoices, taxes, renewals, and payment-provider webhooks are deferred.
 
-Branch: `codex/vendor-01-data-foundation`
+The schema permits future Vendor Profile keys, but this release accepts only `primary`. The database enforces uniqueness of `organizationId + profileKey`, and the service rejects a second primary profile or any other profile key. Later one-to-many support can add profile keys and profile-specific access without redesigning Organization ownership.
 
-- Add category codes, aliases, template defaults, system template ownership, ProductVersion, version-owned media, search text, and trigram indexes.
-- Apply an additive migration, backfill existing products into Original versions, validate data, then enforce required relations.
+### Authorization context
 
-### Stage 02 - system catalog seeds
+Every vendor request resolves an authorization context containing User, Organization membership, active portal subscription, member portal access, and primary Vendor Profile. Catalog queries and mutations scope by `vendorProfileId`. An authenticated user without an active membership, active subscription, Owner status or explicit access, or access to the resolved profile is denied before domain work begins.
 
-Branch: `codex/vendor-02-system-catalog-seeds`
+## 13. Prisma 7 and authentication migration
 
-- Add the 126 categories, 12 templates, mappings, upserts, repeatable seed command, and idempotency tests.
+Prisma 7 is upgraded before Better Auth tables are added. The database package adopts Node 22 ESM, `prisma.config.ts`, an explicit generated-client output, `@prisma/adapter-pg`, explicit environment loading, one shared client, explicit pool timeouts, graceful shutdown, and an explicit seed command.
 
-### Stage 03 - quick-create and category UI
+The existing Vendor row is split additively:
 
-Branch: `codex/vendor-03-quick-create-category-ui`
+1. Email, verification state, and credentials create Better Auth User and Account records.
+2. Company identity creates the Organization and Owner membership.
+3. The Organization receives an active Vendor Portal subscription and Owner access.
+4. The existing Vendor identifier is preserved where practical as the primary Vendor Profile identifier.
+5. Products, versions, custom categories, custom templates, media, and imports move from `vendorId` to `vendorProfileId`.
+6. System categories and templates retain nullable profile ownership.
+7. Reads and writes switch to the new context before transitional fields are removed.
 
-- Add accessible menu/combobox primitives, the desktop and mobile quick-create menu, searchable category selection, and create-query routing.
+Existing accounts keep their passwords. The cutover revokes legacy sessions and requires a new login. On first successful login, the compatibility verifier validates the existing bcrypt hash and replaces it with the new password hash. Unused legacy reset tokens are invalidated. A temporary `/api/v1/auth` facade keeps the current frontend working while backend-first PRs merge; it is removed after the new frontend authentication flow is live.
 
-### Stage 04 - product editor and states
+## 14. Ordered completion roadmap
 
-Branch: `codex/vendor-04-product-editor-status`
+Every stage uses a `codex/` branch and produces a pull request targeting `develop`. Backend capabilities merge before their dependent frontend work. Pull requests are opened only after their scoped verification passes, are not merged automatically, and merge in numerical order.
 
-- Add the product-plus-initial-version form, visible status selectors, generated SKU, template application, optional details, and updated product cards.
+| Order | Branch | Pull request | Purpose |
+|---|---|---|---|
+| 00 | `codex/docs-vendor-completion-roadmap` | `docs(vendor): define final Prisma and identity completion roadmap` | Make this document and the decision log the authoritative completion contract. |
+| 01 | `codex/backend-vendor-prisma-7` | `chore(database): upgrade vendor platform to Prisma 7` | Modernize persistence independently before adding authentication models. |
+| 02 | `codex/backend-vendor-better-auth` | `feat(auth): add Better Auth users, organizations, and secure sessions` | Separate people and organizations and provide verified, revocable, MFA-capable authentication. |
+| 03 | `codex/backend-vendor-entitlements` | `feat(platform): add portal subscriptions and vendor-profile tenancy` | Separate portal entitlement from producer identity and migrate catalog ownership safely. |
+| 04 | `codex/frontend-vendor-auth` | `feat(portal): migrate vendor authentication and organization onboarding` | Move registration, login, verification, reset, MFA, sessions, and active Organization context to the accepted backend contract. |
+| 05 | `codex/frontend-vendor-member-access` | `feat(portal): add member invitations and vendor portal access` | Let an Owner invite members and control access without introducing future inventory roles. |
+| 06 | `codex/backend-vendor-catalog-hardening` | `chore(vendor): harden catalog tenancy and product lifecycle APIs` | Complete Vendor Profile authorization and product/version invariants. |
+| 07 | `codex/backend-vendor-media-import-search` | `chore(vendor): harden R2 media, imports, exports, and search` | Verify the highest-risk external and bulk-data boundaries before release. |
+| 08 | `codex/backend-vendor-auth-cleanup` | `refactor(auth): remove transitional vendor authentication fields` | Remove legacy authentication and ownership only after the cutover is proven. |
+| 09 | `codex/frontend-vendor-product-hardening` | `chore(portal): harden product and version workflows` | Finish product-first flows against the new Organization and Vendor Profile context. |
+| 10 | `codex/frontend-vendor-catalog-search-hardening` | `chore(portal): harden catalog, search, and import workflows` | Complete advanced catalog and bulk workflows without expanding scope. |
+| 11 | `codex/frontend-vendor-accessibility` | `chore(portal): complete vendor accessibility and responsive behavior` | Make the finished workflows usable by keyboard, screen reader, desktop, and mobile users. |
+| 12 | `codex/release-vendor-portal` | `chore(vendor): verify and document vendor portal release` | Produce release evidence and documentation without adding business features. |
 
-### Stage 05 - product version workflows
+### Stage details
 
-Branch: `codex/vendor-05-product-versions`
+PR 01 upgrades Prisma without changing user-visible behavior. It verifies clean and current-data migrations, generation, seeding, API tests, pooling, and shutdown behavior.
 
-- Add version APIs, Start Blank, Copy Existing, primary selection, edit, compare, discontinue/reactivate, guarded deletion, and tenancy tests.
+PR 02 adds Better Auth's User, Account, Session, Verification, Organization, Member, and Invitation data, email/password flows, verification, reset, TOTP, recovery codes, session revocation, legacy-password migration, and the temporary compatibility facade.
 
-### Stage 06 - universal search API
+PR 03 adds Portal, Organization Portal Subscription, Member Portal Access, primary Vendor Profile, subscription/access middleware, catalog ownership backfill, one-primary-profile enforcement, and migration verification reports.
 
-Branch: `codex/vendor-06-universal-search-api`
+PRs 04 and 05 separately deliver the visible authentication/onboarding and member-access experiences. The Organization switcher appears only when a User has multiple memberships. Custom job roles remain deferred.
 
-- Add query validation, ranking, grouped results, pagination, tenancy, rate limits, and performance tests.
+PR 06 completes profile-scoped authorization across products, versions, categories, templates, and lifecycle actions, including system-record immutability, identifier uniqueness, and primary-version concurrency.
 
-### Stage 07 - universal search UI
+PR 07 completes R2 upload/deletion/rollback tests, version-owned media behavior, CSV limits and row errors, profile-aware import/export, and universal-search isolation and the 10,000-product benchmark.
 
-Branch: `codex/vendor-07-universal-search-ui`
+PR 08 removes handwritten JWT/session code, the temporary facade, credential fields from the former Vendor data, and transitional ownership columns only after the frontend cutover and migration audits pass.
 
-- Add the header palette, keyboard shortcut, grouped results, request cancellation, full search page, URL state, deep links, and mobile behavior.
+PRs 09 through 11 finish the quick-create, product/version, catalog/template, universal-search, CSV, mobile, keyboard, focus, screen-reader, and responsive behavior already defined in this blueprint.
 
-### Stage 08 - category/template management
+PR 12 contains only clean-install and upgrade verification, release notes, security and license evidence, setup/migration/rollback documentation, final screenshots, and regenerated Markdown/DOCX artifacts.
 
-Branch: `codex/vendor-08-category-template-management`
+## 15. Test and release gates
 
-- Move management under Advanced, separate system/vendor records, duplicate templates, display usage, add search, and enforce safe deletion.
+### Identity and tenancy
 
-### Stage 09 - CSV compatibility
+- Existing users sign in with their existing password after legacy sessions are revoked, and the stored hash upgrades after successful authentication.
+- New registration creates the complete User, Organization, Owner, subscription, access, and primary Vendor Profile graph atomically.
+- Owners can invite, resend, revoke, and remove members without removing the last Owner.
+- Suspended or cancelled subscriptions block portal access.
+- Non-owner members without Vendor Portal access are denied.
+- Direct cross-Organization and cross-Profile requests are denied.
+- Concurrent onboarding cannot create two primary Vendor Profiles.
+- Verification, password reset, MFA recovery, trusted sessions, and session revocation are covered.
 
-Branch: `codex/vendor-09-csv-version-compatibility`
+### Vendor behavior
 
-- Add category resolution, version columns, status validation, limits, row errors, version exports, and API/Postman updates.
-
-### Stage 10 - release hardening
-
-Branch: `codex/vendor-10-release-hardening`
-
-Scope: Remove transitional fields, run full migration/browser/security/accessibility/R2/search checks, benchmark 10,000 products, and finalize documentation.
-
-## 13. Test and release gates
-
-### Required behavior tests
-
-- A first-time vendor can create a product without visiting Categories or Templates.
+- A first-time vendor creates a product without visiting Categories or Templates.
 - Quick Create works by mouse, touch, and keyboard on desktop and mobile.
 - Product and version status support Draft, Active, and Discontinued.
 - Existing products migrate without losing identifiers, characteristics, QR data, or images.
-- Version SKUs are tenant-unique and primary-version changes are concurrency-safe.
-- System seeds are idempotent and never mutate vendor-owned data.
-- Category search works by name, root, path, code, and alias.
-- Universal search ranks exact identifiers first and never crosses tenant boundaries.
-- CSV uses the same category, version, identifier, and status rules as the UI.
+- Version SKUs are profile-unique and primary-version changes are concurrency-safe.
+- System seeds are idempotent and never mutate profile-owned data.
+- Universal search ranks exact identifiers first and never crosses Organization or Profile boundaries.
+- CSV uses the same category, version, identifier, status, and authorization rules as the UI.
+- R2 cleanup never deletes an object that another image association still references.
 
 ### Required checks
 
@@ -368,33 +399,27 @@ npm.cmd run lint
 npm.cmd audit --omit=dev --audit-level=high
 ```
 
-The release gate also includes migration tests from the pre-version schema, R2 media regression tests, accessible keyboard/screen-reader checks, browser flows, seed repetition, and universal-search benchmarking.
+The release gate also includes migration from the pre-Better-Auth schema, clean-database migration, seed repetition, R2 regression tests, keyboard and screen-reader browser flows, universal-search benchmarking, Markdown/DOCX content parity, title sanitization, accessibility audit, and visual inspection of every rendered DOCX page.
 
-## 14. Success measures
+## 16. Success measures
 
 - Median time from registration to first product under three minutes.
-- Percentage of new vendors who create a product before visiting Advanced settings.
-- Category searches ending in a selection and zero-result rate.
-- Template application and completion rates.
+- Successful migration rate for existing users, passwords, and catalog records.
+- Invitation acceptance and Vendor Portal access success rate.
+- Zero cross-Organization or cross-Profile authorization failures in adversarial tests.
 - Product/version workflow completion and error rate.
 - Universal-search latency, zero-result rate, and selected-result rate.
 - CSV accepted-row rate and correction rate.
-- Zero cross-tenant authorization failures in automated adversarial tests.
+- Zero unresolved high-severity release, security, migration, or accessibility failures.
 
-## 15. Merge-request standard
+## 17. Pull-request standard
 
-Every merge request includes:
+Every pull request includes Summary, Problem, Why Now, Selected Approach, Included and Excluded Scope, User-visible Behavior, Technical Implementation, Public Contract Changes, Migration and Rollback, Security and Tenancy, Verification Results, screenshots where visible, Dependency PR, Documentation Updates, and Deferred Work.
 
-- Summary and user-visible behavior.
-- Technical implementation and public contract changes.
-- Migration and rollback notes where applicable.
-- Security and tenancy considerations.
-- Commands executed and results.
-- Screenshots for visible UI changes.
-- Dependency merge request and deferred work.
+Backend pull requests do not contain pages or feature UI. Frontend pull requests do not add migrations or backend rules. If a frontend implementation reveals a missing contract, a focused backend follow-up merges first. The PR description explains the current delta and links to this canonical blueprint instead of repeating the entire roadmap.
 
-No feature branch merges automatically. Merge requests target `develop` and merge strictly in stage order after review and passing checks.
+## 18. Release boundary and inventory handoff
 
-## 16. Recommended decision
+This implementation run ends when PR 12 is merged and the repository is release-ready. It does not provision an external staging or production deployment.
 
-Complete Stages 00 through 10, pilot the Vendor Portal with small vendors, and measure first-product completion, category search, templates, versions, universal search, and CSV. Do not reopen inventory or enterprise vendor scope until the completion release is stable and the small-vendor workflow has real usage evidence.
+After the vendor release, create `docs/inventory-portal-handoff.md` containing only the reusable User/Organization model, membership and portal-access rules, subscription service, Vendor Profile separation, Prisma 7 conventions, Better Auth context, shared UI/contracts, and explicitly deferred role decisions. Then begin Inventory Portal planning and implementation in a separate Codex chat from the completed `develop` state.
