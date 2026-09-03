@@ -30,4 +30,15 @@ describe('Sidebar permissions', () => {
         rerender(<Sidebar />);
         expect(screen.queryByRole('link', { name: /team access/i })).not.toBeInTheDocument();
     });
+
+    it('marks the active route and gives the icon-only logout control a name', () => {
+        mocks.useAuth.mockReturnValue(authState(true));
+        render(<Sidebar />);
+
+        expect(screen.getByRole('link', { name: 'Overview' })).toHaveAttribute(
+            'aria-current',
+            'page'
+        );
+        expect(screen.getByRole('button', { name: 'Log out' })).toBeInTheDocument();
+    });
 });
