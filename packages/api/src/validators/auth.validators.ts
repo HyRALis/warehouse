@@ -1,11 +1,11 @@
 import { z } from 'zod';
+import {
+    loginVendorRequestSchema,
+    registerVendorRequestSchema,
+} from '@inventory-system/contracts';
 
 export const registerSchema = z.object({
-    body: z.object({
-        email: z.string().email(),
-        password: z.string().min(12),
-        companyName: z.string().min(1),
-    }),
+    body: registerVendorRequestSchema,
 });
 
 export const forgotPasswordSchema = z.object({
@@ -22,8 +22,5 @@ export const resetPasswordSchema = z.object({
 });
 
 export const loginSchema = z.object({
-    body: z.object({
-        email: z.string().email(),
-        password: z.string().min(1),
-    }),
+    body: loginVendorRequestSchema,
 });

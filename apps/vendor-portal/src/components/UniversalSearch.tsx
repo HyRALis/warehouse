@@ -6,10 +6,10 @@ import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowRight, Loader2, Search, X } from 'lucide-react';
 import type {
     UniversalSearchGroup,
-    UniversalSearchResponse,
     UniversalSearchResult,
-} from '@inventory-system/shared-types';
-import { api } from '@/lib/api';
+} from '@inventory-system/contracts';
+import { useUniversalSearchSuggestions } from '@/features/search/hooks';
+import { getErrorMessage } from '@/lib/api/client';
 import SearchResultRow from './SearchResultRow';
 
 export default function UniversalSearch() {
@@ -18,10 +18,20 @@ export default function UniversalSearch() {
     const inputRef = useRef<HTMLInputElement>(null);
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
-    const [groups, setGroups] = useState<UniversalSearchGroup[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [retryKey, setRetryKey] = useState(0);
+    const {
+        data: suggestions,
+        isFetching: loading,
+        error: searchError,
+        refetch,
+    } = useUniversalSearchSuggestions(open ? query : '');
+
+    const groups: UniversalSearchGroup[] = useMemo(
+        () => suggestions?.groups ?? [],
+        [suggestions]
+    );
+    const error = searchError
+        ? getErrorMessage(searchError, 'Search is temporarily unavailable.')
+        : '';
     const [activeIndex, setActiveIndex] = useState(0);
 
     const results = useMemo(
@@ -57,40 +67,8 @@ export default function UniversalSearch() {
     }, [open]);
 
     useEffect(() => {
-        if (!open || !query.trim()) {
-            setGroups([]);
-            setLoading(false);
-            setError('');
-            return;
-        }
-
-        const controller = new AbortController();
-        setLoading(true);
-        setError('');
-        setGroups([]);
         setActiveIndex(0);
-        const timeout = window.setTimeout(async () => {
-            try {
-                const response: UniversalSearchResponse = await api.universalSearch(
-                    { q: query.trim(), mode: 'suggestions', limit: 20 },
-                    controller.signal
-                );
-                setGroups(response.groups);
-                setActiveIndex(0);
-            } catch (searchError) {
-                if ((searchError as Error).name !== 'AbortError') {
-                    setError((searchError as Error).message || 'Search is temporarily unavailable.');
-                }
-            } finally {
-                if (!controller.signal.aborted) setLoading(false);
-            }
-        }, 220);
-
-        return () => {
-            window.clearTimeout(timeout);
-            controller.abort();
-        };
-    }, [open, query, retryKey]);
+    }, [suggestions, query]);
 
     useEffect(() => {
         if (!open || !results[activeIndex]) return;
@@ -230,7 +208,7 @@ export default function UniversalSearch() {
                                     <p className="mt-3 text-sm text-slate-300">{error}</p>
                                     <button
                                         type="button"
-                                        onClick={() => setRetryKey((value) => value + 1)}
+                                        onClick={() => void refetch()}
                                         className="mt-4 rounded-lg border border-slate-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800"
                                     >
                                         Try again

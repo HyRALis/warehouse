@@ -1,14 +1,12 @@
 import { Response, NextFunction } from 'express';
 import prisma, { Prisma } from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
-
-const templateSearchText = (name: string, fields: unknown): string =>
-    `${name} ${JSON.stringify(fields)}`.trim().toLocaleLowerCase();
-
-const findAvailableTemplate = (id: string, vendorProfileId: string) =>
-    prisma.characteristicTemplate.findFirst({
-        where: { id, OR: [{ vendorProfileId: null }, { vendorProfileId }] },
-    });
+import {
+    findAvailableTemplate,
+    findAvailableTemplateWithCounts,
+    listAvailableTemplates,
+} from '../repositories/catalog.repository';
+import { templateSearchText } from '../domain/catalog-search-text';
 
 export class TemplateController {
     /**
@@ -16,13 +14,7 @@ export class TemplateController {
      */
     static async list(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
-            const templates = await prisma.characteristicTemplate.findMany({
-                where: {
-                    OR: [{ vendorProfileId: null }, { vendorProfileId: req.vendorProfileId }],
-                },
-                include: { _count: { select: { defaultForCategories: true } } },
-                orderBy: [{ vendorId: 'asc' }, { name: 'asc' }],
-            });
+            const templates = await listAvailableTemplates(req.vendorProfileId!);
             res.status(200).json({ success: true, data: templates });
         } catch (error) {
             next(error);
@@ -35,13 +27,7 @@ export class TemplateController {
     static async getById(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const { id } = req.params;
-            const template = await prisma.characteristicTemplate.findFirst({
-                where: {
-                    id,
-                    OR: [{ vendorProfileId: null }, { vendorProfileId: req.vendorProfileId }],
-                },
-                include: { _count: { select: { defaultForCategories: true } } },
-            });
+            const template = await findAvailableTemplateWithCounts(id, req.vendorProfileId!);
 
             if (!template) {
                 res.status(404).json({ success: false, message: 'Template not found' });
