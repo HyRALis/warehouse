@@ -88,6 +88,8 @@ the Organization subscription/access rules, primary profile ownership, migration
 staged-rollout compatibility behavior.
 See [Vendor Portal frontend authentication](docs/vendor-frontend-auth.md) for session hydration,
 Organization switching, email verification, MFA, active-session controls, and frontend rollback.
+See [Vendor Portal member invitations and access](docs/vendor-member-access.md) for the invitation
+lifecycle, Owner controls, explicit portal access, tenancy rules, verification, and rollback.
 
 Portal state has explicit owners: TanStack Query for server data, `nuqs` for shareable list filters, TanStack Form plus Zod for forms, Zustand for harmless cross-route UI preferences, and local React/Radix state for ephemeral interactions. See the architecture records in [`docs/adr`](docs/adr).
 

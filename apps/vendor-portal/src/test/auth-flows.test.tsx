@@ -34,7 +34,9 @@ describe('vendor authentication flows', () => {
         await user.type(screen.getByLabelText('Password'), 'correct horse battery');
         await user.click(screen.getByRole('button', { name: 'Sign In' }));
 
-        await waitFor(() => expect(push).toHaveBeenCalledWith('/two-factor'));
+        await waitFor(() =>
+            expect(push).toHaveBeenCalledWith('/two-factor?returnTo=%2Fdashboard')
+        );
         expect(replace).not.toHaveBeenCalledWith('/dashboard');
     });
 

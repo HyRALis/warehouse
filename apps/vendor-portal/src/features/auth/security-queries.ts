@@ -9,6 +9,7 @@ import {
     deviceSessionsQueryOptions,
     identityQueryKey,
 } from './query-options';
+import { safeReturnTo } from './utils/return-to';
 
 export interface TwoFactorEnrollment {
     totpURI: string;
@@ -78,9 +79,10 @@ export const useRegenerateBackupCodes = () =>
     });
 
 /** Sign-in challenge: accepts either an authenticator code or one unused recovery code. */
-export const useVerifyTwoFactor = () => {
+export const useVerifyTwoFactor = (returnTo?: string | null) => {
     const queryClient = useQueryClient();
     const router = useRouter();
+    const destination = safeReturnTo(returnTo);
     return useMutation({
         mutationFn: ({ code, mode }: { code: string; mode: 'totp' | 'backup' }) =>
             mode === 'totp'
@@ -100,7 +102,7 @@ export const useVerifyTwoFactor = () => {
                   ),
         onSuccess: async () => {
             await queryClient.invalidateQueries();
-            router.replace('/dashboard');
+            router.replace(destination);
         },
     });
 };
