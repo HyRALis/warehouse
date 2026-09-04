@@ -82,6 +82,12 @@ existing-user cutover, email settings, verification, and rollback procedure.
 See [Vendor entitlements and Vendor Profile migration](docs/vendor-entitlements-migration.md) for
 the Organization subscription/access rules, primary profile ownership, migration audit, and
 staged-rollout compatibility behavior.
+See [Vendor catalog tenancy and lifecycle hardening](docs/vendor-catalog-hardening.md) for
+cross-profile isolation, system-record immutability, primary-version consistency, and concurrency
+rules.
+See [Vendor media, import, export, and search hardening](docs/vendor-media-import-search-hardening.md)
+for R2 lifecycle safeguards, CSV boundaries, tenant-scoped search, and the repeatable 20,000-row
+development benchmark.
 
 Portal state has explicit owners: TanStack Query for server data, `nuqs` for shareable list filters, TanStack Form plus Zod for forms, Zustand for harmless cross-route UI preferences, and local React/Radix state for ephemeral interactions. See the architecture records in [`docs/adr`](docs/adr).
 
