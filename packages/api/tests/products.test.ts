@@ -52,6 +52,7 @@ describe('products', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendorId });
+        mockPrisma.$queryRaw.mockResolvedValue([{ id: productId }]);
     });
 
     it('scopes product listing to the authenticated vendor', async () => {
@@ -216,5 +217,55 @@ describe('products', () => {
                 where: { id: productId, vendorProfileId: vendorId, deletedAt: null },
             })
         );
+    });
+
+    it('updates the product and primary-version identifiers in one serialized transaction', async () => {
+        const primaryVersion = {
+            id: version.id,
+            label: version.label,
+            sku: version.sku,
+            barcode: version.barcode,
+            characteristics: version.characteristics,
+        };
+        mockPrisma.product.findFirst.mockResolvedValue({
+            ...product,
+            category: { name: 'Electronics' },
+            versions: [primaryVersion],
+        });
+        mockPrisma.product.update.mockResolvedValue({ ...product, sku: 'SKU-2' });
+        mockPrisma.productVersion.update.mockResolvedValue({ ...version, sku: 'SKU-2' });
+        mockPrisma.product.findUnique.mockResolvedValue({
+            ...product,
+            sku: 'SKU-2',
+            barcode: null,
+            status: 'ACTIVE',
+            versions: [{ ...version, sku: 'SKU-2' }],
+            _count: { versions: 1 },
+        });
+
+        const response = await request(app)
+            .put(`/api/v1/products/${productId}`)
+            .set('Authorization', `Bearer ${token}`)
+            .send({ sku: 'SKU-2', barcode: null, status: 'ACTIVE' });
+
+        expect(response.status).toBe(200);
+        expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+        expect(mockPrisma.productVersion.update).toHaveBeenCalledWith({
+            where: { id: version.id },
+            data: expect.objectContaining({ sku: 'SKU-2', barcode: null }),
+        });
+        expect(response.body.data.primaryVersion.sku).toBe('SKU-2');
+    });
+
+    it('returns a retryable conflict when a concurrent product update loses serialization', async () => {
+        mockPrisma.$transaction.mockRejectedValueOnce({ code: 'P2034' });
+
+        const response = await request(app)
+            .put(`/api/v1/products/${productId}`)
+            .set('Authorization', `Bearer ${token}`)
+            .send({ status: 'ACTIVE' });
+
+        expect(response.status).toBe(409);
+        expect(response.body.code).toBe('PRODUCT_CONFLICT');
     });
 });

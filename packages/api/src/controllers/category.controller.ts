@@ -1,15 +1,11 @@
 import { Response, NextFunction } from 'express';
 import prisma from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
-
-const categorySearchText = (name: string, aliases: string[] = [], parentName?: string): string =>
-    [name, ...aliases, parentName].filter(Boolean).join(' ').trim().toLocaleLowerCase();
-
-const findAvailableTemplate = (id: string, vendorProfileId: string) =>
-    prisma.characteristicTemplate.findFirst({
-        where: { id, OR: [{ vendorProfileId: null }, { vendorProfileId }] },
-        select: { id: true },
-    });
+import {
+    findAvailableCategory,
+    findAvailableTemplateId,
+} from '../repositories/catalog.repository';
+import { categorySearchText } from '../domain/catalog-search-text';
 
 export class CategoryController {
     /**
@@ -67,7 +63,7 @@ export class CategoryController {
 
             if (
                 defaultTemplateId &&
-                !(await findAvailableTemplate(defaultTemplateId, req.vendorProfileId!))
+                !(await findAvailableTemplateId(defaultTemplateId, req.vendorProfileId!))
             ) {
                 res.status(400).json({
                     success: false,
@@ -102,20 +98,18 @@ export class CategoryController {
             const { id } = req.params;
             const { name, parentId, defaultTemplateId, aliases } = req.body;
 
-            const category = await prisma.category.findUnique({ where: { id } });
+            const category = await findAvailableCategory(id, req.vendorProfileId!);
 
             if (!category) {
                 res.status(404).json({ success: false, message: 'Category not found' });
                 return;
             }
 
-            if (
-                category.vendorProfileId !== req.vendorProfileId ||
-                category.vendorProfileId === null
-            ) {
+            if (category.vendorProfileId === null) {
                 res.status(403).json({
                     success: false,
-                    message: 'Cannot edit system category or category owned by another vendor',
+                    code: 'SYSTEM_CATEGORY_READ_ONLY',
+                    message: 'System categories are read-only',
                 });
                 return;
             }
@@ -175,7 +169,7 @@ export class CategoryController {
 
             if (
                 defaultTemplateId &&
-                !(await findAvailableTemplate(defaultTemplateId, req.vendorProfileId!))
+                !(await findAvailableTemplateId(defaultTemplateId, req.vendorProfileId!))
             ) {
                 res.status(400).json({
                     success: false,
@@ -211,20 +205,18 @@ export class CategoryController {
         try {
             const { id } = req.params;
 
-            const category = await prisma.category.findUnique({ where: { id } });
+            const category = await findAvailableCategory(id, req.vendorProfileId!);
 
             if (!category) {
                 res.status(404).json({ success: false, message: 'Category not found' });
                 return;
             }
 
-            if (
-                category.vendorProfileId !== req.vendorProfileId ||
-                category.vendorProfileId === null
-            ) {
+            if (category.vendorProfileId === null) {
                 res.status(403).json({
                     success: false,
-                    message: 'Cannot delete system category or category owned by another vendor',
+                    code: 'SYSTEM_CATEGORY_READ_ONLY',
+                    message: 'System categories are read-only',
                 });
                 return;
             }
