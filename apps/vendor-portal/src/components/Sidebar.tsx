@@ -15,7 +15,7 @@ import {
     Store,
 } from 'lucide-react';
 import { Button, cn } from '@inventory-system/ui';
-import { useCurrentVendor, useLogout } from '@/features/auth/queries';
+import { useCurrentVendor, useLogout, usePlatformContext } from '@/features/auth/queries';
 import { useUiStore } from '@/state/ui-store';
 
 export const navigationGroups = [
@@ -49,6 +49,7 @@ export default function Sidebar({
 }) {
     const pathname = usePathname();
     const { data: vendor } = useCurrentVendor();
+    const { data: platform } = usePlatformContext();
     const logout = useLogout();
     const toggleSidebar = useUiStore((state) => state.toggleSidebar);
     const setMobileOpen = useUiStore((state) => state.setMobileNavigationOpen);
@@ -117,7 +118,9 @@ export default function Sidebar({
                 {!compact && (
                     <div className="mb-3 truncate px-2">
                         <p className="truncate text-sm font-semibold text-white">
-                            {vendor?.companyName || 'Vendor Company'}
+                            {platform?.vendorProfile?.displayName ||
+                                vendor?.companyName ||
+                                'Vendor Company'}
                         </p>
                         <p className="truncate text-xs text-slate-500">{vendor?.email}</p>
                     </div>

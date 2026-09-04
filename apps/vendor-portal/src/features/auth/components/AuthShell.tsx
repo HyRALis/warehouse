@@ -4,12 +4,14 @@ import { Package2 } from 'lucide-react';
 export const AuthShell = ({
     title,
     subtitle,
+    description,
     footer,
     children,
 }: {
     title: string;
     subtitle: string;
-    footer: React.ReactNode;
+    description?: string;
+    footer?: React.ReactNode;
     children: React.ReactNode;
 }) => (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-slate-950 p-4">
@@ -28,9 +30,14 @@ export const AuthShell = ({
                 <p className="mt-1 text-slate-400">{subtitle}</p>
             </div>
             <section className="rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-xl backdrop-blur-sm">
-                <h2 className="mb-6 text-xl font-semibold text-white">{title}</h2>
+                <h2 className="text-xl font-semibold text-white">{title}</h2>
+                {description ? (
+                    <p className="mb-6 mt-2 text-sm leading-6 text-slate-400">{description}</p>
+                ) : (
+                    <div className="mb-6" />
+                )}
                 {children}
-                <div className="mt-6 text-center text-sm text-slate-400">{footer}</div>
+                {footer && <div className="mt-6 text-center text-sm text-slate-400">{footer}</div>}
             </section>
         </div>
     </main>

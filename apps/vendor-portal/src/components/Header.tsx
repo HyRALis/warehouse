@@ -2,6 +2,7 @@
 
 import { Menu } from 'lucide-react';
 import { Button } from '@inventory-system/ui';
+import { OrganizationSwitcher } from '@/features/auth';
 import { useUiStore } from '@/state/ui-store';
 import QuickCreateMenu from './QuickCreateMenu';
 import UniversalSearch from './UniversalSearch';
@@ -28,6 +29,10 @@ export default function Header() {
             </Button>
 
             <UniversalSearch />
+
+            <div className="hidden md:block">
+                <OrganizationSwitcher />
+            </div>
 
             <QuickCreateMenu variant="header" className="hidden md:block" />
         </header>
