@@ -14,8 +14,9 @@ import {
     X,
 } from 'lucide-react';
 import { Badge, Button, Input, Label, Spinner } from '@inventory-system/ui';
-import { ProductStatus } from '@inventory-system/shared-types';
-import { api } from '@/lib/api';
+import { ProductStatus, type ProductVersionComparison } from '@inventory-system/contracts';
+import { browserApi } from '@/lib/api/browser';
+import { getErrorMessage } from '@/lib/api/client';
 
 interface Characteristic {
     name: string;
@@ -55,14 +56,13 @@ interface VersionDraft {
     characteristics: Characteristic[];
 }
 
-const badgeVariant = (
-    status: ProductStatus
-): 'success' | 'warning' | 'danger' | 'default' =>
-    status === ProductStatus.ACTIVE
-        ? 'success'
-        : status === ProductStatus.DRAFT
-          ? 'warning'
-          : 'danger';
+const badgeVariants: Record<ProductStatus, 'success' | 'warning' | 'danger' | 'default'> = {
+    [ProductStatus.ACTIVE]: 'success',
+    [ProductStatus.DRAFT]: 'warning',
+    [ProductStatus.DISCONTINUED]: 'danger',
+};
+
+const badgeVariant = (status: ProductStatus) => badgeVariants[status] ?? 'danger';
 
 const calculateEffectiveStatus = (
     productStatus: ProductStatus,
@@ -170,7 +170,7 @@ export default function ProductVersionManager({
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editDraft, setEditDraft] = useState<VersionDraft | null>(null);
     const [compareIds, setCompareIds] = useState<string[]>([]);
-    const [comparison, setComparison] = useState<any>(null);
+    const [comparison, setComparison] = useState<ProductVersionComparison | null>(null);
     const [busyAction, setBusyAction] = useState('');
     const [error, setError] = useState('');
 
@@ -185,8 +185,8 @@ export default function ProductVersionManager({
         try {
             await action();
             await onChanged();
-        } catch (actionError: any) {
-            setError(actionError?.message || 'Could not update this version');
+        } catch (actionError: unknown) {
+            setError(getErrorMessage(actionError, 'Could not update this version'));
         } finally {
             setBusyAction('');
         }
@@ -195,7 +195,7 @@ export default function ProductVersionManager({
     const createVersion = async (event: React.FormEvent) => {
         event.preventDefault();
         await runAction('create', async () => {
-            await api.createProductVersion(productId, {
+            await browserApi.productVersions.create(productId, {
                 label: createDraft.label,
                 mode: createMode,
                 sourceVersionId: createMode === 'COPY' ? sourceVersionId : undefined,
@@ -238,7 +238,7 @@ export default function ProductVersionManager({
     const saveEdit = async () => {
         if (!editingId || !editDraft) return;
         await runAction(`edit-${editingId}`, async () => {
-            await api.updateProductVersion(productId, editingId, {
+            await browserApi.productVersions.update(productId, editingId, {
                 ...editDraft,
                 barcode: editDraft.barcode.trim() || null,
                 designNotes: editDraft.designNotes.trim() || null,
@@ -251,12 +251,12 @@ export default function ProductVersionManager({
 
     const updateStatus = (version: ManagedProductVersion, status: ProductStatus) =>
         runAction(`status-${version.id}`, async () => {
-            await api.updateProductVersion(productId, version.id, { status });
+            await browserApi.productVersions.update(productId, version.id, { status });
         });
 
     const setPrimary = (version: ManagedProductVersion) =>
         runAction(`primary-${version.id}`, async () => {
-            await api.setPrimaryProductVersion(productId, version.id);
+            await browserApi.productVersions.setPrimary(productId, version.id);
         });
 
     const deleteVersion = (version: ManagedProductVersion) => {
@@ -264,7 +264,7 @@ export default function ProductVersionManager({
             return;
         }
         void runAction(`delete-${version.id}`, async () => {
-            await api.deleteProductVersion(productId, version.id);
+            await browserApi.productVersions.remove(productId, version.id);
             setCompareIds((current) => current.filter((id) => id !== version.id));
         });
     };
@@ -274,13 +274,13 @@ export default function ProductVersionManager({
         const formData = new FormData();
         formData.append('image', file);
         await runAction(`image-${version.id}`, async () => {
-            await api.uploadProductVersionImage(productId, version.id, formData);
+            await browserApi.productVersions.uploadImage(productId, version.id, formData);
         });
     };
 
     const removeImage = (imageId: string) =>
         runAction(`image-delete-${imageId}`, async () => {
-            await api.deleteProductImage(productId, imageId);
+            await browserApi.products.removeImage(productId, imageId);
         });
 
     const toggleComparison = (versionId: string) => {
@@ -293,7 +293,7 @@ export default function ProductVersionManager({
 
     const compareVersions = () =>
         runAction('compare', async () => {
-            const response = await api.compareProductVersions(
+            const response = await browserApi.productVersions.compare(
                 productId,
                 compareIds[0],
                 compareIds[1]
@@ -518,7 +518,7 @@ export default function ProductVersionManager({
                                     ) : (
                                         <Button size="sm" variant="outline" onClick={() => void updateStatus(version, ProductStatus.DISCONTINUED)}>Discontinue</Button>
                                     )}
-                                    <Button size="sm" variant="ghost" onClick={() => void runAction(`qr-${version.id}`, async () => { await api.updateProductVersion(productId, version.id, { generateQrCode: true }); })}><RefreshCw className="mr-2 h-4 w-4" /> QR</Button>
+                                    <Button size="sm" variant="ghost" onClick={() => void runAction(`qr-${version.id}`, async () => { await browserApi.productVersions.update(productId, version.id, { generateQrCode: true }); })}><RefreshCw className="mr-2 h-4 w-4" /> QR</Button>
                                     <label className="inline-flex cursor-pointer items-center rounded-lg px-3 text-sm text-slate-300 hover:bg-slate-800"><ImagePlus className="mr-2 h-4 w-4" /> Add image<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => void uploadImage(version, event.target.files?.[0])} /></label>
                                     <Button size="sm" variant="ghost" disabled={!version.canDelete} title={version.isPrimary ? 'Set another version as primary first' : undefined} onClick={() => deleteVersion(version)} className="text-rose-400"><Trash2 className="mr-2 h-4 w-4" /> Delete</Button>
                                 </div>
@@ -541,7 +541,7 @@ export default function ProductVersionManager({
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-slate-950 text-slate-400"><tr><th className="px-4 py-3">Field</th><th className="px-4 py-3">{comparison.left.label}</th><th className="px-4 py-3">{comparison.right.label}</th></tr></thead>
                                 <tbody className="divide-y divide-slate-800">
-                                    {comparison.differences.map((difference: any) => <tr key={difference.field}><td className="px-4 py-3 font-medium text-slate-200">{difference.field}</td><td className="px-4 py-3 text-slate-400">{typeof difference.left === 'object' ? JSON.stringify(difference.left) : String(difference.left ?? '—')}</td><td className="px-4 py-3 text-slate-400">{typeof difference.right === 'object' ? JSON.stringify(difference.right) : String(difference.right ?? '—')}</td></tr>)}
+                                    {comparison.differences.map((difference) => <tr key={difference.field}><td className="px-4 py-3 font-medium text-slate-200">{difference.field}</td><td className="px-4 py-3 text-slate-400">{typeof difference.left === 'object' ? JSON.stringify(difference.left) : String(difference.left ?? '—')}</td><td className="px-4 py-3 text-slate-400">{typeof difference.right === 'object' ? JSON.stringify(difference.right) : String(difference.right ?? '—')}</td></tr>)}
                                 </tbody>
                             </table>
                         </div>

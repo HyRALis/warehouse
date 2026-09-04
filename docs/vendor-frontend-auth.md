@@ -8,14 +8,19 @@ This stage is deliberately frontend-only and depends on the Better Auth and plat
 
 ## Runtime context
 
-`AuthProvider` resolves client state in this order:
+There is no client-side auth context. Per [ADR 001](adr/001-portal-state-ownership.md) the session is
+server data, so TanStack Query is its only cache:
 
-1. Read the Better Auth session.
-2. List the person's Organization memberships.
-3. Read `/api/v1/platform/context` for the active Organization.
-4. Expose the authenticated User, Organization list, subscription/access state, and primary Vendor Profile.
+1. `features/auth/server.ts` reads the vendor and `/api/v1/platform/context` during the server render
+   of `app/dashboard/layout.tsx`, and hydrates both into the Query cache.
+2. `useCurrentVendor` and `usePlatformContext` read that cache in client components.
+3. `useAuthIdentity` reads the Better Auth session separately, because account-security facts
+   (`emailVerified`, `twoFactorEnabled`) live in a different store than the vendor record.
 
-The dashboard renders only when the User is authenticated and the active Organization has an active Vendor Portal subscription, effective member access, and an active primary Vendor Profile. A suspended subscription or revoked member access produces an explicit access screen instead of repeated failing catalog requests.
+The dashboard layout renders children only when the active Organization has an active Vendor Portal
+subscription, effective member access, and a primary Vendor Profile. `portalAccessDenial` reports
+which of the three failed, so a suspended subscription or revoked member access produces an explicit
+access screen instead of repeated failing catalog requests.
 
 ## Authentication and onboarding
 
@@ -50,12 +55,16 @@ The Organization switcher is rendered only when the User belongs to more than on
 
 ## Environment
 
+Per [ADR 002](adr/002-next-bff-and-api-contracts.md) the browser never learns the Express origin. The
+portal proxies both `/api/v1/*` and Better Auth's `/api/auth/*` from its own origin, so only the
+server-side variable is configured:
+
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
-NEXT_PUBLIC_API_ORIGIN=http://localhost:4000
+API_INTERNAL_URL="http://localhost:4000/api/v1"
 ```
 
-If `NEXT_PUBLIC_API_ORIGIN` is omitted, the portal derives it by removing `/api/v1` from `NEXT_PUBLIC_API_URL`. Production values must match the backend Better Auth base URL and allowed CORS origin.
+The Better Auth proxy target is derived from that origin. Because every auth request is same-origin,
+no browser CORS allowance is required for the portal.
 
 ## Security and tenancy
 
@@ -63,13 +72,17 @@ If `NEXT_PUBLIC_API_ORIGIN` is omitted, the portal derives it by removing `/api/
 - The frontend never infers access from navigation state. The backend platform context is authoritative.
 - Organization switching refreshes subscription, member access, and Vendor Profile state before catalog content renders.
 - Password reset responses do not reveal whether an email exists.
-- Account email editing remains disabled until a verified change-email policy is implemented.
+- The Vendor Profile card edits producer identity; the separate account card edits the vendor record.
+- Changing an account email does not mark it verified; the settings screen keeps prompting until it is.
 - The QR encoder runs in the browser, keeping the TOTP secret inside the first-party application.
 
 ## Verification
 
 - TypeScript compilation covers the native Better Auth client contracts.
-- Vitest covers session hydration, Organization switching, MFA routing, TOTP enrollment, recovery codes, and active-session controls.
+- Vitest covers the two-factor login redirect, the enumeration-safe reset confirmation, reset-password
+  confirmation matching, and every branch of the portal entitlement gate.
+- TOTP enrollment, recovery-code regeneration, and active-session revocation are exercised through the
+  Better Auth client and are not yet covered by automated tests.
 - Next production build verifies every auth and dashboard route.
 - Desktop and 390×844 browser review verifies form labels, recovery routes, responsive onboarding, and console health.
 
@@ -79,6 +92,7 @@ Revert the frontend deployment to the preceding entitlement-compatible portal. D
 
 ## Deferred work
 
+- Automated coverage for TOTP enrollment, recovery codes, and session revocation
 - Invitation acceptance and Owner member-access management UI (next frontend PR)
 - Verified account-email change
 - Additional Vendor Profile creation/switching

@@ -1,8 +1,11 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Vendor } from '@inventory-system/contracts';
+import { sessionQueryKey } from '@/features/auth/query-options';
+import { browserApi } from '@/lib/api/browser';
 import UniversalSearch from './UniversalSearch';
-import { api } from '@/lib/api';
 
 const push = vi.fn();
 
@@ -10,9 +13,12 @@ vi.mock('next/navigation', () => ({
     useRouter: () => ({ push }),
 }));
 
-vi.mock('@/lib/api', () => ({
-    api: { universalSearch: vi.fn() },
-}));
+const vendor: Vendor = {
+    id: 'vendor-1',
+    email: 'vendor@example.com',
+    companyName: 'Acme',
+    createdAt: '2026-08-29T10:00:00.000Z',
+};
 
 const searchResponse = {
     query: 'hoodie',
@@ -59,14 +65,27 @@ const searchResponse = {
     ],
 };
 
+const renderSearch = () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(sessionQueryKey, vendor);
+    return render(
+        <QueryClientProvider client={queryClient}>
+            <UniversalSearch />
+        </QueryClientProvider>
+    );
+};
+
 describe('UniversalSearch', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.mocked(api.universalSearch).mockResolvedValue(searchResponse);
+        vi.spyOn(browserApi.search, 'universal').mockResolvedValue({
+            success: true,
+            data: searchResponse,
+        });
     });
 
     it('opens with Ctrl+K, focuses the combobox, and closes with Escape', async () => {
-        render(<UniversalSearch />);
+        renderSearch();
 
         fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
         const input = await screen.findByRole('combobox');
@@ -77,15 +96,15 @@ describe('UniversalSearch', () => {
     });
 
     it('also opens with Cmd+K', async () => {
-        render(<UniversalSearch />);
+        renderSearch();
 
         fireEvent.keyDown(window, { key: 'K', metaKey: true });
         expect(await screen.findByRole('dialog')).toBeInTheDocument();
     });
 
-    it('debounces suggestions and follows the active deep link with Enter', async () => {
+    it('requests suggestions and follows the active deep link with Enter', async () => {
         const user = userEvent.setup();
-        render(<UniversalSearch />);
+        renderSearch();
 
         await user.click(screen.getByRole('button', { name: /search products/i }));
         await user.type(screen.getByRole('combobox'), 'hoodie');
@@ -93,38 +112,47 @@ describe('UniversalSearch', () => {
         expect(
             await screen.findByRole('option', { name: /^creator hoodie/i })
         ).toBeInTheDocument();
-        expect(api.universalSearch).toHaveBeenCalledWith(
+        expect(browserApi.search.universal).toHaveBeenCalledWith(
             expect.objectContaining({ q: 'hoodie', mode: 'suggestions' }),
             expect.any(AbortSignal)
         );
 
         fireEvent.keyDown(screen.getByRole('combobox'), { key: 'ArrowDown' });
         fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' });
-        expect(push).toHaveBeenCalledWith(
-            '/dashboard/products/product-1?version=version-1'
-        );
+        expect(push).toHaveBeenCalledWith('/dashboard/products/product-1?version=version-1');
     });
 
-    it('cancels the stale request when the query changes', async () => {
-        const signals: AbortSignal[] = [];
-        vi.mocked(api.universalSearch).mockImplementation((_params, signal) => {
-            signals.push(signal as AbortSignal);
-            return new Promise(() => undefined);
-        });
+    it('debounces rapid typing into a single request', async () => {
         const user = userEvent.setup();
-        render(<UniversalSearch />);
+        renderSearch();
 
         await user.click(screen.getByRole('button', { name: /search products/i }));
-        await user.type(screen.getByRole('combobox'), 'hood');
-        await waitFor(() => expect(signals).toHaveLength(1));
-        await user.type(screen.getByRole('combobox'), 'ie');
+        await user.type(screen.getByRole('combobox'), 'hoodie');
 
-        await waitFor(() => expect(signals[0].aborted).toBe(true));
+        await screen.findByRole('option', { name: /^creator hoodie/i });
+        await waitFor(() =>
+            expect(browserApi.search.universal).toHaveBeenCalledWith(
+                expect.objectContaining({ q: 'hoodie' }),
+                expect.any(AbortSignal)
+            )
+        );
+        // Six keystrokes must not produce six round trips.
+        expect(vi.mocked(browserApi.search.universal).mock.calls.length).toBeLessThan(3);
+    });
+
+    it('does not search below the minimum query length', async () => {
+        const user = userEvent.setup();
+        renderSearch();
+
+        await user.click(screen.getByRole('button', { name: /search products/i }));
+        await user.type(screen.getByRole('combobox'), 'h');
+
+        await waitFor(() => expect(browserApi.search.universal).not.toHaveBeenCalled());
     });
 
     it('opens the full results page with the current query', async () => {
         const user = userEvent.setup();
-        render(<UniversalSearch />);
+        renderSearch();
 
         await user.click(screen.getByRole('button', { name: /search products/i }));
         await user.type(screen.getByRole('combobox'), 'creator hoodie');

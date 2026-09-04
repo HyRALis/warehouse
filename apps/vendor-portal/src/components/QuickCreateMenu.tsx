@@ -11,6 +11,12 @@ interface QuickCreateMenuProps {
     className?: string;
 }
 
+/** Wraps around the menu, and enters from the correct end when nothing is focused yet. */
+const nextFocusIndex = (current: number, direction: number, count: number): number => {
+    if (current < 0) return direction > 0 ? 0 : count - 1;
+    return (current + direction + count) % count;
+};
+
 const actions = [
     {
         href: '/dashboard/products/new',
@@ -76,7 +82,7 @@ export default function QuickCreateMenu({ variant = 'header', className }: Quick
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
             const direction = event.key === 'ArrowDown' ? 1 : -1;
-            const next = current < 0 ? (direction > 0 ? 0 : actions.length - 1) : (current + direction + actions.length) % actions.length;
+            const next = nextFocusIndex(current, direction, actions.length);
             itemRefs.current[next]?.focus();
         }
         if (event.key === 'Home' || event.key === 'End') {
