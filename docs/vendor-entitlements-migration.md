@@ -70,13 +70,19 @@ Owner registration now creates all of these records in the same serializable tra
 - primary Vendor Profile whose identifier preserves the legacy Vendor identifier.
 
 Better Auth creates the session only after the graph commits. Invited users can authenticate and
-accept membership, but cannot enter the Vendor Portal until an Owner explicitly grants access.
+accept membership, but cannot enter the Vendor Portal until an Owner explicitly grants access. The
+temporary compatibility login returns an authenticated User envelope for invited Members even when
+they correctly have no legacy Vendor record; legacy Owners continue to receive the legacy Vendor
+envelope and transparent password rehash behavior.
 
 ## Backend contracts
 
 - `GET /api/v1/platform/context` returns active Organization, membership, subscription state,
   effective access, and primary Vendor Profile. It uses session/membership authorization rather
   than portal-entry authorization so a suspended user can see the reason access is blocked.
+- `GET /api/v1/platform/invitations/:invitationId` returns a deliberately limited, rate-limited
+  invitation summary so a signed-out recipient can verify the Organization and invited email before
+  creating an account. Unknown tokens return a generic not-found response.
 - `GET /api/v1/platform/vendor-profile` returns the producer-facing primary profile.
 - `PUT /api/v1/platform/vendor-profile` lets an Owner update its display name, description,
   website, and logo. The display name is mirrored to the transitional Vendor record in the same
@@ -134,7 +140,8 @@ then verifies:
 
 API tests cover implicit Owner access, explicit Member access, subscription suspension, catalog
 query suppression, cross-profile denial, Owner-only profile mutation, access grant/revocation,
-Owner access protection, and primary-profile service errors.
+Owner access protection, invited-Member compatibility login, public invitation summary isolation,
+and primary-profile service errors.
 
 ## Rollout and rollback
 

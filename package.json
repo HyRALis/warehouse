@@ -26,6 +26,11 @@
         "test": "turbo run test",
         "db:seed": "npm run seed --workspace @inventory-system/database",
         "db:seed:verify": "npm run seed:verify --workspace @inventory-system/database",
-        "audit:prod": "npm audit --omit=dev --audit-level=high"
+        "audit:prod": "npm audit --omit=dev --audit-level=high",
+        "standards:check": "node tools/check-standards.mjs",
+        "standards:baseline": "node tools/check-standards.mjs --update-baseline",
+        "storybook": "npm run storybook --workspace @inventory-system/vendor-portal",
+        "build-storybook": "npm run build-storybook --workspace @inventory-system/vendor-portal",
+        "test-storybook": "npm run test-storybook --workspace @inventory-system/vendor-portal"
     }
 }

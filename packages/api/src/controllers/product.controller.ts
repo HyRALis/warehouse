@@ -5,7 +5,7 @@ import prisma, { Prisma, ProductStatus } from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
 import { StorageService } from '../services/storage.service';
 import { QRCodeService } from '../services/qrcode.service';
-import type { CsvImportErrorCode, CsvImportRowError } from '@inventory-system/shared-types';
+import type { CsvImportErrorCode, CsvImportRowError } from '@inventory-system/contracts';
 
 const productInclude = {
     images: { orderBy: { sortOrder: 'asc' as const } },

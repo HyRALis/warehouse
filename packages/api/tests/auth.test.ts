@@ -126,6 +126,39 @@ describe('Better Auth compatibility facade', () => {
         });
     });
 
+    it('returns a valid compatibility response for an invited member without a legacy Vendor', async () => {
+        mockAuthApi.signInEmail.mockResolvedValueOnce({
+            headers: authHeaders(),
+            response: {
+                user: {
+                    id: 'invited-user',
+                    name: 'Invited Member',
+                    email: 'member@example.com',
+                    emailVerified: true,
+                },
+            },
+        });
+        mockPrisma.user.findUnique.mockResolvedValue({
+            id: 'invited-user',
+            legacyVendor: null,
+            accounts: [{ id: 'account-2', password: 'scrypt$member-password-hash' }],
+        });
+        (isLegacyBcryptHash as jest.Mock).mockReturnValue(false);
+
+        const response = await request(app).post('/api/v1/auth/login').send({
+            email: 'member@example.com',
+            password: 'correct-password',
+        });
+
+        expect(response.status).toBe(200);
+        expect(response.body.data.user).toMatchObject({
+            id: 'invited-user',
+            email: 'member@example.com',
+        });
+        expect(response.body.data.vendor).toBeUndefined();
+        expect(response.headers['set-cookie'][0]).toContain('better-auth.session_token=');
+    });
+
     it('rejects invalid credentials without revealing whether the account exists', async () => {
         mockPrisma.user.findUnique.mockResolvedValue(null);
 
