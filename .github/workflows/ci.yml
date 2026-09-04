@@ -21,6 +21,7 @@ jobs:
             AUTH_CLIENT_IP_HEADER: x-real-ip
             CORS_ORIGINS: http://localhost:3000
             API_PUBLIC_URL: http://localhost:4000
+            API_INTERNAL_URL: http://localhost:4000/api/v1
             ALLOW_LOCAL_STORAGE_IN_PRODUCTION: 'true'
             RUN_DATABASE_INTEGRATION: 'true'
         services:
@@ -59,6 +60,9 @@ jobs:
 
             - name: Build
               run: npm run build
+
+            - name: Build Storybook
+              run: npm run build-storybook
 
             - name: Test
               run: npm test

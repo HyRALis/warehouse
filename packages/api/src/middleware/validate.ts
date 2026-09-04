@@ -16,10 +16,15 @@ export const validate = (schema: AnyZodObject) => {
         } catch (error) {
             if (error instanceof ZodError) {
                 res.status(400).json({
+                    success: false,
                     message: 'Validation failed',
                     code: 'VALIDATION_ERROR',
                     statusCode: 400,
-                    errors: error.errors,
+                    issues: error.issues.map((issue) => ({
+                        path: issue.path,
+                        message: issue.message,
+                        code: issue.code,
+                    })),
                 });
             } else {
                 next(error);
