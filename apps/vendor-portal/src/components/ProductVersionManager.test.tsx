@@ -1,21 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ProductStatus } from '@inventory-system/shared-types';
+import { ProductStatus } from '@inventory-system/contracts';
 import ProductVersionManager, { ManagedProductVersion } from './ProductVersionManager';
 
-const { apiMock } = vi.hoisted(() => ({
-    apiMock: {
-        createProductVersion: vi.fn(),
-        updateProductVersion: vi.fn(),
-        setPrimaryProductVersion: vi.fn(),
-        deleteProductVersion: vi.fn(),
-        compareProductVersions: vi.fn(),
-        uploadProductVersionImage: vi.fn(),
+const { versionsMock, productsMock } = vi.hoisted(() => ({
+    versionsMock: {
+        create: vi.fn(),
+        update: vi.fn(),
+        setPrimary: vi.fn(),
+        remove: vi.fn(),
+        compare: vi.fn(),
+        uploadImage: vi.fn(),
     },
+    productsMock: { removeImage: vi.fn() },
 }));
 
-vi.mock('@/lib/api', () => ({ api: apiMock }));
+vi.mock('@/lib/api/browser', () => ({
+    browserApi: { productVersions: versionsMock, products: productsMock },
+}));
 
 const original: ManagedProductVersion = {
     id: 'version-original',
@@ -49,7 +52,9 @@ describe('ProductVersionManager', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         onChanged.mockResolvedValue(undefined);
-        Object.values(apiMock).forEach((mock) => mock.mockResolvedValue({ success: true, data: {} }));
+        [...Object.values(versionsMock), ...Object.values(productsMock)].forEach((mock) =>
+            mock.mockResolvedValue({ success: true, data: {} })
+        );
     });
 
     it('creates a copied version while reusing media references', async () => {
@@ -70,7 +75,7 @@ describe('ProductVersionManager', () => {
         await user.click(screen.getByRole('button', { name: 'Create version' }));
 
         await waitFor(() =>
-            expect(apiMock.createProductVersion).toHaveBeenCalledWith(
+            expect(versionsMock.create).toHaveBeenCalledWith(
                 'product-1',
                 expect.objectContaining({
                     label: 'Holiday Drop',
@@ -97,7 +102,7 @@ describe('ProductVersionManager', () => {
         expect(screen.getAllByRole('button', { name: 'Delete' })[0]).toBeDisabled();
         await user.click(screen.getByRole('button', { name: 'Set primary' }));
         await waitFor(() =>
-            expect(apiMock.setPrimaryProductVersion).toHaveBeenCalledWith(
+            expect(versionsMock.setPrimary).toHaveBeenCalledWith(
                 'product-1',
                 summer.id
             )
@@ -106,7 +111,7 @@ describe('ProductVersionManager', () => {
 
     it('compares exactly two selected versions', async () => {
         const user = userEvent.setup();
-        apiMock.compareProductVersions.mockResolvedValue({
+        versionsMock.compare.mockResolvedValue({
             success: true,
             data: {
                 left: original,

@@ -1,0 +1,73 @@
+# 02 — Stock, lots and expiry
+
+**Depends on:** `00-foundation.md`
+
+## Your task
+
+Design the screens where people find out what they have, how old it is, and when it expires. This
+is the most-used part of the product and the densest.
+
+## Screens
+
+### Stock list
+
+The default working view. Columns: item name, SKU/barcode, category, quantity on hand, unit,
+reorder point, a stock-level meter, earliest expiry, and — **manager only** — average cost and
+stock value.
+
+Requirements:
+
+- Server-side sort, filter and pagination; hundreds to tens of thousands of rows.
+- Filters in the FilterBar: category, low-stock-only, expiring-within-N-days, has-stock-only,
+  supplier, text search. All filters live in the URL and are shareable.
+- Fast visual scanning for the two things people actually look for: **below reorder point** and
+  **expiring soon**. Status colour plus icon plus label.
+- Bulk selection with actions: adjust, count, transfer, export.
+- The staff variant simply has no cost or value columns — design the table so removing them doesn't
+  leave an awkward gap.
+
+### Item detail
+
+Header with identity (name, SKU, barcode, category, unit, supplier), current stock across
+locations, and a stock-level meter against the reorder point.
+
+Then, in tabs or sections:
+
+- **Lots** — the batch table. This is the "expiry per bulk delivery" requirement, and it is the
+  screen a fresh-goods manager lives in. Per lot: lot code, quantity remaining, expiry date, days
+  remaining, received date, supplier, goods receipt reference, and *(manager only)* unit cost.
+  Sort by expiry ascending by default, because the next thing to spoil is the thing that matters.
+- **Movements** — the ledger for this item: date, type (receipt, sale, adjustment, write-off,
+  transfer, count correction), quantity delta with sign, resulting balance, actor, and source
+  document link. Long and append-only; virtualise it.
+- **Price history** — effective-dated selling prices, showing when each took effect.
+- **Sales trend** — a small chart, with an insufficient-data state (see prompt 06).
+
+### Expiry board
+
+A dedicated view answering "what do I need to deal with this week". Bucket lots into **expired /
+≤7 days / ≤30 days / ≤90 days**, using the status palette. Show quantity and — for managers — the
+value at risk per bucket. Offer write-off and discount actions directly from here.
+
+### Counts and adjustments
+
+- **Stock count**: pick a location and scope, enter counted quantities against expected, show the
+  variance prominently, then post. Variance is the whole point — make it impossible to miss.
+- **Adjustment**: single item, signed quantity, mandatory reason, optional note.
+- **Transfer**: item and quantity from one location to another, moving lot identity with the goods.
+
+All three post to an append-only ledger. Nothing is ever edited or deleted — corrections are new
+entries. Reflect that honestly: no "edit" affordance on a posted movement, and a clear
+"this creates a correcting entry" message where a user might expect an edit.
+
+## Mobile
+
+Counting and checking expiry happen on a phone in an aisle. Design the count entry and the expiry
+board for one-handed use, large tap targets, and a number pad. The full stock table can degrade to
+cards on mobile, but the count flow must be genuinely good there, not merely responsive.
+
+## Deliverables
+
+Stock list (manager and staff, plus loading / empty / filtered-empty / error); item detail with all
+sections; the expiry board with populated and clean states; count, adjustment and transfer flows
+including the post-confirmation; and mobile layouts for counting and expiry.

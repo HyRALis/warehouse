@@ -6,7 +6,7 @@ import type {
     UniversalSearchMode,
     UniversalSearchResponse,
     UniversalSearchResult,
-} from '@inventory-system/shared-types';
+} from '@inventory-system/contracts';
 import { AuthRequest } from '../middleware/auth';
 
 interface SearchRow {

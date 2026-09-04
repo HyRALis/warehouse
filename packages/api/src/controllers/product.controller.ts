@@ -5,18 +5,9 @@ import prisma, { Prisma, ProductStatus } from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
 import { StorageService } from '../services/storage.service';
 import { QRCodeService } from '../services/qrcode.service';
-import type { CsvImportErrorCode, CsvImportRowError } from '@inventory-system/shared-types';
-
-const productInclude = {
-    images: { orderBy: { sortOrder: 'asc' as const } },
-    category: true,
-    versions: {
-        where: { deletedAt: null },
-        orderBy: { versionNumber: 'asc' as const },
-        include: { images: { orderBy: { sortOrder: 'asc' as const } } },
-    },
-    _count: { select: { versions: { where: { deletedAt: null } } } },
-};
+import type { CsvImportErrorCode, CsvImportRowError } from '@inventory-system/contracts';
+import { productInclude, updateProduct } from '../repositories/product.repository';
+import { buildSearchText } from '../domain/product-search-text';
 
 const getEffectiveStatus = (productStatus: ProductStatus, versionStatus: ProductStatus) => {
     if (
@@ -51,9 +42,6 @@ const serializeProduct = <
         primaryVersion: versions.find((version) => version.isPrimary) || versions[0] || null,
     };
 };
-
-const buildSearchText = (...values: Array<string | null | undefined>) =>
-    values.filter(Boolean).join(' ').trim().toLowerCase();
 
 interface NormalizedCsvRow {
     row: number;
@@ -329,128 +317,7 @@ export class ProductController {
             const { categoryId, sku, baseName, barcode, characteristics, status } = req.body;
             const vendorProfileId = req.vendorProfileId!;
 
-            const updatedProduct = await prisma.$transaction(
-                async (tx: Prisma.TransactionClient) => {
-                    const lockedRows = await tx.$queryRaw<Array<{ id: string }>>`
-                        SELECT id
-                        FROM products
-                        WHERE id = ${id}
-                          AND vendor_profile_id = ${vendorProfileId}
-                          AND deleted_at IS NULL
-                        FOR UPDATE
-                    `;
-                    if (lockedRows.length === 0) {
-                        throw Object.assign(new Error('Product not found'), {
-                            statusCode: 404,
-                            code: 'PRODUCT_NOT_FOUND',
-                        });
-                    }
-
-                    const product = await tx.product.findFirst({
-                        where: { id, vendorProfileId, deletedAt: null },
-                        include: {
-                            category: { select: { name: true } },
-                            versions: {
-                                where: { isPrimary: true, deletedAt: null },
-                                take: 1,
-                                select: {
-                                    id: true,
-                                    label: true,
-                                    sku: true,
-                                    barcode: true,
-                                    characteristics: true,
-                                },
-                            },
-                        },
-                    });
-                    if (!product) {
-                        throw Object.assign(new Error('Product not found'), {
-                            statusCode: 404,
-                            code: 'PRODUCT_NOT_FOUND',
-                        });
-                    }
-
-                    let categoryName = product.category.name;
-                    if (categoryId !== undefined) {
-                        const category = await tx.category.findFirst({
-                            where: {
-                                id: categoryId,
-                                OR: [{ vendorProfileId: null }, { vendorProfileId }],
-                            },
-                            select: { id: true, name: true },
-                        });
-                        if (!category) {
-                            throw Object.assign(new Error('Category is not available'), {
-                                statusCode: 400,
-                                code: 'CATEGORY_NOT_AVAILABLE',
-                            });
-                        }
-                        categoryName = category.name;
-                    }
-
-                    const nextName = baseName ?? product.baseName;
-                    const nextSku = sku ?? product.sku;
-                    const nextBarcode = barcode === undefined ? product.barcode : barcode;
-                    const nextCharacteristics = (characteristics ??
-                        product.characteristics) as Prisma.InputJsonValue;
-
-                    await tx.product.update({
-                        where: { id },
-                        data: {
-                            ...(categoryId !== undefined && { categoryId }),
-                            ...(sku !== undefined && { sku }),
-                            ...(baseName !== undefined && { baseName }),
-                            ...(barcode !== undefined && { barcode }),
-                            ...(characteristics !== undefined && {
-                                characteristics: nextCharacteristics,
-                            }),
-                            ...(status !== undefined && { status }),
-                            searchText: buildSearchText(
-                                nextName,
-                                nextSku,
-                                nextBarcode,
-                                categoryName
-                            ),
-                        },
-                    });
-
-                    const primaryVersion = product.versions[0];
-                    if (!primaryVersion) {
-                        throw Object.assign(new Error('Product has no primary version'), {
-                            statusCode: 409,
-                            code: 'PRIMARY_VERSION_REQUIRED',
-                        });
-                    }
-                    if (
-                        baseName !== undefined ||
-                        categoryId !== undefined ||
-                        sku !== undefined ||
-                        barcode !== undefined ||
-                        characteristics !== undefined
-                    ) {
-                        await tx.productVersion.update({
-                            where: { id: primaryVersion.id },
-                            data: {
-                                ...(sku !== undefined && { sku }),
-                                ...(barcode !== undefined && { barcode }),
-                                ...(characteristics !== undefined && {
-                                    characteristics: nextCharacteristics,
-                                }),
-                                searchText: buildSearchText(
-                                    nextName,
-                                    primaryVersion.label,
-                                    nextSku,
-                                    nextBarcode,
-                                    categoryName
-                                ),
-                            },
-                        });
-                    }
-
-                    return tx.product.findUnique({ where: { id }, include: productInclude });
-                },
-                { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
-            );
+            const updatedProduct = await updateProduct(vendorProfileId, id, req.body);
 
             res.status(200).json({
                 success: true,
