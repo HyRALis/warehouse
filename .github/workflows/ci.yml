@@ -70,6 +70,9 @@ jobs:
             - name: Lint
               run: npm run lint
 
+            - name: Check standards
+              run: npm run standards:check
+
             - name: Smoke primary API flows
               shell: bash
               env:
