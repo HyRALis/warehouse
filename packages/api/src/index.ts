@@ -14,6 +14,7 @@ import platformRoutes from './routes/platform.routes';
 import { errorHandler } from './middleware/error-handler';
 import { generalLimiter } from './middleware/rate-limit';
 import { requestContext } from './middleware/request-context';
+import { responseEnvelope } from './middleware/response-envelope';
 import { config } from './config';
 
 const app: Express = express();
@@ -21,6 +22,7 @@ const app: Express = express();
 if (config.trustProxy) app.set('trust proxy', 1);
 
 app.use(requestContext);
+app.use(responseEnvelope);
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(
     cors({
@@ -44,15 +46,20 @@ app.all('/api/auth/*', toNodeHandler(auth));
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/health', (_req, res) => {
-    res.status(200).json({ status: 'ok' });
+    res.status(200).json({ success: true, data: { status: 'ok' } });
 });
 
 app.get('/ready', async (_req, res) => {
     try {
         await prisma.$queryRaw`SELECT 1`;
-        res.status(200).json({ status: 'ready' });
+        res.status(200).json({ success: true, data: { status: 'ready' } });
     } catch {
-        res.status(503).json({ status: 'not_ready' });
+        res.status(503).json({
+            success: false,
+            message: 'Database is not ready',
+            code: 'DATABASE_NOT_READY',
+            statusCode: 503,
+        });
     }
 });
 

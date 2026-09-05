@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Box, FolderTree, Layers3, SlidersHorizontal } from 'lucide-react';
-import type { UniversalSearchResult } from '@inventory-system/shared-types';
+import type { UniversalSearchResult } from '@inventory-system/contracts';
 
 const typeIcons = {
     product: Box,

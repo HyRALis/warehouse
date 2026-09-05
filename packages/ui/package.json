@@ -5,6 +5,9 @@
     "main": "src/index.ts",
     "types": "src/index.ts",
     "dependencies": {
+        "@radix-ui/react-alert-dialog": "^1.1.23",
+        "@radix-ui/react-dialog": "^1.1.23",
+        "@radix-ui/react-toast": "^1.2.23",
         "clsx": "^2.1.1",
         "lucide-react": "^0.395.0",
         "tailwind-merge": "^2.3.0"

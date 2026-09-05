@@ -6,46 +6,17 @@ import type {
     UniversalSearchMode,
     UniversalSearchResponse,
     UniversalSearchResult,
-} from '@inventory-system/shared-types';
+} from '@inventory-system/contracts';
 import { AuthRequest } from '../middleware/auth';
-
-interface SearchRow {
-    type: UniversalSearchEntityType | null;
-    id: string | null;
-    title: string | null;
-    subtitle: string | null;
-    href: string | null;
-    score: number | string | null;
-    matchedField: string | null;
-    context: UniversalSearchResult['context'] | null;
-    totalCount: bigint | number | string;
-}
-
-const allTypes: UniversalSearchEntityType[] = ['product', 'version', 'category', 'template'];
-const groupLabels: Record<UniversalSearchEntityType, string> = {
-    product: 'Products',
-    version: 'Product versions',
-    category: 'Categories',
-    template: 'Templates',
-};
-
-const escapeLike = (value: string): string => value.replace(/[\\%_]/g, '\\$&');
-
-const parseTypes = (value: unknown): UniversalSearchEntityType[] => {
-    if (typeof value !== 'string' || value.length === 0) return allTypes;
-    return [...new Set(value.split(',').map((type) => type.trim()))] as UniversalSearchEntityType[];
-};
-
-const serializeRow = (row: SearchRow): UniversalSearchResult => ({
-    type: row.type as UniversalSearchEntityType,
-    id: row.id as string,
-    title: row.title as string,
-    subtitle: row.subtitle,
-    href: row.href as string,
-    score: Number(row.score),
-    matchedField: row.matchedField as string,
-    context: row.context as UniversalSearchResult['context'],
-});
+import {
+    allTypes,
+    escapeLike,
+    groupLabels,
+    parseTypes,
+    serializeRow,
+    type SearchRow,
+} from '../domain/universal-search';
+import { hasLiteralMatch } from '../repositories/search.repository';
 
 export class SearchController {
     static async universal(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
@@ -64,37 +35,11 @@ export class SearchController {
             const limit = mode === 'suggestions' ? Math.min(requestedLimit, 20) : requestedLimit;
             const offset = mode === 'suggestions' ? 0 : (page - 1) * limit;
 
-            const [literalMatch] = await prisma.$queryRaw<Array<{ found: boolean }>>`
-                SELECT (
-                    (${selectedTypes.includes('product')} AND EXISTS (
-                        SELECT 1 FROM products p
-                        WHERE p.vendor_profile_id = ${vendorProfileId}
-                          AND p.deleted_at IS NULL
-                          AND p.search_text ILIKE ${containsPattern} ESCAPE '\\'
-                    ))
-                    OR (${selectedTypes.includes('version')} AND EXISTS (
-                        SELECT 1 FROM product_versions pv
-                        JOIN products p
-                          ON p.id = pv.product_id
-                         AND p.vendor_profile_id = ${vendorProfileId}
-                         AND p.deleted_at IS NULL
-                        WHERE pv.vendor_profile_id = ${vendorProfileId}
-                          AND pv.deleted_at IS NULL
-                          AND pv.search_text ILIKE ${containsPattern} ESCAPE '\\'
-                    ))
-                    OR (${selectedTypes.includes('category')} AND EXISTS (
-                        SELECT 1 FROM categories c
-                        WHERE (c.vendor_profile_id IS NULL OR c.vendor_profile_id = ${vendorProfileId})
-                          AND c.search_text ILIKE ${containsPattern} ESCAPE '\\'
-                    ))
-                    OR (${selectedTypes.includes('template')} AND EXISTS (
-                        SELECT 1 FROM characteristic_templates t
-                        WHERE (t.vendor_profile_id IS NULL OR t.vendor_profile_id = ${vendorProfileId})
-                          AND t.search_text ILIKE ${containsPattern} ESCAPE '\\'
-                    ))
-                ) AS found
-            `;
-            const useFuzzy = !literalMatch?.found;
+            const useFuzzy = !(await hasLiteralMatch(
+                vendorProfileId,
+                selectedTypes,
+                containsPattern
+            ));
             const productCandidate = useFuzzy
                 ? Prisma.sql`p.search_text % ${normalizedQuery}`
                 : Prisma.sql`p.search_text ILIKE ${containsPattern} ESCAPE '\\'`;
