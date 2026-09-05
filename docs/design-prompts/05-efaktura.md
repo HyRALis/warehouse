@@ -35,13 +35,12 @@ other.
 
 ## Flow A — issuing (after a sale)
 
-### The "does this need a faktura?" dialog
+### Invoice entry point and follow-up
 
-Appears after a sale posts. Keep it small and decisive — most retail sales do not need one.
-
-Explain the choice in the user's terms, not the tax authority's: a sale to a company needs a
-faktura; a walk-in customer normally does not. Offer "Not now" and make clear it can be issued
-later from the document list, so nobody feels trapped into deciding immediately.
+Offer an inline invoice choice in the sale flow and a non-blocking **Create invoice** action on the
+posted sale. Put unfinished work in Documents. Do not open a mandatory dialog after every sale.
+Reuse known customer/document details and explain missing information inline. Invoice eligibility
+and required fields still follow document rules; simplifying navigation does not waive them.
 
 ### The issue form
 
@@ -103,7 +102,8 @@ Also design **Книжно одобрение** (credit note, reduces what the b
 
 ### Matching
 
-After a goods receipt posts, offer to link it to an incoming e-Faktura. Show pending documents from
+After a goods receipt posts, offer a follow-up link and Documents task to match an incoming
+e-Faktura, without interrupting routine receiving. Show pending documents from
 the platform with supplier, date, number and total; suggest likely matches by supplier and amount,
 but never auto-accept a match.
 
@@ -144,13 +144,26 @@ Also design: platform unreachable (queued, will retry), and the awaiting-signatu
 ## The rule that must survive into the design
 
 **Stock movement never depends on the tax platform.** A sale or a receipt posts to the ledger
-first, unconditionally. Every e-Faktura step is separate and independently retryable. Nothing in
+after its own stock, price, cost and permission validations. Every e-Faktura step is separate and
+independently retryable. Nothing in
 these screens may imply that a failed or pending invoice undoes the physical stock movement.
+
+## Permissions and worker hand-off
+
+Follow `README.md` and IPD-031. Separate invoice preparation/matching, signing/submission,
+acceptance/rejection, correction/cancellation and financial export permissions. The finance preset
+is a proposal, not automatic authority for every invoice action. A receiver may post stock without
+being allowed to accept the supplier's invoice. A preparer without signing authority sends work to
+the authorized person's worklist; signing still requires the correct certificate and company scope.
+Check permissions/document state again before the final action. Changing a reviewed document
+invalidates its earlier approval. Preserve the explicit line comparison and acceptance confirmation.
+The server filters documents and financial fields by authorized scope, including search and exports.
 
 ## Deliverables
 
-The faktura-needed dialog; the issue form (prefilled, with a validation error, ready to sign); the
+The inline invoice entry point and follow-up task; the issue form (prefilled, with a validation error, ready to sign); the
 full signing sequence with all failure states; the issued document with EUID and QR; сторно and
 корекција flows; credit and debit notes; incoming list with deadline urgency; the matching screen;
 the two-step review with a clean match and with discrepancies; the reject flow; the
-awaiting-signature worklist; and status badges for all eight statuses.
+awaiting-signature worklist; preparer/signer/acceptance-authorized and revoked-access variants;
+and status badges for all eight statuses.

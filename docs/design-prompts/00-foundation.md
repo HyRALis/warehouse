@@ -125,3 +125,28 @@ done standing up, one-handed.
 3. Component specimen page: every component, every state, both densities.
 4. Number formatting rules: money, EUR indicative, quantity, percentage, date, datetime.
 5. A one-page "how to extend this" note so later screens stay consistent.
+
+## Required modifications to the existing design — 2026-09-05
+
+This prompt has already been used. Preserve the original foundation and apply this addendum to the
+existing design. These changes supersede conflicting role/interaction instructions above; do not
+restart the visual system. Source: `README.md`, `../inventory-ux-and-permissions.md` and IPD-031.
+
+1. Replace the manager/staff-only permission pattern with action/data permissions and location scope.
+   Presets (receiver, warehouse worker, controller, manager, finance, viewer; cashier later) are
+   proposed, not final grants. Restricted data is absent, not blurred or merely disabled.
+2. Add a task-worklist component for missing prices, document follow-up and approvals, filtered by
+   the person's authority. Routine tasks do not need an approval when the worker can already post.
+3. Add inline field validation and one linked submission-error summary. Preserve draft values and
+   focus after errors. Keep optional details expandable and required item-tracking fields visible.
+4. Add a permission summary: job preset(s), locations and a bounded set of additional permissions.
+   Avoid a nested role hierarchy, policy-language editor or toggle for every button.
+5. Add one impact/reason review pattern for consequential actions. Preserve cutover, batch/all-batch
+   price scope, posted correction and invoice acceptance confirmations; remove generic modal chains.
+6. Extend restricted states with missing location access, access revoked before submission, and
+   request-awaiting-approval where supported. Explain a remedy without exposing restricted figures.
+   Approval never bypasses stock, cost, price, correction or certificate validation.
+7. Show worker actions as short journeys; put server checks in design annotations instead of
+   turning each check into a screen. Keep existing authentication and two-factor behavior.
+
+Deliver an incremental component/state update using the established tokens and responsive layouts.

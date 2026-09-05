@@ -43,6 +43,10 @@ The vendor portal is available at `http://localhost:3000`; the API defaults to `
 
 Run the component workshop at `http://localhost:6006` with `npm run storybook`. It documents shared UI primitives and reusable portal components with controls, generated documentation, interaction examples, and accessibility auditing. Create a production-static build with `npm run build-storybook`.
 
+The browser uses `NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1` for platform APIs and
+`NEXT_PUBLIC_API_ORIGIN=http://localhost:4000` for native Better Auth calls. The origin is
+derived from the API URL when the second value is omitted.
+
 Uploaded images use the development-only local storage adapter and are served under `/uploads`. Production configuration requires the R2 driver and a CDN/public delivery origin; the disposable CI smoke environment is the only explicit local-storage exception. Direct browser uploads and image transformation are still scheduled for Phase 3.
 
 ## Verification
@@ -85,6 +89,10 @@ staged-rollout compatibility behavior.
 See [Vendor catalog tenancy and lifecycle hardening](docs/vendor-catalog-hardening.md) for
 cross-profile isolation, system-record immutability, primary-version consistency, and concurrency
 rules.
+See [Vendor Portal frontend authentication](docs/vendor-frontend-auth.md) for session hydration,
+Organization switching, email verification, MFA, active-session controls, and frontend rollback.
+See [Vendor Portal member invitations and access](docs/vendor-member-access.md) for the invitation
+lifecycle, Owner controls, explicit portal access, tenancy rules, verification, and rollback.
 
 Portal state has explicit owners: TanStack Query for server data, `nuqs` for shareable list filters, TanStack Form plus Zod for forms, Zustand for harmless cross-route UI preferences, and local React/Radix state for ephemeral interactions. See the architecture records in [`docs/adr`](docs/adr).
 

@@ -11,28 +11,53 @@ prompts can then be run in any order, though the listed order matches the build 
 | 01 | [App shell](01-app-shell.md) | Navigation, location switcher, role-aware chrome |
 | 02 | [Stock, lots and expiry](02-stock-and-lots.md) | Stock list, item detail, batch expiry, counts, adjustments |
 | 03 | [Receiving](03-receiving.md) | Suppliers, goods receipt, per-delivery cost, landed cost |
-| 04 | [Sales and reconciliation](04-sales-and-reconciliation.md) | Manual sale entry, POS reconciliation queue |
+| 04 | [Sales and recovery](04-sales-and-reconciliation.md) | Sale entry, returns, corrections, later own-POS recovery |
 | 05 | [e-Faktura](05-efaktura.md) | Issuing, signing hand-off, two-step incoming accept/reject |
 | 06 | [Analytics dashboard](06-analytics.md) | The flagship dashboard, insufficient-history states |
 | 07 | [Financials, settings, alerts](07-financials-settings-alerts.md) | Period gross profit, configuration, alerting |
 
 ## Read this before starting any prompt
 
+**Already-used prompts 00 and 01:** preserve their original instructions and existing designs.
+Apply the dated **Required modifications** addenda at the end of each as incremental changes.
+Those addenda override conflicting earlier instructions. Prompts 02–07 incorporate the revision directly.
+
 **The product.** OmniStock Inventory Portal — stock management for store and warehouse managers in
 North Macedonia. It is the second portal on an existing platform; a Vendor Portal already ships and
 its visual language is the starting point, not a blank page.
 
-**The users.** Three roles, and the design must respect them:
+**Worker journeys and permissions (IPD-031).** Read the shared
+[simplification and permissions proposal](../inventory-ux-and-permissions.md). The old closed
+manager/staff/viewer model is superseded. Different jobs need different action and data access,
+scoped to assigned locations. These are proposed presets, not finalized grants:
 
-| Role | Sees |
+| Preset | Typical work |
 |---|---|
-| `INVENTORY_MANAGER` | Everything, including purchase cost, margin and financials |
-| `INVENTORY_STAFF` | Receives, counts, adjusts, records sales, views stock — **never** cost, margin or financials |
-| `INVENTORY_VIEWER` | Read-only stock and expiry; no financials |
+| Receiver | Receipt costs, complete deliveries, reuse approved selling prices |
+| Warehouse worker | Stock, picks, count entry, damage reporting; no supplier costs |
+| Stock controller | Review counts and authorized stock adjustments |
+| Store manager | Location operations, pricing, corrections and permitted reports |
+| Finance worker | Invoice preparation, permitted financial views and exports |
+| Cashier — later POS | Approved-price sales and initiating returns |
+| Viewer | Read-only stock and expiry |
 
-Cost redaction is an authorization rule enforced on the server. Design the manager and staff views
-as genuinely different screens — do not design one screen and grey things out, because the data is
-not sent to staff at all.
+Owner administration and delegated access management are distinct from operational management.
+People may combine responsibilities. Action permissions, not job titles, govern controls and data.
+Separate prepare/post, count/adjust, report damage/write off, initiate return/refund, receipt cost/
+historical cost correction, invoice prepare/sign/accept, financial view/export and team administration.
+Do not make a receiver's routine posting wait for approval they already have authority to perform.
+
+The server checks membership, subscription, portal access, action and location scope for every
+protected operation, including exports. Restricted fields are absent from responses, not blurred.
+Receipt-cost access does not expose stock valuation or margins. An approved request never bypasses
+required cost, available stock, confirmed price, correction dependencies or certificate requirements.
+
+**Simplify the surface.** Show short worker journeys first; put internal checks in design annotations.
+Receive: scan -> quantity/cost -> Receive stock, with approved-price reuse confirmed inline. Opening:
+store details -> stock grid/import -> review/start. Corrections begin from the original document.
+Use one worklist for exceptions and approvals; do not interrupt each receipt/sale with invoice dialogs.
+Use inline validation, relevant tracking fields and expandable optional details. Preserve explicit
+cutover, price-scope, correction and invoice-acceptance confirmations.
 
 **The stack you are designing for.** Next.js App Router, Tailwind CSS 3, Radix primitives, an
 existing shared `@inventory-system/ui` package organised as atoms → molecules → organisms. Charts
@@ -56,6 +81,8 @@ for the exact constraint this places on chart colour.
 ## What good output looks like
 
 For every screen: the default state, plus **loading, empty, error, and permission-restricted**.
+Also show missing-price follow-up, request-awaiting-approval where applicable, and permission revoked
+before submission. Each workflow names its actor, action permission, location scope and recovery.
 Several screens additionally need an *insufficient data* state — see `06-analytics`. A design that
 only shows the happy path with full data is not usable, because this product spends its first weeks
 mostly empty.
