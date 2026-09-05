@@ -32,7 +32,7 @@ shared searchable selector, so system and vendor-owned categories behave consist
 create and edit flows. Client-side media checks give immediate feedback while the API remains the
 authoritative validation and tenancy boundary.
 
-Storybook uses the official Next.js Vite framework and accessibility addon. It isolates the
+Storybook uses the reconciled React Vite framework and accessibility addon, with isolated Next.js navigation, link, and image mocks. It isolates the
 highest-risk product components without introducing another application runtime. Stories cover
 the collapsed editor, active and draft version states, and desktop/mobile quick-create entry
 points.
@@ -40,7 +40,7 @@ points.
 ## Contracts and data
 
 No schema or public endpoint is added in this stage. The UI consumes the existing
-Vendor-Profile-scoped product/version endpoints and the shared `ProductResponse`, status, and
+Vendor-Profile-scoped product/version endpoints and the shared `@inventory-system/contracts` Product, status, and
 comparison types. The custom-category grouping key is `vendorProfileId`; the removed legacy
 `vendorId` field is no longer referenced.
 
@@ -64,8 +64,8 @@ npm.cmd run build-storybook --workspace @inventory-system/vendor-portal
 
 The component suite verifies successful product edits, recoverable API conflicts, product-create
 dependency retries, lifecycle actions, copy-source safety, image validation, category grouping,
-and the existing version workflows. The static Storybook build is reviewed at desktop and mobile
-sizes. Existing `next/image` migration warnings are deferred to the accessibility/responsive
+and the existing version workflows. Static Storybook build verification passes; final desktop/mobile
+visual review belongs to the accessibility stage. Existing `next/image` migration warnings are deferred to the accessibility/responsive
 stage; they do not fail lint.
 
 ## Rollback

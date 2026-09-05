@@ -274,6 +274,7 @@ describe('products', () => {
     });
 
     it('stores product-route images on the primary version and updates its representative image', async () => {
+        mockPrisma.productVersion.findFirst.mockResolvedValue(version);
         const imageUrl = 'https://media.example.test/products/image.webp';
         mockPrisma.product.findFirst.mockResolvedValue({
             ...product,

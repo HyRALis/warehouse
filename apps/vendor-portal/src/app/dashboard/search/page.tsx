@@ -6,9 +6,10 @@ import { AlertCircle, ChevronLeft, ChevronRight, Loader2, Search } from 'lucide-
 import type {
     UniversalSearchEntityType,
     UniversalSearchResponse,
-} from '@inventory-system/shared-types';
+} from '@inventory-system/contracts';
 import { Button, Input } from '@inventory-system/ui';
-import { api } from '@/lib/api';
+import { useUniversalSearchResults } from '@/features/search/hooks';
+import { getErrorMessage } from '@/lib/api/client';
 import SearchResultRow from '@/components/SearchResultRow';
 
 const filters: Array<{ value: UniversalSearchEntityType; label: string }> = [
@@ -26,10 +27,15 @@ function SearchResults() {
     const types = searchParams.get('types') || '';
     const page = Math.max(1, Number(searchParams.get('page') || 1));
     const [draftQuery, setDraftQuery] = useState(query);
-    const [response, setResponse] = useState<UniversalSearchResponse | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [retryKey, setRetryKey] = useState(0);
+    const {
+        data: response = null,
+        isFetching: loading,
+        error: searchError,
+        refetch,
+    } = useUniversalSearchResults({ q: query, types, page, limit: 20 });
+    const error = searchError
+        ? getErrorMessage(searchError, 'Search is temporarily unavailable.')
+        : '';
 
     const selectedTypes = useMemo(
         () => new Set(types.split(',').filter(Boolean) as UniversalSearchEntityType[]),
@@ -38,37 +44,7 @@ function SearchResults() {
 
     useEffect(() => setDraftQuery(query), [query]);
 
-    useEffect(() => {
-        if (!query.trim()) {
-            setResponse(null);
-            setLoading(false);
-            setError('');
-            return;
-        }
-        const controller = new AbortController();
-        setLoading(true);
-        setError('');
-        api.universalSearch(
-            {
-                q: query.trim(),
-                mode: 'results',
-                types,
-                page,
-                limit: 20,
-            },
-            controller.signal
-        )
-            .then(setResponse)
-            .catch((searchError) => {
-                if ((searchError as Error).name !== 'AbortError') {
-                    setError((searchError as Error).message || 'Search is temporarily unavailable.');
-                }
-            })
-            .finally(() => {
-                if (!controller.signal.aborted) setLoading(false);
-            });
-        return () => controller.abort();
-    }, [page, query, retryKey, types]);
+
 
     const updateUrl = (updates: Record<string, string | null>) => {
         const next = new URLSearchParams(searchParams.toString());
@@ -162,7 +138,7 @@ function SearchResults() {
                 <div className="flex flex-col items-center rounded-2xl border border-rose-500/30 bg-rose-500/5 px-6 py-12 text-center">
                     <AlertCircle className="h-7 w-7 text-rose-400" />
                     <p className="mt-3 text-sm text-slate-300">{error}</p>
-                    <Button className="mt-4" variant="secondary" onClick={() => setRetryKey((value) => value + 1)}>
+                    <Button className="mt-4" variant="secondary" onClick={() => void refetch()}>
                         Try again
                     </Button>
                 </div>

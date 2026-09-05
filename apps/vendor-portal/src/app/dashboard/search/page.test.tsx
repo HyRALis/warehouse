@@ -1,8 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { Vendor } from '@inventory-system/contracts';
+import { sessionQueryKey } from '@/features/auth/query-options';
 import UniversalSearchPage from './page';
-import { api } from '@/lib/api';
+import { browserApi } from '@/lib/api/browser';
 
 const push = vi.fn();
 let params = new URLSearchParams('q=hoodie&page=2');
@@ -13,15 +16,31 @@ vi.mock('next/navigation', () => ({
     useSearchParams: () => params,
 }));
 
-vi.mock('@/lib/api', () => ({
-    api: { universalSearch: vi.fn() },
-}));
+
+const vendor: Vendor = {
+    id: 'vendor-1',
+    email: 'vendor@example.com',
+    companyName: 'Acme',
+    createdAt: '2026-08-29T10:00:00.000Z',
+};
+
+const renderPage = () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(sessionQueryKey, vendor);
+    return render(
+        <QueryClientProvider client={queryClient}>
+            <UniversalSearchPage />
+        </QueryClientProvider>
+    );
+};
 
 describe('UniversalSearchPage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         params = new URLSearchParams('q=hoodie&page=2');
-        vi.mocked(api.universalSearch).mockResolvedValue({
+        vi.spyOn(browserApi.search, 'universal').mockResolvedValue({
+            success: true,
+            data: {
             query: 'hoodie',
             mode: 'results',
             groups: [],
@@ -41,17 +60,18 @@ describe('UniversalSearchPage', () => {
             page: 2,
             limit: 20,
             totalPages: 2,
-            tookMs: 4.1,
+                tookMs: 4.1,
+            },
         });
     });
 
     it('restores URL query/page state and renders version deep links', async () => {
-        render(<UniversalSearchPage />);
+        renderPage();
 
         expect(
             await screen.findByRole('link', { name: /midnight hoodie/i })
         ).toBeInTheDocument();
-        expect(api.universalSearch).toHaveBeenCalledWith(
+        expect(browserApi.search.universal).toHaveBeenCalledWith(
             expect.objectContaining({ q: 'hoodie', page: 2, mode: 'results' }),
             expect.any(AbortSignal)
         );
@@ -63,7 +83,7 @@ describe('UniversalSearchPage', () => {
 
     it('persists filters and new queries in the URL', async () => {
         const user = userEvent.setup();
-        render(<UniversalSearchPage />);
+        renderPage();
         await screen.findByRole('link', { name: /midnight hoodie/i });
 
         await user.click(screen.getByRole('button', { name: 'Products' }));
@@ -81,7 +101,7 @@ describe('UniversalSearchPage', () => {
 
     it('writes pagination changes to browser history', async () => {
         const user = userEvent.setup();
-        render(<UniversalSearchPage />);
+        renderPage();
         await screen.findByRole('link', { name: /midnight hoodie/i });
 
         await user.click(screen.getByRole('button', { name: /previous/i }));
