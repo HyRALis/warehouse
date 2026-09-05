@@ -1,35 +1,44 @@
 import prisma from '../src/index.js';
 
 async function main(): Promise<void> {
-    const [vendors, migratedUsers, credentialAccounts, organizations, ownerMembers, legacyResets] =
-        await Promise.all([
-            prisma.vendor.count(),
-            prisma.user.count({ where: { legacyVendorId: { not: null } } }),
-            prisma.account.count({ where: { issuer: 'local:credential', providerId: 'credential' } }),
-            prisma.organization.count(),
-            prisma.member.count({ where: { role: 'owner' } }),
-            prisma.vendor.count({
-                where: {
-                    OR: [
-                        { passwordResetTokenHash: { not: null } },
-                        { passwordResetExpiresAt: { not: null } },
-                    ],
+    const [
+        users,
+        organizations,
+        ownerMembers,
+        organizationsWithoutOwner,
+        usersWithoutCredential,
+        usersWithoutMembership,
+    ] = await Promise.all([
+        prisma.user.count(),
+        prisma.organization.count(),
+        prisma.member.count({ where: { role: 'owner' } }),
+        prisma.organization.count({ where: { members: { none: { role: 'owner' } } } }),
+        prisma.user.count({
+            where: {
+                accounts: {
+                    none: {
+                        issuer: 'local:credential',
+                        providerId: 'credential',
+                        password: { not: null },
+                    },
                 },
-            }),
-        ]);
+            },
+        }),
+        prisma.user.count({ where: { members: { none: {} } } }),
+    ]);
 
-    const expectedCounts = [migratedUsers, credentialAccounts, organizations, ownerMembers];
-    if (expectedCounts.some((count) => count !== vendors)) {
+    if (
+        organizationsWithoutOwner !== 0 ||
+        usersWithoutCredential !== 0 ||
+        usersWithoutMembership !== 0
+    ) {
         throw new Error(
-            `Better Auth migration mismatch: vendors=${vendors}, users=${migratedUsers}, accounts=${credentialAccounts}, organizations=${organizations}, owners=${ownerMembers}`
+            `Better Auth identity mismatch: users=${users}, organizations=${organizations}, owners=${ownerMembers}, organizationsWithoutOwner=${organizationsWithoutOwner}, usersWithoutCredential=${usersWithoutCredential}, usersWithoutMembership=${usersWithoutMembership}`
         );
-    }
-    if (legacyResets !== 0) {
-        throw new Error(`Better Auth migration left ${legacyResets} legacy reset token(s)`);
     }
 
     console.log(
-        `Better Auth migration verified: ${vendors} Vendor identities, credential accounts, organizations, and Owner memberships.`
+        `Better Auth identity verified: ${users} Users have credential accounts and Organization membership; ${organizations} Organizations have ${ownerMembers} Owners.`
     );
 }
 

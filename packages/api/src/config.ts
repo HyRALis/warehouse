@@ -8,8 +8,7 @@ const environmentSchema = z
     .object({
         NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
         PORT: z.coerce.number().int().positive().default(4000),
-        JWT_SECRET: z.string().min(32, 'JWT_SECRET must contain at least 32 characters'),
-        BETTER_AUTH_SECRET: z.string().min(32).optional(),
+        BETTER_AUTH_SECRET: z.string().min(32),
         BETTER_AUTH_URL: z.string().url().optional(),
         CORS_ORIGINS: z.string().default('http://localhost:3000'),
         API_PUBLIC_URL: z.string().url().default('http://localhost:4000'),
@@ -115,8 +114,7 @@ const environment = parsedEnvironment.data;
 export const config = {
     nodeEnv: environment.NODE_ENV,
     port: environment.PORT,
-    jwtSecret: environment.JWT_SECRET,
-    betterAuthSecret: environment.BETTER_AUTH_SECRET ?? environment.JWT_SECRET,
+    betterAuthSecret: environment.BETTER_AUTH_SECRET,
     betterAuthUrl: (environment.BETTER_AUTH_URL ?? environment.API_PUBLIC_URL).replace(/\/$/, ''),
     corsOrigins: environment.CORS_ORIGINS.split(',')
         .map((origin) => origin.trim())

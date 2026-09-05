@@ -1,4 +1,3 @@
-process.env.JWT_SECRET = 'test-secret-that-is-at-least-32-characters-long';
 process.env.BETTER_AUTH_SECRET = 'better-auth-test-secret-at-least-32-characters';
 process.env.BETTER_AUTH_URL = 'http://localhost:4000';
 process.env.NODE_ENV = 'test';
@@ -21,7 +20,6 @@ const modelMock = () => ({
 });
 
 export const mockPrisma = {
-    vendor: modelMock(),
     user: modelMock(),
     account: modelMock(),
     session: modelMock(),
@@ -75,15 +73,6 @@ mockAuthApi.requestPasswordReset.mockResolvedValue({ status: true });
 mockAuthApi.resetPassword.mockResolvedValue({ status: true });
 mockAuthApi.sendVerificationEmail.mockResolvedValue({ status: true });
 
-mockPrisma.user.findUnique.mockImplementation(({ where }: { where: { id?: string } }) =>
-    where.id
-        ? {
-              legacyVendorId: where.id,
-              legacyVendor: { deletedAt: null },
-          }
-        : null
-);
-
 mockPrisma.member.findUnique.mockImplementation(
     ({
         where,
@@ -112,7 +101,7 @@ mockPrisma.vendorProfile.findUnique.mockImplementation(
         const vendorId = organizationId?.startsWith('organization:')
             ? organizationId.slice('organization:'.length)
             : undefined;
-        return vendorId ? { id: vendorId, legacyVendorId: vendorId, deletedAt: null } : null;
+        return vendorId ? { id: vendorId, deletedAt: null } : null;
     }
 );
 
@@ -145,6 +134,7 @@ jest.mock('@inventory-system/database', () => ({
     },
     Prisma: {
         TransactionIsolationLevel: { Serializable: 'Serializable' },
+        sql: (strings: TemplateStringsArray) => strings.join(' '),
         PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {
             code = 'P2002';
         },

@@ -10,7 +10,7 @@ export interface CategoryOption {
     code?: string | null;
     aliases?: string[];
     parentId?: string | null;
-    vendorId?: string | null;
+    vendorProfileId?: string | null;
     defaultTemplateId?: string | null;
     children?: CategoryOption[];
 }
@@ -55,7 +55,7 @@ export default function SearchableCategorySelect({ categories, value, onChange, 
             .filter((category) => !parentIds.has(category.id))
             .map((category) => {
                 const parent = category.parentId ? byId.get(category.parentId) : undefined;
-                const rootName = parent?.name || (category.vendorId ? 'Your categories' : 'Other');
+                const rootName = parent?.name || (category.vendorProfileId ? 'Your categories' : 'Other');
                 const path = parent ? `${parent.name} / ${category.name}` : category.name;
                 return {
                     ...category,

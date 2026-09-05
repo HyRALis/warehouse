@@ -8,7 +8,7 @@ import {
     resetPasswordSchema,
 } from '../validators/auth.validators';
 import { authLimiter } from '../middleware/rate-limit';
-import { verifySession } from '../middleware/auth';
+import { verifyAuth, verifySession } from '../middleware/auth';
 
 const router = Router();
 
@@ -27,6 +27,6 @@ router.post(
     validate(resetPasswordSchema),
     AuthController.resetPassword
 );
-router.get('/me', verifySession, AuthController.getMe);
+router.get('/me', verifyAuth, AuthController.getMe);
 
 export default router;
