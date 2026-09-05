@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '@inventory-system/ui';
 import { browserApi } from '@/lib/api/browser';
 import { useAcceptInvitation, useInviteMember, useMembers } from './hooks';
+import { membersQueryOptions } from './query-options';
 
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
@@ -31,6 +32,15 @@ const wrapper = ({ children }: { children: React.ReactNode }) => {
 };
 
 describe('member hooks', () => {
+    it('keeps each organization member list in a separate cache entry', async () => {
+        const client = new QueryClient();
+        vi.spyOn(browserApi.platform, 'members')
+            .mockResolvedValueOnce({ success: true, data: [] });
+        await client.fetchQuery(membersQueryOptions(browserApi, 'org-1'));
+        expect(client.getQueryData(membersQueryOptions(browserApi, 'org-2').queryKey)).toBeUndefined();
+        client.clear();
+    });
+
     beforeEach(() => {
         vi.clearAllMocks();
         organization.inviteMember.mockResolvedValue({ data: { id: 'invitation-1' }, error: null });
@@ -42,7 +52,7 @@ describe('member hooks', () => {
         const members = vi
             .spyOn(browserApi.platform, 'members')
             .mockResolvedValue({ success: true, data: [] });
-        const { result } = renderHook(() => useMembers(), { wrapper });
+        const { result } = renderHook(() => useMembers('org-1'), { wrapper });
 
         await waitFor(() => expect(result.current.isSuccess).toBe(true));
         expect(members).toHaveBeenCalledTimes(1);

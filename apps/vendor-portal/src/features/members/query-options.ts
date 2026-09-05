@@ -4,23 +4,26 @@ import { authClient, unwrap } from '@/features/auth';
 
 export const memberKeys = {
     root: ['members'] as const,
-    list: () => [...memberKeys.root, 'list'] as const,
+    list: (organizationId: string) => [...memberKeys.root, 'list', organizationId] as const,
     invitations: (organizationId: string) =>
         [...memberKeys.root, 'invitations', organizationId] as const,
     invitation: (invitationId: string) =>
         [...memberKeys.root, 'invitation', invitationId] as const,
 };
 
-export const membersQueryOptions = (api: InventoryApi) =>
+export const membersQueryOptions = (api: InventoryApi, organizationId: string) =>
     queryOptions({
-        queryKey: memberKeys.list(),
+        queryKey: memberKeys.list(organizationId),
         queryFn: async ({ signal }) => (await api.platform.members(signal)).data,
+        enabled: Boolean(organizationId),
+        staleTime: 0,
     });
 
 /** Invitations are owned by Better Auth, not by the inventory API. */
 export const invitationsQueryOptions = (organizationId: string) =>
     queryOptions({
         queryKey: memberKeys.invitations(organizationId),
+        staleTime: 0,
         queryFn: async () => {
             const invitations = await unwrap(
                 authClient.organization.listInvitations({ query: { organizationId } }),
@@ -33,6 +36,7 @@ export const invitationsQueryOptions = (organizationId: string) =>
 export const invitationSummaryQueryOptions = (api: InventoryApi, invitationId: string) =>
     queryOptions({
         queryKey: memberKeys.invitation(invitationId),
+        staleTime: 0,
         queryFn: async ({ signal }) => (await api.platform.invitationSummary(invitationId, signal)).data,
         enabled: Boolean(invitationId),
         retry: false,

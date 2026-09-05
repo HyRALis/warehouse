@@ -11,7 +11,8 @@ import {
     membersQueryOptions,
 } from './query-options';
 
-export const useMembers = () => useQuery(membersQueryOptions(browserApi));
+export const useMembers = (organizationId: string) =>
+    useQuery(membersQueryOptions(browserApi, organizationId));
 
 export const useInvitations = (organizationId: string) =>
     useQuery({ ...invitationsQueryOptions(organizationId), enabled: Boolean(organizationId) });
@@ -26,7 +27,7 @@ export const useUpdateMemberAccess = () => {
         mutationFn: ({ memberId, enabled }: { memberId: string; enabled: boolean }) =>
             browserApi.platform.updateMemberAccess(memberId, { enabled }),
         onSuccess: (_result, { enabled }) => {
-            void queryClient.invalidateQueries({ queryKey: memberKeys.list() });
+            void queryClient.invalidateQueries({ queryKey: memberKeys.root });
             notify({
                 title: enabled ? 'Portal access granted' : 'Portal access revoked',
                 variant: 'success',

@@ -36,7 +36,7 @@ export const MembersView = () => {
                 Organization subscription is active. Member access can be granted or revoked here.
             </Alert>
             <InviteMemberCard organizationId={organizationId} />
-            <MemberList />
+            <MemberList organizationId={organizationId} />
             <PendingInvitations organizationId={organizationId} />
         </div>
     );
