@@ -1,5 +1,10 @@
+import { Suspense } from 'react';
 import { TwoFactorForm } from '@/features/auth';
 
 export default function TwoFactorPage() {
-    return <TwoFactorForm />;
+    return (
+        <Suspense>
+            <TwoFactorForm />
+        </Suspense>
+    );
 }

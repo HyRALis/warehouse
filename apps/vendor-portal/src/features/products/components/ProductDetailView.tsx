@@ -4,7 +4,11 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { AlertTriangle, ArrowLeft, Edit, ImagePlus, Trash2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCategories } from '@/features/categories';
+import { ProductDetailsEditor } from '@/components/ProductDetailsEditor';
+import ProductVersionManager from '@/components/ProductVersionManager';
+import { AlertTriangle, ArrowLeft, ImagePlus, Trash2 } from 'lucide-react';
 import { Alert, AlertDialog, Badge, Button, Card, CardContent, CardHeader, CardTitle, Skeleton } from '@inventory-system/ui';
 import { getErrorMessage } from '@/lib/api/client';
 import { useDeleteProduct, useProduct } from '../hooks';
@@ -15,6 +19,9 @@ export const ProductDetailView = ({ productId }: { productId: string }) => {
     const router = useRouter();
     const product = useProduct(productId);
     const deleteProduct = useDeleteProduct();
+    const categories = useCategories();
+    const queryClient = useQueryClient();
+    const refreshCatalog = async (): Promise<void> => { await queryClient.invalidateQueries(); };
 
     if (product.isPending) return <div className="space-y-6"><Skeleton className="h-20" /><Skeleton className="h-96" /></div>;
     if (product.error || !product.data) return <div className="mx-auto max-w-3xl rounded-xl border border-rose-500/20 bg-rose-500/10 p-6 text-center">
@@ -24,19 +31,22 @@ export const ProductDetailView = ({ productId }: { productId: string }) => {
     </div>;
 
     const item = product.data;
-    const primaryImage = item.images[0];
+    const primaryImages = item.primaryVersion?.images ?? item.images;
+    const primaryImage = primaryImages[0];
     return <div className="mx-auto max-w-5xl space-y-6">
         <nav aria-label="Breadcrumb" className="flex items-center gap-4 text-sm text-slate-400"><Link href="/dashboard/products" className="flex items-center gap-1 hover:text-white"><ArrowLeft className="h-4 w-4" /> Products</Link><span aria-hidden>/</span><span className="text-slate-200">{item.baseName}</span></nav>
         <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
             <div><h1 className="mb-2 text-3xl font-bold text-white">{item.baseName}</h1><div className="flex flex-wrap items-center gap-3"><Badge variant="outline" className="font-mono">SKU: {item.sku}</Badge><ProductStatusBadge status={item.status} />{item.category && <Badge className="border-violet-500/20 bg-violet-500/10 text-violet-400">{item.category.name}</Badge>}</div></div>
-            <div className="flex gap-3"><Button disabled variant="secondary" title="Product editing is not included in this release"><Edit className="mr-2 h-4 w-4" /> Edit</Button><Button variant="destructive" onClick={() => setDeleteOpen(true)}><Trash2 className="mr-2 h-4 w-4" /> Delete</Button></div>
+            <div className="flex gap-3"><Button variant="destructive" onClick={() => setDeleteOpen(true)}><Trash2 className="mr-2 h-4 w-4" /> Delete</Button></div>
         </div>
+        <ProductDetailsEditor key={item.id} product={item} categories={categories.data ?? []} categoriesLoading={categories.isPending} categoriesError={categories.error ? getErrorMessage(categories.error) : undefined} onRetryCategories={() => { void categories.refetch(); }} onSaved={refreshCatalog} />
+        <ProductVersionManager key={`versions-${item.id}`} productId={item.id} productStatus={item.status} versions={item.versions ?? []} onChanged={refreshCatalog} />
         <div className="grid gap-6 pt-4 lg:grid-cols-3">
             <div className="space-y-4">
                 <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
                     {primaryImage ? <Image src={primaryImage.imageUrl} alt={item.baseName} fill sizes="(max-width: 1024px) 100vw, 33vw" unoptimized className="object-cover" /> : <div className="flex flex-col items-center text-slate-500"><ImagePlus className="mb-2 h-12 w-12 opacity-30" /><span>No images</span></div>}
                 </div>
-                {item.images.length > 1 && <div className="grid grid-cols-4 gap-2">{item.images.slice(1).map((image) => <div key={image.id} className="relative aspect-square overflow-hidden rounded-lg border border-slate-700"><Image src={image.imageUrl} alt={`${item.baseName} alternate view`} fill sizes="96px" unoptimized className="object-cover" /></div>)}</div>}
+                {primaryImages.length > 1 && <div className="grid grid-cols-4 gap-2">{primaryImages.slice(1).map((image) => <div key={image.id} className="relative aspect-square overflow-hidden rounded-lg border border-slate-700"><Image src={image.imageUrl} alt={`${item.baseName} alternate view`} fill sizes="96px" unoptimized className="object-cover" /></div>)}</div>}
             </div>
             <div className="space-y-6 lg:col-span-2">
                 <Card><CardHeader><CardTitle>Product Details</CardTitle></CardHeader><CardContent><dl className="grid gap-6 sm:grid-cols-2">

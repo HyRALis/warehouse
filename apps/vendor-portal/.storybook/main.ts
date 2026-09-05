@@ -8,7 +8,7 @@ const config: StorybookConfig = {
         name: '@storybook/react-vite',
         options: {},
     },
-    stories: ['../src/stories/**/*.stories.@(ts|tsx)'],
+    stories: ['../src/**/*.stories.@(ts|tsx)'],
     addons: ['@storybook/addon-docs', '@storybook/addon-a11y', '@storybook/addon-vitest'],
     docs: { defaultName: 'Documentation' },
     features: { developmentModeForBuild: true },
@@ -26,6 +26,8 @@ const config: StorybookConfig = {
                 alias: {
                     'next/image': `${configDirectory}/mocks/next-image.tsx`,
                     'next/link': `${configDirectory}/mocks/next-link.tsx`,
+                    'next/navigation': `${configDirectory}/mocks/next-navigation.ts`,
+                    '@': `${configDirectory}/../src`,
                 },
             },
         });

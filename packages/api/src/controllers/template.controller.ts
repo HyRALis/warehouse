@@ -1,9 +1,12 @@
 import { Response, NextFunction } from 'express';
 import prisma, { Prisma } from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
-
-const templateSearchText = (name: string, fields: unknown): string =>
-    `${name} ${JSON.stringify(fields)}`.trim().toLocaleLowerCase();
+import {
+    findAvailableTemplate,
+    findAvailableTemplateWithCounts,
+    listAvailableTemplates,
+} from '../repositories/catalog.repository';
+import { templateSearchText } from '../domain/catalog-search-text';
 
 export class TemplateController {
     /**
@@ -11,13 +14,7 @@ export class TemplateController {
      */
     static async list(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
-            const templates = await prisma.characteristicTemplate.findMany({
-                where: {
-                    OR: [{ vendorProfileId: null }, { vendorProfileId: req.vendorProfileId }],
-                },
-                include: { _count: { select: { defaultForCategories: true } } },
-                orderBy: [{ vendorId: 'asc' }, { name: 'asc' }],
-            });
+            const templates = await listAvailableTemplates(req.vendorProfileId!);
             res.status(200).json({ success: true, data: templates });
         } catch (error) {
             next(error);
@@ -30,13 +27,7 @@ export class TemplateController {
     static async getById(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const { id } = req.params;
-            const template = await prisma.characteristicTemplate.findFirst({
-                where: {
-                    id,
-                    OR: [{ vendorProfileId: null }, { vendorProfileId: req.vendorProfileId }],
-                },
-                include: { _count: { select: { defaultForCategories: true } } },
-            });
+            const template = await findAvailableTemplateWithCounts(id, req.vendorProfileId!);
 
             if (!template) {
                 res.status(404).json({ success: false, message: 'Template not found' });
@@ -63,7 +54,6 @@ export class TemplateController {
             const name = req.body.name || `${source.name} copy`;
             const template = await prisma.characteristicTemplate.create({
                 data: {
-                    vendorId: req.vendorId!,
                     vendorProfileId: req.vendorProfileId!,
                     name,
                     fields: source.fields as Prisma.InputJsonValue,
@@ -86,7 +76,6 @@ export class TemplateController {
                 data: {
                     name,
                     fields,
-                    vendorId: req.vendorId!,
                     vendorProfileId: req.vendorProfileId!,
                     searchText: templateSearchText(name, fields),
                 },
@@ -105,17 +94,18 @@ export class TemplateController {
             const { id } = req.params;
             const { name, fields } = req.body;
 
-            const template = await prisma.characteristicTemplate.findUnique({ where: { id } });
+            const template = await findAvailableTemplate(id, req.vendorProfileId!);
 
             if (!template) {
                 res.status(404).json({ success: false, message: 'Template not found' });
                 return;
             }
-            if (
-                template.vendorProfileId !== req.vendorProfileId ||
-                template.vendorProfileId === null
-            ) {
-                res.status(403).json({ success: false, message: 'Cannot edit this template' });
+            if (template.vendorProfileId === null) {
+                res.status(403).json({
+                    success: false,
+                    code: 'SYSTEM_TEMPLATE_READ_ONLY',
+                    message: 'System templates are read-only',
+                });
                 return;
             }
 
@@ -144,18 +134,19 @@ export class TemplateController {
         try {
             const { id } = req.params;
 
-            const template = await prisma.characteristicTemplate.findUnique({ where: { id } });
+            const template = await findAvailableTemplate(id, req.vendorProfileId!);
 
             if (!template) {
                 res.status(404).json({ success: false, message: 'Template not found' });
                 return;
             }
 
-            if (
-                template.vendorProfileId !== req.vendorProfileId ||
-                template.vendorProfileId === null
-            ) {
-                res.status(403).json({ success: false, message: 'Cannot delete this template' });
+            if (template.vendorProfileId === null) {
+                res.status(403).json({
+                    success: false,
+                    code: 'SYSTEM_TEMPLATE_READ_ONLY',
+                    message: 'System templates are read-only',
+                });
                 return;
             }
 

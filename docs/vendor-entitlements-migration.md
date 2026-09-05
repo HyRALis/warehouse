@@ -61,7 +61,7 @@ removal or demotion.
 
 Owner registration now creates all of these records in the same serializable transaction:
 
-- legacy Vendor compatibility record;
+- legacy Vendor compatibility record during the additive rollout only;
 - User and credential Account;
 - Organization and Owner Member;
 - `vendor` Portal upsert;
@@ -93,9 +93,10 @@ envelope and transparent password rehash behavior.
   access. It rejects cross-Organization members, Owner records, non-Owner callers, and inactive
   subscriptions.
 
-Shared platform contracts are exported from `@inventory-system/shared-types`. Product, version,
-category, and template response contracts expose `vendorProfileId` while retaining `vendorId`
-during the transition.
+Shared platform contracts are exported from `@inventory-system/shared-types`. During the additive
+transition, product, version, category, and template response contracts exposed
+`vendorProfileId` while retaining `vendorId`. The final cleanup removes `vendorId`; current
+contracts expose only VendorProfile ownership.
 
 ## Existing-data migration
 
@@ -121,8 +122,9 @@ Run the post-migration audit:
 npm run entitlements:verify-migration --workspace @inventory-system/database
 ```
 
-It verifies profile/subscription/Vendor counts, an enabled Owner access path for every profile,
-and zero ownership mismatches across all four catalog models.
+Before cleanup, the migration itself verifies profile/subscription/Vendor backfill counts and zero
+transitional ownership mismatches. The maintained verifier checks primary-profile, subscription,
+Owner-access, and final catalog-ownership invariants without querying removed Vendor fields.
 
 ## Verification
 
@@ -153,8 +155,9 @@ and primary-profile service errors.
 5. Keep legacy ownership columns and synchronization triggers until the frontend and catalog
    hardening PRs have deployed.
 
-The previous Better Auth API can be redeployed during the review window because compatibility
-triggers populate profile ownership for its legacy catalog writes. Do not drop the additive tables
-or columns. If registrations occurred after the entitlement cutover, a rollback must preserve
-their profile/subscription graph; use a forward repair or restore the pre-cutover backup rather
-than applying a destructive down migration.
+The previous Better Auth API can be redeployed during the additive review window because
+compatibility triggers populate profile ownership for its legacy catalog writes. Migration
+`20260902213000_remove_legacy_vendor_auth` ends that window by dropping those triggers, legacy
+columns, and the Vendor table. After that cleanup, only the cleanup API may run. Follow
+[Vendor authentication cleanup and rollback](vendor-auth-cleanup.md) for the mandatory backup,
+deployment order, post-migration audit, and recovery procedure.

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Lock, Mail } from 'lucide-react';
 import { Alert } from '@inventory-system/ui';
 import { loginVendorRequestSchema } from '@inventory-system/contracts';
@@ -10,7 +11,7 @@ import { useLogin } from '../queries';
 import { AuthShell } from './AuthShell';
 
 export const LoginForm = () => {
-    const login = useLogin();
+    const login = useLogin(useSearchParams().get('returnTo'));
     const form = useAppForm({
         defaultValues: { email: '', password: '' },
         validators: { onSubmit: loginVendorRequestSchema },

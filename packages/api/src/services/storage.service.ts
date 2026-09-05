@@ -6,6 +6,7 @@ import { config } from '../config';
 
 const allowedExtensions: Record<string, string> = {
     'image/jpeg': '.jpg',
+    'image/png': '.png',
     'image/webp': '.webp',
 };
 
@@ -26,21 +27,68 @@ const getR2Client = (): S3Client => {
     return r2Client;
 };
 
-const objectKeyFromUrl = (value: string): string => {
-    try {
-        const url = new URL(value);
-        if (config.r2) {
-            const publicBasePath = new URL(config.r2.publicUrl).pathname.replace(/^\/+|\/+$/g, '');
-            const objectPath = decodeURIComponent(url.pathname).replace(/^\/+/, '');
-            return publicBasePath && objectPath.startsWith(`${publicBasePath}/`)
-                ? objectPath.slice(publicBasePath.length + 1)
-                : objectPath;
-        }
+const invalidStorageValue = (
+    message: string,
+    code = 'INVALID_STORAGE_KEY'
+): Error & {
+    statusCode: number;
+    code: string;
+} => Object.assign(new Error(message), { statusCode: 400, code });
 
-        return path.basename(url.pathname);
-    } catch {
-        return config.r2 ? value.replace(/^\/+/, '') : path.basename(value);
+const isValidImageContent = (mimeType: string, buffer: Buffer): boolean => {
+    if (mimeType === 'image/jpeg') {
+        return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
     }
+    if (mimeType === 'image/png') {
+        return (
+            buffer.length >= 8 &&
+            buffer
+                .subarray(0, 8)
+                .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+        );
+    }
+    if (mimeType === 'image/webp') {
+        return (
+            buffer.length >= 12 &&
+            buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+            buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+        );
+    }
+    return false;
+};
+
+const relativeObjectKey = (url: URL, publicBase: URL): string => {
+    if (url.origin !== publicBase.origin) {
+        throw invalidStorageValue('Storage URL origin is not allowed');
+    }
+
+    const basePath = decodeURIComponent(publicBase.pathname).replace(/^\/+|\/+$/g, '');
+    const objectPath = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+    if (basePath && !objectPath.startsWith(`${basePath}/`)) {
+        throw invalidStorageValue('Storage URL path is not allowed');
+    }
+    return basePath ? objectPath.slice(basePath.length + 1) : objectPath;
+};
+
+const objectKeyFromUrl = (value: string): string => {
+    let parsedUrl: URL | undefined;
+    try {
+        parsedUrl = new URL(value);
+    } catch {
+        parsedUrl = undefined;
+    }
+
+    if (config.r2) {
+        return parsedUrl
+            ? relativeObjectKey(parsedUrl, new URL(config.r2.publicUrl))
+            : value.replace(/^\/+/, '');
+    }
+
+    if (parsedUrl) {
+        const uploadsBase = new URL('/uploads/', `${config.apiPublicUrl}/`);
+        return relativeObjectKey(parsedUrl, uploadsBase);
+    }
+    return path.basename(value);
 };
 
 export class StorageService {
@@ -49,7 +97,14 @@ export class StorageService {
      */
     static async uploadFile(file: Express.Multer.File): Promise<string> {
         const extension = allowedExtensions[file.mimetype];
-        if (!extension) throw new Error('Unsupported image MIME type');
+        if (!extension)
+            throw invalidStorageValue('Unsupported image MIME type', 'INVALID_IMAGE_TYPE');
+        if (!isValidImageContent(file.mimetype, file.buffer)) {
+            throw invalidStorageValue(
+                'Image content does not match its declared MIME type',
+                'INVALID_IMAGE_CONTENT'
+            );
+        }
 
         const filename = `${crypto.randomUUID()}${extension}`;
         if (config.storageDriver === 'r2') {
@@ -60,6 +115,7 @@ export class StorageService {
                     Key: objectKey,
                     Body: file.buffer,
                     ContentType: file.mimetype,
+                    ContentDisposition: 'inline',
                     CacheControl: 'public, max-age=31536000, immutable',
                 })
             );
@@ -76,7 +132,13 @@ export class StorageService {
      */
     static async deleteFile(urlOrKey: string): Promise<void> {
         const objectKey = objectKeyFromUrl(urlOrKey);
-        if (!objectKey || objectKey.includes('..')) throw new Error('Invalid storage key');
+        const validKey =
+            config.storageDriver === 'r2'
+                ? /^products\/[0-9a-f-]{36}\.(?:jpg|png|webp)$/i.test(objectKey)
+                : /^[0-9a-f-]{36}\.(?:jpg|png|webp)$/i.test(objectKey);
+        if (!validKey) {
+            throw invalidStorageValue('Invalid storage key');
+        }
 
         if (config.storageDriver === 'r2') {
             await getR2Client().send(
@@ -86,7 +148,6 @@ export class StorageService {
         }
 
         const safeFilename = path.basename(objectKey);
-        if (safeFilename !== objectKey) throw new Error('Invalid storage key');
 
         try {
             await fs.unlink(path.join(config.uploadDir, safeFilename));

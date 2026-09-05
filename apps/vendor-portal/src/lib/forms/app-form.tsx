@@ -108,10 +108,12 @@ const SubmitButton = ({
     children,
     pendingLabel = 'Saving…',
     className,
+    disabled = false,
 }: {
     children: React.ReactNode;
     pendingLabel?: string;
     className?: string;
+    disabled?: boolean;
 }) => {
     const form = useFormContext();
     const [canSubmit, isSubmitting] = useStore(form.store, (state) => [
@@ -119,7 +121,7 @@ const SubmitButton = ({
         state.isSubmitting,
     ]);
     return (
-        <Button type="submit" disabled={!canSubmit || isSubmitting} className={className}>
+        <Button type="submit" disabled={disabled || !canSubmit || isSubmitting} className={className}>
             {isSubmitting ? (
                 <>
                     <Spinner size={4} className="mr-2" />

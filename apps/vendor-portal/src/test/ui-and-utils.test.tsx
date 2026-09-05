@@ -17,7 +17,7 @@ describe('shared UI and browser utilities', () => {
     });
 
     it('matches image validation to the API', () => {
-        expect(validateProductImage(new File(['x'], 'image.png', { type: 'image/png' }))).toContain('JPEG');
+        expect(validateProductImage(new File(['x'], 'image.png', { type: 'image/png' }))).toBeNull();
         expect(validateProductImage(new File(['x'], 'image.jpg', { type: 'image/jpeg' }))).toBeNull();
     });
 

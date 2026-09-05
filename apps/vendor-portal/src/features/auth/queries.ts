@@ -11,6 +11,7 @@ import {
 } from '@inventory-system/contracts';
 import { browserApi } from '@/lib/api/browser';
 import { authClient } from './auth-client';
+import { safeReturnTo } from './utils/return-to';
 import {
     currentVendorQueryOptions,
     identityQueryOptions,
@@ -31,18 +32,23 @@ export const useOrganizations = () => useQuery(organizationsQueryOptions());
 
 export const usePlatformContext = () => useQuery(platformContextQueryOptions(browserApi));
 
-export const useLogin = () => {
+/**
+ * `returnTo` survives the second-factor hop, so an invitation link that required a sign-in
+ * lands back on the invitation rather than the dashboard.
+ */
+export const useLogin = (returnTo?: string | null) => {
     const queryClient = useQueryClient();
     const router = useRouter();
+    const destination = safeReturnTo(returnTo);
     return useMutation({
         mutationFn: (values: LoginVendorRequest) => browserApi.auth.login(values),
         onSuccess: ({ data }) => {
             if (isTwoFactorChallenge(data)) {
-                router.push('/two-factor');
+                router.push(`/two-factor?returnTo=${encodeURIComponent(destination)}`);
                 return;
             }
             queryClient.setQueryData(sessionQueryKey, data.vendor);
-            router.replace('/dashboard');
+            router.replace(destination);
         },
     });
 };
