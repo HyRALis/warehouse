@@ -61,7 +61,7 @@ describe('templates', () => {
     });
 
     it('denies updates to system templates', async () => {
-        mockPrisma.characteristicTemplate.findUnique.mockResolvedValue({
+        mockPrisma.characteristicTemplate.findFirst.mockResolvedValue({
             id: templateId,
             vendorId: null,
             vendorProfileId: null,
@@ -73,11 +73,29 @@ describe('templates', () => {
             .send({ name: 'Changed' });
 
         expect(response.status).toBe(403);
+        expect(response.body.code).toBe('SYSTEM_TEMPLATE_READ_ONLY');
         expect(mockPrisma.characteristicTemplate.update).not.toHaveBeenCalled();
     });
 
+    it('does not disclose a template owned by another Vendor Profile', async () => {
+        mockPrisma.characteristicTemplate.findFirst.mockResolvedValue(null);
+
+        const response = await request(app)
+            .put(`/api/v1/templates/${templateId}`)
+            .set('Authorization', `Bearer ${token}`)
+            .send({ name: 'Changed' });
+
+        expect(response.status).toBe(404);
+        expect(mockPrisma.characteristicTemplate.findFirst).toHaveBeenCalledWith({
+            where: {
+                id: templateId,
+                OR: [{ vendorProfileId: null }, { vendorProfileId: vendorId }],
+            },
+        });
+    });
+
     it('prevents deleting a custom template used by categories', async () => {
-        mockPrisma.characteristicTemplate.findUnique.mockResolvedValue({
+        mockPrisma.characteristicTemplate.findFirst.mockResolvedValue({
             id: templateId,
             vendorId,
             vendorProfileId: vendorId,

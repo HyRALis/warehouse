@@ -6,17 +6,8 @@ import { AuthRequest } from '../middleware/auth';
 import { StorageService } from '../services/storage.service';
 import { QRCodeService } from '../services/qrcode.service';
 import type { CsvImportErrorCode, CsvImportRowError } from '@inventory-system/contracts';
-
-const productInclude = {
-    images: { orderBy: { sortOrder: 'asc' as const } },
-    category: true,
-    versions: {
-        where: { deletedAt: null },
-        orderBy: { versionNumber: 'asc' as const },
-        include: { images: { orderBy: { sortOrder: 'asc' as const } } },
-    },
-    _count: { select: { versions: { where: { deletedAt: null } } } },
-};
+import { productInclude, updateProduct } from '../repositories/product.repository';
+import { buildSearchText } from '../domain/product-search-text';
 
 const getEffectiveStatus = (productStatus: ProductStatus, versionStatus: ProductStatus) => {
     if (
@@ -51,9 +42,6 @@ const serializeProduct = <
         primaryVersion: versions.find((version) => version.isPrimary) || versions[0] || null,
     };
 };
-
-const buildSearchText = (...values: Array<string | null | undefined>) =>
-    values.filter(Boolean).join(' ').trim().toLowerCase();
 
 interface NormalizedCsvRow {
     row: number;
@@ -329,61 +317,30 @@ export class ProductController {
             const { categoryId, sku, baseName, barcode, characteristics, status } = req.body;
             const vendorProfileId = req.vendorProfileId!;
 
-            const product = await prisma.product.findFirst({
-                where: { id, vendorProfileId, deletedAt: null },
-                include: { category: { select: { name: true } } },
-            });
+            const updatedProduct = await updateProduct(vendorProfileId, id, req.body);
 
-            if (!product) {
-                res.status(404).json({ success: false, message: 'Product not found' });
+            res.status(200).json({
+                success: true,
+                data: updatedProduct && serializeProduct(updatedProduct),
+            });
+        } catch (error) {
+            const code = (error as { code?: string }).code;
+            if (code === 'P2002') {
+                res.status(409).json({
+                    success: false,
+                    code: 'IDENTIFIER_CONFLICT',
+                    message: 'That SKU or barcode is already used by one of your products.',
+                });
                 return;
             }
-
-            let categoryName = product.category.name;
-            if (categoryId !== undefined) {
-                const category = await prisma.category.findFirst({
-                    where: {
-                        id: categoryId,
-                        OR: [{ vendorProfileId: null }, { vendorProfileId }],
-                    },
-                    select: { id: true, name: true },
+            if (code === 'P2034') {
+                res.status(409).json({
+                    success: false,
+                    code: 'PRODUCT_CONFLICT',
+                    message: 'The product changed at the same time. Please retry.',
                 });
-
-                if (!category) {
-                    res.status(400).json({ success: false, message: 'Category is not available' });
-                    return;
-                }
-                categoryName = category.name;
+                return;
             }
-
-            let parsedCharacteristics = characteristics;
-            if (characteristics && typeof characteristics === 'string') {
-                parsedCharacteristics = JSON.parse(characteristics);
-            }
-
-            const updatedProduct = await prisma.product.update({
-                where: { id },
-                data: {
-                    ...(categoryId !== undefined && { categoryId }),
-                    ...(sku !== undefined && { sku }),
-                    ...(baseName !== undefined && { baseName }),
-                    ...(barcode !== undefined && { barcode }),
-                    ...(parsedCharacteristics !== undefined && {
-                        characteristics: parsedCharacteristics,
-                    }),
-                    ...(status !== undefined && { status }),
-                    searchText: buildSearchText(
-                        baseName ?? product.baseName,
-                        sku ?? product.sku,
-                        barcode === undefined ? product.barcode : barcode,
-                        categoryName
-                    ),
-                },
-                include: { images: true, category: true },
-            });
-
-            res.status(200).json({ success: true, data: updatedProduct });
-        } catch (error) {
             next(error);
         }
     }

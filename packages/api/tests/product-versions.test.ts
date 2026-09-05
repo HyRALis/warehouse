@@ -27,6 +27,7 @@ const product = {
     baseName: 'Creator Hoodie',
     status: 'ACTIVE',
     deletedAt: null,
+    category: { name: 'Apparel' },
 };
 
 const original = {
@@ -125,7 +126,10 @@ describe('product versions', () => {
         });
         expect(mockPrisma.product.update).toHaveBeenCalledWith({
             where: { id: productId },
-            data: expect.objectContaining({ sku: copied.sku }),
+            data: expect.objectContaining({
+                sku: copied.sku,
+                searchText: expect.stringContaining(copied.sku.toLowerCase()),
+            }),
         });
     });
 
@@ -151,6 +155,10 @@ describe('product versions', () => {
             where: { id: copyId },
             data: { deletedAt: expect.any(Date), status: 'DISCONTINUED' },
         });
+        expect(mockPrisma.$transaction).toHaveBeenCalledWith(
+            expect.any(Function),
+            expect.objectContaining({ isolationLevel: 'Serializable' })
+        );
     });
 
     it('reports effective lifecycle status for product and version combinations', async () => {
@@ -220,5 +228,19 @@ describe('product versions', () => {
 
         expect(response.status).toBe(409);
         expect(response.body.code).toBe('IDENTIFIER_CONFLICT');
+    });
+
+    it('rechecks product ownership under the row lock before creating a version', async () => {
+        mockPrisma.product.findFirst.mockResolvedValue(product);
+        mockPrisma.$queryRaw.mockResolvedValueOnce([]);
+
+        const response = await request(app)
+            .post(`/api/v1/products/${productId}/versions`)
+            .set('Authorization', `Bearer ${token}`)
+            .send({ label: 'Racing version', mode: 'BLANK', generateQrCode: false });
+
+        expect(response.status).toBe(404);
+        expect(response.body.code).toBe('PRODUCT_NOT_FOUND');
+        expect(mockPrisma.productVersion.create).not.toHaveBeenCalled();
     });
 });
