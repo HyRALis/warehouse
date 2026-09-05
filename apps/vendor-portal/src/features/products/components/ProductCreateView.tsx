@@ -42,9 +42,9 @@ const productFormSchema = z.object({
     categoryId: createProductRequestSchema.shape.categoryId,
     status: productStatusSchema,
     versionStatus: productStatusSchema,
-    designNotes: createProductRequestSchema.shape.designNotes,
+    designNotes: createProductRequestSchema.shape.designNotes.unwrap(),
     generateQrCode: z.boolean(),
-    characteristics: z.array(characteristicSchema).max(100),
+    characteristics: z.array(characteristicSchema.required({ measurement: true })).max(100),
 });
 
 export const ProductCreateView = () => {

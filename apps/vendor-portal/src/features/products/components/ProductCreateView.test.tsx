@@ -21,7 +21,7 @@ const renderForm = () => {
 };
 const selectCategory = async (user: ReturnType<typeof userEvent.setup>) => {
     await user.click(screen.getByRole('combobox', { name: 'Category' }));
-    await user.click(screen.getByRole('option', { name: 'Clothing', exact: true }));
+    await user.click(screen.getByRole('option', { name: 'Clothing' }));
 };
 
 describe('product-first creation', () => {
