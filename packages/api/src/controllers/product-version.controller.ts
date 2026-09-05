@@ -3,76 +3,13 @@ import prisma, { Prisma, ProductStatus } from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
 import { QRCodeService } from '../services/qrcode.service';
 import { StorageService } from '../services/storage.service';
-
-const versionInclude = {
-    images: { orderBy: { sortOrder: 'asc' as const } },
-    product: { select: { id: true, baseName: true, status: true, deletedAt: true } },
-};
-
-const effectiveStatus = (
-    productStatus: ProductStatus,
-    versionStatus: ProductStatus
-): ProductStatus => {
-    if (
-        productStatus === ProductStatus.DISCONTINUED ||
-        versionStatus === ProductStatus.DISCONTINUED
-    ) {
-        return ProductStatus.DISCONTINUED;
-    }
-    if (productStatus === ProductStatus.ACTIVE && versionStatus === ProductStatus.ACTIVE) {
-        return ProductStatus.ACTIVE;
-    }
-    return ProductStatus.DRAFT;
-};
-
-const serializeVersion = <
-    T extends { isPrimary: boolean; status: ProductStatus; product: { status: ProductStatus } },
->(
-    version: T
-) => ({
-    ...version,
-    effectiveStatus: effectiveStatus(version.product.status, version.status),
-    canDelete: !version.isPrimary,
-});
-
-const buildSearchText = (...values: Array<string | null | undefined>) =>
-    values.filter(Boolean).join(' ').trim().toLowerCase();
-
-const generateVersionSku = async (
-    tx: Prisma.TransactionClient,
-    vendorProfileId: string,
-    baseName: string,
-    label: string
-): Promise<string> => {
-    const prefix =
-        `${baseName}-${label}`
-            .normalize('NFKD')
-            .replace(/[^a-zA-Z0-9]+/g, '-')
-            .replace(/^-|-$/g, '')
-            .slice(0, 16)
-            .toUpperCase() || 'VERSION';
-
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-        const suffix = Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, '0');
-        const candidate = `${prefix}-${suffix}`;
-        const [product, version] = await Promise.all([
-            tx.product.findFirst({
-                where: { vendorProfileId, sku: candidate },
-                select: { id: true },
-            }),
-            tx.productVersion.findFirst({
-                where: { vendorProfileId, sku: candidate },
-                select: { id: true },
-            }),
-        ]);
-        if (!product && !version) return candidate;
-    }
-
-    throw Object.assign(new Error('Could not generate a unique version SKU.'), {
-        statusCode: 409,
-        code: 'SKU_GENERATION_FAILED',
-    });
-};
+import {
+    createVersionImage,
+    generateVersionSku,
+    lockOwnedProduct,
+    versionInclude,
+} from '../repositories/product-version.repository';
+import { buildSearchText, serializeVersion } from '../domain/product-search-text';
 
 const respondToVersionConflict = (error: unknown, res: Response): boolean => {
     const code = (error as { code?: string }).code;
@@ -169,7 +106,12 @@ export class ProductVersionController {
 
             const product = await prisma.product.findFirst({
                 where: { id: productId, vendorProfileId, deletedAt: null },
-                select: { id: true, baseName: true, status: true },
+                select: {
+                    id: true,
+                    baseName: true,
+                    status: true,
+                    category: { select: { name: true } },
+                },
             });
             if (!product) {
                 res.status(404).json({ success: false, message: 'Product not found' });
@@ -178,7 +120,7 @@ export class ProductVersionController {
 
             const created = await prisma.$transaction(
                 async (tx: Prisma.TransactionClient) => {
-                    await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId} AND vendor_profile_id = ${vendorProfileId} AND deleted_at IS NULL FOR UPDATE`;
+                    await lockOwnedProduct(tx, productId, vendorProfileId);
 
                     const source =
                         mode === 'COPY'
@@ -218,7 +160,8 @@ export class ProductVersionController {
                         product.baseName,
                         label,
                         resolvedSku,
-                        barcode
+                        barcode,
+                        product.category.name
                     );
 
                     const version = await tx.productVersion.create({
@@ -264,6 +207,16 @@ export class ProductVersionController {
                                 sku: version.sku,
                                 barcode: version.barcode,
                                 characteristics: version.characteristics as Prisma.InputJsonValue,
+                                imageUrl:
+                                    source && copyImages
+                                        ? source.images[0]?.imageUrl || null
+                                        : null,
+                                searchText: buildSearchText(
+                                    product.baseName,
+                                    version.sku,
+                                    version.barcode,
+                                    product.category.name
+                                ),
                             },
                         });
                     }
@@ -314,7 +267,7 @@ export class ProductVersionController {
 
             const updated = await prisma.$transaction(
                 async (tx: Prisma.TransactionClient) => {
-                    await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId} AND vendor_profile_id = ${vendorProfileId} AND deleted_at IS NULL FOR UPDATE`;
+                    await lockOwnedProduct(tx, productId, vendorProfileId);
                     const existing = await tx.productVersion.findFirst({
                         where: {
                             id: versionId,
@@ -323,7 +276,14 @@ export class ProductVersionController {
                             deletedAt: null,
                             product: { deletedAt: null },
                         },
-                        include: { product: { select: { baseName: true } } },
+                        include: {
+                            product: {
+                                select: {
+                                    baseName: true,
+                                    category: { select: { name: true } },
+                                },
+                            },
+                        },
                     });
                     if (!existing) {
                         throw Object.assign(new Error('Product version not found'), {
@@ -347,7 +307,8 @@ export class ProductVersionController {
                                 existing.product.baseName,
                                 label ?? existing.label,
                                 sku ?? existing.sku,
-                                barcode === undefined ? existing.barcode : barcode
+                                barcode === undefined ? existing.barcode : barcode,
+                                existing.product.category.name
                             ),
                         },
                     });
@@ -363,7 +324,8 @@ export class ProductVersionController {
                                 searchText: buildSearchText(
                                     existing.product.baseName,
                                     version.sku,
-                                    version.barcode
+                                    version.barcode,
+                                    existing.product.category.name
                                 ),
                             },
                         });
@@ -408,7 +370,7 @@ export class ProductVersionController {
             const { productId, versionId } = req.params;
             await prisma.$transaction(
                 async (tx: Prisma.TransactionClient) => {
-                    await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId} AND vendor_profile_id = ${vendorProfileId} AND deleted_at IS NULL FOR UPDATE`;
+                    await lockOwnedProduct(tx, productId, vendorProfileId);
                     const version = await tx.productVersion.findFirst({
                         where: {
                             id: versionId,
@@ -417,7 +379,15 @@ export class ProductVersionController {
                             deletedAt: null,
                             product: { deletedAt: null },
                         },
-                        include: { images: { orderBy: { sortOrder: 'asc' }, take: 1 } },
+                        include: {
+                            images: { orderBy: { sortOrder: 'asc' }, take: 1 },
+                            product: {
+                                select: {
+                                    baseName: true,
+                                    category: { select: { name: true } },
+                                },
+                            },
+                        },
                     });
                     if (!version) {
                         throw Object.assign(new Error('Product version not found'), {
@@ -442,6 +412,12 @@ export class ProductVersionController {
                             qrCodeUrl: version.qrCodeUrl,
                             imageUrl: version.images[0]?.imageUrl || null,
                             characteristics: version.characteristics as Prisma.InputJsonValue,
+                            searchText: buildSearchText(
+                                version.product.baseName,
+                                version.sku,
+                                version.barcode,
+                                version.product.category.name
+                            ),
                         },
                     });
                 },
@@ -462,47 +438,56 @@ export class ProductVersionController {
     static async softDelete(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
             const { productId, versionId } = req.params;
-            const version = await prisma.productVersion.findFirst({
-                where: {
-                    id: versionId,
-                    productId,
-                    vendorProfileId: req.vendorProfileId,
-                    deletedAt: null,
-                    product: { deletedAt: null },
+            const vendorProfileId = req.vendorProfileId!;
+            await prisma.$transaction(
+                async (tx: Prisma.TransactionClient) => {
+                    await lockOwnedProduct(tx, productId, vendorProfileId);
+                    const version = await tx.productVersion.findFirst({
+                        where: {
+                            id: versionId,
+                            productId,
+                            vendorProfileId,
+                            deletedAt: null,
+                            product: { deletedAt: null },
+                        },
+                        select: { id: true, isPrimary: true },
+                    });
+                    if (!version) {
+                        throw Object.assign(new Error('Product version not found'), {
+                            statusCode: 404,
+                            code: 'VERSION_NOT_FOUND',
+                        });
+                    }
+                    if (version.isPrimary) {
+                        throw Object.assign(
+                            new Error('Set another primary version before deleting this one.'),
+                            { statusCode: 409, code: 'PRIMARY_VERSION_REQUIRED' }
+                        );
+                    }
+
+                    const versionCount = await tx.productVersion.count({
+                        where: { productId, vendorProfileId, deletedAt: null },
+                    });
+                    if (versionCount <= 1) {
+                        throw Object.assign(
+                            new Error('A product must keep at least one version.'),
+                            {
+                                statusCode: 409,
+                                code: 'LAST_VERSION_REQUIRED',
+                            }
+                        );
+                    }
+
+                    await tx.productVersion.update({
+                        where: { id: versionId },
+                        data: { deletedAt: new Date(), status: ProductStatus.DISCONTINUED },
+                    });
                 },
-                select: { id: true, isPrimary: true },
-            });
-            if (!version) {
-                res.status(404).json({ success: false, message: 'Product version not found' });
-                return;
-            }
-            if (version.isPrimary) {
-                res.status(409).json({
-                    success: false,
-                    code: 'PRIMARY_VERSION_REQUIRED',
-                    message: 'Set another primary version before deleting this one.',
-                });
-                return;
-            }
-
-            const versionCount = await prisma.productVersion.count({
-                where: { productId, vendorProfileId: req.vendorProfileId, deletedAt: null },
-            });
-            if (versionCount <= 1) {
-                res.status(409).json({
-                    success: false,
-                    code: 'LAST_VERSION_REQUIRED',
-                    message: 'A product must keep at least one version.',
-                });
-                return;
-            }
-
-            await prisma.productVersion.update({
-                where: { id: versionId },
-                data: { deletedAt: new Date(), status: ProductStatus.DISCONTINUED },
-            });
+                { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+            );
             res.status(200).json({ success: true, message: 'Product version deleted' });
         } catch (error) {
+            if (respondToVersionConflict(error, res)) return;
             next(error);
         }
     }
@@ -578,22 +563,28 @@ export class ProductVersionController {
             if (version.images.length >= 4) {
                 res.status(400).json({
                     success: false,
+                    code: 'IMAGE_LIMIT_EXCEEDED',
                     message: 'Maximum of 4 images per version',
                 });
                 return;
             }
 
             const imageUrl = await StorageService.uploadFile(req.file);
-            const image = await prisma.productImage.create({
-                data: {
+            let image;
+            try {
+                image = await createVersionImage(
+                    req.vendorProfileId!,
                     productId,
-                    productVersionId: versionId,
-                    imageUrl,
-                    sortOrder: version.images.length,
-                },
-            });
-            if (version.isPrimary && version.images.length === 0) {
-                await prisma.product.update({ where: { id: productId }, data: { imageUrl } });
+                    versionId,
+                    imageUrl
+                );
+            } catch (databaseError) {
+                try {
+                    await StorageService.deleteFile(imageUrl);
+                } catch (cleanupError) {
+                    console.error('Failed to remove uncommitted version image', cleanupError);
+                }
+                throw databaseError;
             }
             res.status(201).json({ success: true, data: image });
         } catch (error) {
