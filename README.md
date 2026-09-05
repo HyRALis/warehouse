@@ -39,7 +39,9 @@ OmniStock is a monorepo for the vendor-facing catalog portal and the inventory p
     npm run dev
     ```
 
-The vendor portal is available at `http://localhost:3000`; the API defaults to `http://localhost:4000`. Liveness and database readiness probes are exposed at `/health` and `/ready` on the API host.
+The vendor portal is available at `http://localhost:3000`; the API defaults to `http://localhost:4000`. The portal uses a same-origin `/api/v1/*` BFF and `API_INTERNAL_URL` for server-to-server access, so the Express origin is not exposed to browser code. Liveness and database readiness probes are exposed at `/health` and `/ready` on the API host.
+
+Run the component workshop at `http://localhost:6006` with `npm run storybook`. It documents shared UI primitives and reusable portal components with controls, generated documentation, interaction examples, and accessibility auditing. Create a production-static build with `npm run build-storybook`.
 
 The browser uses `NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1` for platform APIs and
 `NEXT_PUBLIC_API_ORIGIN=http://localhost:4000` for native Better Auth calls. The origin is
@@ -55,8 +57,14 @@ Run the same checks required by CI:
 npm run build
 npm test
 npm run lint
+npm run standards:check
 npm run audit:prod
 ```
+
+`standards:check` enforces the structural rules in [`docs/standards`](docs/standards/README.md) —
+package and feature boundaries, backend layering, file size limits, and the story/test coverage bar.
+Violations that predate the standards are grandfathered in `tools/standards-baseline.json`; the check
+fails on anything new.
 
 Run the clean/current-data database migration test with Docker:
 
@@ -97,7 +105,21 @@ See [Vendor catalog, search, and CSV workflow hardening](docs/vendor-catalog-sea
 for advanced catalog ownership, recoverable loading/import/export behavior, intentionally bounded
 search, verification, and rollback.
 
+Portal state has explicit owners: TanStack Query for server data, `nuqs` for shareable list filters, TanStack Form plus Zod for forms, Zustand for harmless cross-route UI preferences, and local React/Radix state for ephemeral interactions. See the architecture records in [`docs/adr`](docs/adr).
+
 CI also starts PostgreSQL, applies the migration history, boots the compiled API, and runs `node tools/smoke-api.mjs`. The same smoke script can validate a deployed environment by setting `API_SMOKE_BASE_URL` to its API origin; it creates and then deactivates an isolated test vendor.
+
+## Standards
+
+Coding standards are binding for all new code and are enforced by ESLint, `npm run standards:check`,
+and review:
+
+- [Coding standards index](docs/standards/README.md) — boundaries, TypeScript, naming, PR rules,
+  enforcement, and the adoption baseline
+- [Frontend standards](docs/standards/frontend.md) — portal boundaries, feature slices, state
+  ownership, prop drilling, hooks and utilities, testing and Storybook
+- [Backend standards](docs/standards/backend.md) — layering, multi-tenancy, contracts, errors,
+  Prisma, security, testing
 
 ## Planning
 

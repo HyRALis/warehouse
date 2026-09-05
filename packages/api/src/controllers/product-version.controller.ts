@@ -3,97 +3,13 @@ import prisma, { Prisma, ProductStatus } from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
 import { QRCodeService } from '../services/qrcode.service';
 import { StorageService } from '../services/storage.service';
-
-const versionInclude = {
-    images: { orderBy: { sortOrder: 'asc' as const } },
-    product: { select: { id: true, baseName: true, status: true, deletedAt: true } },
-};
-
-const effectiveStatus = (
-    productStatus: ProductStatus,
-    versionStatus: ProductStatus
-): ProductStatus => {
-    if (
-        productStatus === ProductStatus.DISCONTINUED ||
-        versionStatus === ProductStatus.DISCONTINUED
-    ) {
-        return ProductStatus.DISCONTINUED;
-    }
-    if (productStatus === ProductStatus.ACTIVE && versionStatus === ProductStatus.ACTIVE) {
-        return ProductStatus.ACTIVE;
-    }
-    return ProductStatus.DRAFT;
-};
-
-const serializeVersion = <
-    T extends { isPrimary: boolean; status: ProductStatus; product: { status: ProductStatus } },
->(
-    version: T
-) => ({
-    ...version,
-    effectiveStatus: effectiveStatus(version.product.status, version.status),
-    canDelete: !version.isPrimary,
-});
-
-const buildSearchText = (...values: Array<string | null | undefined>) =>
-    values.filter(Boolean).join(' ').trim().toLowerCase();
-
-const lockOwnedProduct = async (
-    tx: Prisma.TransactionClient,
-    productId: string,
-    vendorProfileId: string
-): Promise<void> => {
-    const rows = await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT id
-        FROM products
-        WHERE id = ${productId}
-          AND vendor_profile_id = ${vendorProfileId}
-          AND deleted_at IS NULL
-        FOR UPDATE
-    `;
-    if (rows.length === 0) {
-        throw Object.assign(new Error('Product not found'), {
-            statusCode: 404,
-            code: 'PRODUCT_NOT_FOUND',
-        });
-    }
-};
-
-const generateVersionSku = async (
-    tx: Prisma.TransactionClient,
-    vendorProfileId: string,
-    baseName: string,
-    label: string
-): Promise<string> => {
-    const prefix =
-        `${baseName}-${label}`
-            .normalize('NFKD')
-            .replace(/[^a-zA-Z0-9]+/g, '-')
-            .replace(/^-|-$/g, '')
-            .slice(0, 16)
-            .toUpperCase() || 'VERSION';
-
-    for (let attempt = 0; attempt < 10; attempt += 1) {
-        const suffix = Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, '0');
-        const candidate = `${prefix}-${suffix}`;
-        const [product, version] = await Promise.all([
-            tx.product.findFirst({
-                where: { vendorProfileId, sku: candidate },
-                select: { id: true },
-            }),
-            tx.productVersion.findFirst({
-                where: { vendorProfileId, sku: candidate },
-                select: { id: true },
-            }),
-        ]);
-        if (!product && !version) return candidate;
-    }
-
-    throw Object.assign(new Error('Could not generate a unique version SKU.'), {
-        statusCode: 409,
-        code: 'SKU_GENERATION_FAILED',
-    });
-};
+import {
+    createVersionImage,
+    generateVersionSku,
+    lockOwnedProduct,
+    versionInclude,
+} from '../repositories/product-version.repository';
+import { buildSearchText, serializeVersion } from '../domain/product-search-text';
 
 const respondToVersionConflict = (error: unknown, res: Response): boolean => {
     const code = (error as { code?: string }).code;
@@ -654,23 +570,12 @@ export class ProductVersionController {
             const imageUrl = await StorageService.uploadFile(req.file);
             let image;
             try {
-                image = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-                    const createdImage = await tx.productImage.create({
-                        data: {
-                            productId,
-                            productVersionId: versionId,
-                            imageUrl,
-                            sortOrder: version.images.length,
-                        },
-                    });
-                    if (version.isPrimary && version.images.length === 0) {
-                        await tx.product.update({
-                            where: { id: productId },
-                            data: { imageUrl },
-                        });
-                    }
-                    return createdImage;
-                });
+                image = await createVersionImage(
+                    req.vendorProfileId!,
+                    productId,
+                    versionId,
+                    imageUrl
+                );
             } catch (databaseError) {
                 try {
                     await StorageService.deleteFile(imageUrl);

@@ -60,10 +60,12 @@ facade also supports invited Better Auth users who do not have a legacy `Vendor`
 
 ## Verification
 
-The stage is covered by component tests for Owner-only navigation, access revocation, invitation
-resend, Organization activation, expired invitations, and safe MFA/return routing. API tests cover
-public invitation summaries, unknown-token behavior, Owner access protection, subscription checks,
-and cross-Organization member targeting.
+The stage is covered by component tests for Owner-only navigation, portal access grant and revoke,
+implicit Owner access, invited-address normalization, Organization activation after acceptance, and
+Better Auth failures surfacing as errors. Unit tests cover expired or already-used invitations,
+invited-email matching, owner role parsing, and safe return-path handling. API tests cover public
+invitation summaries, unknown-token behavior, Owner access protection, subscription checks, and
+cross-Organization member targeting.
 
 Production builds and TypeScript checks cover both new routes. Browser verification covers the
 signed-out acceptance view at desktop and mobile widths without creating an account or consuming an

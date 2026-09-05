@@ -7,3 +7,5 @@ dist
 coverage
 storybook-static
 packages/database/src/generated/prisma
+.storybook-cache/
+**/storybook-static/
