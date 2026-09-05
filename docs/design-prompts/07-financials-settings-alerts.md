@@ -2,7 +2,7 @@
 
 **Depends on:** `00-foundation.md`
 
-## Part 1 — Financials *(manager only)*
+## Part 1 — Financials *(explicit financial permissions)*
 
 ### What this is, and the naming that matters
 
@@ -36,11 +36,13 @@ the period and scope explicit.
 
 ## Part 2 — Settings
 
-Manager-only. Group into:
+Show each area only with its relevant configuration permission. Operational management does not
+automatically grant team administration, financial export or invoice-signing authority. Group into:
 
-**Locations** — list and edit; code, name, type (warehouse or store), timezone, whether negative
-stock is allowed. Explain that last one in plain language: allowing negative stock means a sale is
-never blocked by a stock error, and the discrepancy is raised for review instead.
+**Locations** — code, name, type, timezone and FIFO/FEFO/manual stock rotation. Suggest FEFO for
+expiry-led warehouses and explain assumed versus confirmed batch picks. New sales cannot exceed
+available sellable stock; there is no routine negative-stock override in this release. Fiscal
+recovery discrepancies are separate facts to investigate.
 
 **Suppliers** — covered in prompt 03; link to it here.
 
@@ -48,12 +50,29 @@ never blocked by a stock error, and the discrepancy is raised for review instead
 rate is currently active and when each takes effect. Historical rates are never edited, only
 superseded — design that constraint honestly.
 
-**Pricing** — how selling prices are set, per item and optionally per location, effective-dated. A
-price change creates a new entry rather than overwriting; show the history.
+**Pricing** — effective-dated item/location prices and batch overrides. Every change prompts for
+this batch or all batches of the item and previews location/quantity impact. An all-batch change
+supersedes conflicting overrides in the chosen scope; retain the history.
 
-**Team and roles** — assign `INVENTORY_MANAGER`, `INVENTORY_STAFF` or `INVENTORY_VIEWER` per person
-per location. Make the consequence visible: state explicitly that staff cannot see cost, margin or
-financials, so the person granting access understands what they are granting.
+**Team and permissions** — Person -> job preset(s) -> locations -> review effective access -> save.
+Use the proposed receiver, warehouse worker, controller, store manager, finance and viewer presets;
+cashier is later POS. Exact preset grants remain open. Allow combined jobs with a bounded advanced
+permissions list, not a role hierarchy or policy editor. Show a plain-language access summary.
+
+Separate prepare/post, count/adjust, damage-report/hold/write-off, return/refund, receipt-cost entry/
+posted-cost correction, price changes, invoice prepare/sign/accept, financial read/export and team
+administration. Show costs on receiving only when granted; do not expose general valuation/margins
+by implication. Team management is owner-controlled or explicitly delegated within limits: prevent
+self-escalation, granting beyond delegated actions/locations and hidden organization-wide access.
+Audit access changes; include revoked access before submission and updates to the worker's worklist.
+
+**Approvals** — one scoped worklist, with original document, requested change, reason and impact.
+Only request approval for an action the requester cannot already perform. Tie approval to the exact
+revision; changes invalidate it. Do not force a second employee in an owner-operated store. Signing,
+stock/cost/price validation and correction dependencies still apply after approval.
+
+**Financial permissions** — sales totals, supplier costs, valuation/margin and export have separate
+grants and location scopes. Financial exports require both relevant data access and export authority.
 
 **e-Faktura** — registered certificates (holder, serial, expiry, e-UJP id, tax number), with
 expiry warnings well in advance. Emphasise that the platform never stores private keys and signing
@@ -68,7 +87,7 @@ Design an alerting surface that respects attention. This product could easily ge
 notifications a day and become noise nobody reads.
 
 Alert types: low stock (below reorder point), expiring soon (configurable windows), expired stock
-present, negative stock discrepancy, unmatched POS lines accumulating, e-Faktura awaiting
+present, stock discrepancy, uncertain fiscal outcomes awaiting recovery, e-Faktura awaiting
 signature, incoming faktura approaching auto-accept deadline, and certificate expiring.
 
 Design:
@@ -76,7 +95,8 @@ Design:
 - **A worklist, not a feed.** These are things needing a human decision, not news. Once handled,
   they leave. The count should be actionable and should reach zero.
 - **Grouping.** "23 items below reorder point" as one entry, not 23 alerts.
-- **Configuration.** Thresholds, expiry windows, and which alerts each role receives.
+- **Configuration.** Thresholds, expiry windows and routing to workers with the required action/scope.
+  Receipt/sale success uses follow-up links; missing prices and invoice tasks enter this worklist.
 - **An empty state that feels good.** Nothing needing attention is a success, and should look like
   one rather than like a broken page.
 

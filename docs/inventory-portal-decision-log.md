@@ -190,7 +190,7 @@ product would want from it are Enterprise-licensed and it brings a competing the
 ## IPD-014 - The mock POS adapter is a deliverable, not a test fixture
 
 **Date:** 2026-09-04\
-**Status:** Accepted
+**Status:** Revised by IPD-027 - retain simulator, remove external POS adapter scope
 
 `@inventory-system/contracts` owns a `SalesIngestPayload` schema. Shipped alongside it: a pure
 reference mapper, a seeded deterministic sales-stream generator, and a runnable fake till that
@@ -289,7 +289,8 @@ worklist state rather than an error.
 **Date:** 2026-09-04\
 **Status:** Accepted
 
-A sale posts to the stock ledger first and unconditionally. Issuing the e-Faktura is a subsequent,
+A new sale passes stock and price authorization (IPD-024), then posts to the stock ledger without
+depending on UJP availability. A completed external sale is retained as a fact. Issuing e-Faktura is a subsequent,
 independently retryable step. The same holds on the inbound side: a goods receipt posts stock
 regardless of whether its supplier invoice has been matched or accepted.
 
@@ -330,3 +331,180 @@ documents UJP rejects for a totals mismatch with an error pointing at the amount
 method. Validating against cached codelists before submission converts a remote rejection into a
 local, explainable failure. Maintaining a parallel status vocabulary would guarantee drift from the
 authority that actually owns the value.
+
+## IPD-022 - Complete opening inventory is a launch workflow
+
+**Date:** 2026-09-05\
+**Status:** Accepted - founder clarification; supplements IPD-015
+
+Stores must enter/import everything already on hand: items, locations, quantities, lots, expiry,
+purchase costs and selling prices. Provide bulk setup with preview, validation, saved progress
+and a POS cutover boundary. Opening inventory posts once as a distinct opening document, not a
+current-period purchase. Required cost applies to opening stock too; absent values remain an
+incomplete setup task, never silent zero cost. Sale price is required before release for sale.
+
+**Reason:** Setup effort is the first adoption hurdle. No historical sales backfill does not mean
+the store starts with zero inventory or must invent purchase receipts for existing goods.
+
+## IPD-023 - Every posted receipt has cost; accept the total cost of a bulk quantity
+
+**Date:** 2026-09-05\
+**Status:** Accepted - founder clarification; refines IPD-002 and IPD-008
+
+A receipt cannot post until each item quantity has an entered purchase cost. Accept either unit
+cost or total cost for that line's entire quantity. For 200 milk cartons costing 12,000 MKD, the
+receiver enters quantity 200 and total 12,000; the system calculates the unit figure. Drafts may
+be incomplete. The total amount is authoritative, and exact allocation retains residual minor
+units instead of requiring the user to divide or round manually. Later cost corrections remain
+possible through IPD-025.
+
+**Reason:** The supplier supplies the purchase amount, and receiving should not require manual
+per-unit calculations. Captured cost is required even when it may later need correction.
+
+**Open:** preserve current manager-only cost visibility until the founder selects who may enter
+cost; staff may prepare quantity/lot drafts. Confirm VAT-inclusive/exclusive entry and deliberate
+free-stock treatment. Exceptions for unknown opening cost are not authorized by this decision.
+
+## IPD-024 - New sales require available stock and a confirmed selling price
+
+**Date:** 2026-09-05\
+**Status:** Accepted requirement; integration and price scope pending - refines IPD-009
+
+New portal sales and compatible connected-POS sales must not exceed available sellable quantity.
+This includes zero/negative balances and a requested quantity larger than the remaining stock.
+The stock check must be atomic under concurrent tills. Received batches without a confirmed
+selling price are not available for new sales. When releasing a batch, offer the previous selling
+price for that item as a visible reuse option; the owner can confirm it or enter a new price.
+
+An authenticated, valid receipt describing an already-completed external sale is still retained.
+It can reveal negative stock or unresolved valuation and must enter reconciliation; rejecting the
+fact cannot undo a physical sale. This exception does not permit another new sale. A receipt-only
+connection cannot promise pre-sale enforcement; the POS must participate before completion.
+
+**Open:** whether launch requires a compatible external POS or an OmniStock checkout; outage and
+reservation/fiscal-outcome behavior; whether an item has one current store price or simultaneous
+batch prices. FIFO/FEFO and the financial costing policy remain proposals pending explanation and
+confirmation. No full checkout implementation is authorized by this decision alone.
+
+## IPD-025 - Corrections, cancellations, returns and spoiled/damaged stock are in scope
+
+**Date:** 2026-09-05\
+**Status:** Accepted - founder clarification; refines IPD-002
+
+Support purchase-cost corrections, sales corrections, selling-price changes, purchase
+cancellation, customer/supplier returns, and dysfunctional/damaged/spoiled goods. Preserve original
+posted facts and append linked corrections. Financial corrections and physical movements are
+separate: changing a price does not move goods, a customer credit does not prove a return, and
+damaged returned goods are not automatically sellable. Reversing a receipt must account for goods
+already sold or transferred. Draft cancellation has no stock effect.
+
+The initial reporting purpose is operational analytics. Accounting use may be developed later;
+accounting period locks and the policy for a correction after an earlier export remain open.
+Maintain original and corrected values with effective time, recorded time and attribution so
+that future accounting integration does not require losing history.
+
+## IPD-026 - Onboarding and current analytics deliver early value; e-Faktura is required at launch
+
+**Date:** 2026-09-05\
+**Status:** Accepted - founder clarification; reinforces IPD-017 and refines IPD-015
+
+Prioritize accurate, easy store setup and dependable daily operations. Current sales, revenue,
+gross margin, stock and expiry analytics are useful from the first facts; partial periods must be
+labeled, not hidden until a month/year passes. Historical comparisons need matching coverage.
+Purchasing predictions are not a prerequisite for early value. Simple descriptive reorder rules
+remain distinct from prediction and require adequate input quality.
+
+e-Faktura is essential for launch. Perform its browser/certificate/submission feasibility proof
+early and complete the accepted invoicing scope before release; using a separate invoice process
+is no longer the proposed default launch path. POS ownership is subsequently resolved in IPD-027;
+pilot size and exact business segment remain open.
+
+## IPD-027 - Build our own POS after inventory; integrate with fiscal devices
+
+**Date:** 2026-09-05\
+**Status:** Accepted - founder clarification; revises IPD-009, IPD-014 and IPD-024
+
+OmniStock will provide its own checkout software after the inventory phase. External POS vendor
+adapters, external product-code mappings and their reconciliation UI are removed from current
+scope. Inventory and our POS share canonical item/lot IDs, pricing and sale services. Keep a fake
+till and fiscal-adapter simulator for development, independent from real fiscal hardware.
+
+Research and prove the interface to a supported fiscal printer/register early; build checkout
+later. The proposed device boundary is a local bridge with one serialized command stream per
+printer, durable operation records and outcome recovery. Stock authorization/reservation precedes
+fiscal submission; a confirmed outcome finalizes the sale once. A timeout does not prove failure
+and must not trigger a blind duplicate receipt or premature stock release.
+
+**Open implementation choices:** first model/firmware, bridge SDK versus direct protocol, test
+device access, offline checkout policy, and detailed payment/fiscal recovery. Online authorization
+is the planning default. Owning our POS does not create a transaction shared with fiscal hardware.
+
+## IPD-028 - Price changes offer this batch or all batches of the item
+
+**Date:** 2026-09-05\
+**Status:** Accepted - founder choice; resolves price scope in IPD-024
+
+When an owner/manager changes a selling price, explicitly ask whether it affects the selected
+batch or all batches of the item. Preview affected quantities, locations and prices. Store
+effective-dated batch overrides alongside item/location defaults. An all-batch change supersedes
+conflicting active overrides within the selected authorized locations; history and previous sales
+remain unchanged. Batch-only changes do not silently update the default offered for later receipts.
+
+If concurrent batches have different prices, our POS must identify the batch with a dedicated
+label/code or explicit cashier choice. A shared item barcode plus assumed FIFO/FEFO must not
+silently determine the customer's price. The physical labeling/selection UX belongs to the later
+POS design, while its price/allocation contracts belong in the inventory model now.
+
+## IPD-029 - Stock rotation is configurable by location
+
+**Date:** 2026-09-05\
+**Status:** Accepted configurable policy; implementation defaults selected from founder direction
+
+Offer FIFO (earliest receipt), FEFO (earliest expiry) and manual batch selection at the store or
+warehouse level. Suggest FEFO for warehouses managing expiry. Use FIFO as the initial store
+allocation default, clearly labeled assumed when actual picking is unknown. Warehouse pick lists
+recommend batches and record actual confirmation/overrides. An allocation setting does not prove
+shoppers chose the expected retail batch; counts and corrections remain necessary.
+
+Expired, damaged or held goods are excluded under every rotation policy. Different batch prices
+require actual batch selection regardless of the rotation setting. Physical rotation and financial
+costing are distinct; the latter remains open and historical allocations are not rewritten when a
+setting changes.
+
+## IPD-030 - Receiving staff can enter receipt costs; managers control corrections and financials
+
+**Date:** 2026-09-05\
+**Status:** Selected under explicit founder delegation - revises IPD-012 and resolves IPD-023
+
+Keep the three roles. Staff who receive stock may see and enter supplier costs, including bulk
+totals, on receiving documents at their authorized locations. They can post complete receipts;
+missing cost still blocks posting. They may reuse an already manager-approved selling price to
+release stock, but may not create/change the selling price.
+
+Managers control posted-cost corrections, selling-price changes, stock valuation and margin/
+financial reporting. Receiving-cost access does not expose cost in unrelated stock/movement/sales
+responses. Tests cover the permitted receipt access and the remaining redaction boundaries.
+
+**Reason:** Receiving already involves supplier documents, and mandatory manager re-entry would
+create an unnecessary queue for routine deliveries. Keep sensitive reporting and historical value
+changes separate without introducing a general permission engine.
+
+## IPD-031 - Simplify worker journeys and differentiate worker permissions
+
+**Date:** 2026-09-05\
+**Status:** Accepted founder requirement; exact job presets and grants proposed
+
+Simplify everyday inventory tasks without removing validation, authorization or audit history.
+Different worker types must have different access. This revises IPD-012's closed three-role model
+and IPD-030's broad staff assignment; authorized receivers retain the ability to enter receipt costs
+and post complete receipts, but unrelated workers do not inherit that access.
+
+Propose job presets backed by bounded action/data permissions and explicit location scope. Separate
+preparing a document from posting/approving it where relevant, and separate receipt costs from
+general financial visibility. Enforce permissions on the server, including reads and exports.
+Role membership or approval never bypasses stock, cost, price, correction or signing requirements.
+
+The detailed [UX and permissions proposal](inventory-ux-and-permissions.md) records the suggested
+worker presets and shorter journeys. Exact worker types, refund/write-off approval, financial
+visibility, invoice authority and delegated team administration await founder clarification.
+No permission implementation or user access changes are made by this planning decision.

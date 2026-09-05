@@ -20,14 +20,23 @@ import {
     type CreateProductRequest,
     type CreateProductVersionRequest,
     type CreateTemplateRequest,
+    type ForgotPasswordRequest,
     type LoginVendorRequest,
     type ProductListQuery,
     type RegisterVendorRequest,
+    type ResetPasswordRequest,
     type UpdateCategoryRequest,
     type UpdateProductRequest,
     type UpdateProductVersionRequest,
     type UpdateTemplateRequest,
+    type UpdateMemberPortalAccessRequest,
+    type UpdateVendorProfileRequest,
     type UpdateVendorRequest,
+    memberPortalAccessApiResponseSchema,
+    publicInvitationSummaryApiResponseSchema,
+    vendorMembersApiResponseSchema,
+    vendorPlatformContextApiResponseSchema,
+    vendorProfileApiResponseSchema,
 } from '@inventory-system/contracts';
 import type { ApiClient } from './client';
 
@@ -59,6 +68,41 @@ export const createInventoryApi = (client: ApiClient) => ({
         logout: () => client.request('/auth/logout', messageResponseSchema, { method: 'POST' }),
         current: (signal?: AbortSignal) =>
             client.request('/auth/me', currentVendorApiResponseSchema, { signal }),
+        forgotPassword: (body: ForgotPasswordRequest) =>
+            client.request('/auth/forgot-password', messageResponseSchema, {
+                method: 'POST',
+                body,
+            }),
+        resetPassword: (body: ResetPasswordRequest) =>
+            client.request('/auth/reset-password', messageResponseSchema, {
+                method: 'POST',
+                body,
+            }),
+    },
+    platform: {
+        context: (signal?: AbortSignal) =>
+            client.request('/platform/context', vendorPlatformContextApiResponseSchema, { signal }),
+        vendorProfile: (signal?: AbortSignal) =>
+            client.request('/platform/vendor-profile', vendorProfileApiResponseSchema, { signal }),
+        updateVendorProfile: (body: UpdateVendorProfileRequest) =>
+            client.request('/platform/vendor-profile', vendorProfileApiResponseSchema, {
+                method: 'PUT',
+                body,
+            }),
+        invitationSummary: (invitationId: string, signal?: AbortSignal) =>
+            client.request(
+                `/platform/invitations/${encodeURIComponent(invitationId)}`,
+                publicInvitationSummaryApiResponseSchema,
+                { signal }
+            ),
+        members: (signal?: AbortSignal) =>
+            client.request('/platform/vendor/members', vendorMembersApiResponseSchema, { signal }),
+        updateMemberAccess: (memberId: string, body: UpdateMemberPortalAccessRequest) =>
+            client.request(
+                `/platform/vendor/members/${encodeURIComponent(memberId)}/access`,
+                memberPortalAccessApiResponseSchema,
+                { method: 'PUT', body }
+            ),
     },
     vendors: {
         update: (body: UpdateVendorRequest) =>

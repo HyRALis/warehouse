@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Lock, Mail } from 'lucide-react';
 import { Alert } from '@inventory-system/ui';
 import { loginVendorRequestSchema } from '@inventory-system/contracts';
@@ -10,7 +11,7 @@ import { useLogin } from '../queries';
 import { AuthShell } from './AuthShell';
 
 export const LoginForm = () => {
-    const login = useLogin();
+    const login = useLogin(useSearchParams().get('returnTo'));
     const form = useAppForm({
         defaultValues: { email: '', password: '' },
         validators: { onSubmit: loginVendorRequestSchema },
@@ -32,6 +33,10 @@ export const LoginForm = () => {
                 </>
             }
         >
+            <Alert variant="info" className="mb-6 text-xs leading-5">
+                Existing accounts were moved to secure sessions. Sign in again with your current
+                password; no password reset is required.
+            </Alert>
             {login.error && (
                 <Alert variant="danger" className="mb-6">
                     {login.error.message}
@@ -75,6 +80,11 @@ export const LoginForm = () => {
                     </form.SubmitButton>
                 </form.AppForm>
             </form>
+            <p className="mt-4 text-center text-sm">
+                <Link href="/forgot-password" className="text-indigo-400 hover:text-indigo-300">
+                    Forgot your password?
+                </Link>
+            </p>
         </AuthShell>
     );
 };
