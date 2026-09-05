@@ -68,3 +68,33 @@ so it deserves real design attention rather than a generic empty page.
 Sidebar expanded / collapsed / mobile; header with all indicator states; the location switcher in
 single-location, multi-location and "All locations" cases, plus the cannot-aggregate prompt; the
 role variants (manager vs staff vs viewer); and the first-run experience.
+
+## Required modifications to the existing design — 2026-09-05
+
+This prompt has already been used. Modify the existing shell rather than rebuilding it. This
+addendum supersedes the conflicting navigation, three-role and first-delivery instructions above.
+Source: `README.md`, `../inventory-ux-and-permissions.md` and IPD-031.
+
+1. Change primary navigation to **Home, Stock, Receive, Sales & returns, Documents, Reports**.
+   Keep **Settings** secondary. Move the full analytics dashboard and permitted financial reports
+   into Reports. Home becomes a focused worker worklist, not the same dashboard for everyone.
+2. Receiver Home prioritizes deliveries/drafts; warehouse Home prioritizes picks/counts/expiry;
+   manager/controller Home prioritizes authorized exceptions; finance Home prioritizes documents.
+   Hide inaccessible destinations and show a useful restricted state for direct links.
+3. Replace the manager boolean with action/data permissions at authorized locations. Display preset(s)
+   and scope in the account area. Presets remain proposed; people can combine responsibilities.
+   Settings access does not imply team-administration authority. Financial read and export differ.
+4. Use one scoped worklist for missing selling prices, approvals, invoice signatures/acceptance and
+   later fiscal recovery. Remove unmatched external-POS-line tasks: OmniStock builds its own POS later.
+   Link to follow-up after receiving/sale; do not open mandatory invoice dialogs after routine posting.
+5. Replace first-delivery onboarding with **Store details -> Stock grid/import -> Review and start**.
+   Capture existing quantity, tracked lots/expiry, required costs and selling prices, with saved
+   progress and explicit opening cutover. Do not treat opening inventory as a new supplier purchase.
+6. Keep the existing location switcher; show only authorized locations and use the chosen location
+   as a visible default. All-locations reporting is limited to authorized scope. Transfers must
+   respect source and destination permissions. Include permission revocation during a draft.
+7. Show short worker journeys with backend checks annotated separately. Preserve stock, price,
+   cost, correction, invoice and authentication validations. Approval cannot override invalid data.
+
+Deliver incremental desktop/tablet/mobile shell changes and worker-specific Home examples. Keep
+the established visual language and existing portal-switching behavior.

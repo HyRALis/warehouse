@@ -5,13 +5,19 @@
 
 ## Your task
 
-Design the dashboard. This is the product's headline feature — the reason a manager buys it rather
-than using a spreadsheet. It must help someone decide **what to buy next**.
+Design a useful dashboard from the first transactions: what is in stock, what sold, what earned
+margin, and what may spoil. Purchasing suggestions improve with history. Initial adoption depends
+on easy opening-store setup and reliable operations; predictive purchasing is not required for
+month-one value.
+
+This dashboard lives under **Reports**. Home shows a small job-relevant summary and actionable
+worklist (prompt 01 addendum), not every chart below. Show advanced analyses on demand; do not fill
+a receiver's Home with year-long collecting-history placeholders.
 
 ## The hard constraint you must design around
 
-**There is no historical data at launch.** Customers cannot import prior-year history. Every metric
-starts empty on day one and fills forward. The flagship analytics — previous-year patterns,
+**There is no prior sales history at launch.** Opening quantities/lots/costs are entered at setup,
+so stock views need not start empty. Current sales analytics fill forward. Previous-year patterns,
 seasonality, year-over-year — cannot produce a real answer for roughly **twelve months**.
 
 A dashboard designed only for a mature dataset will look broken for the first year of every
@@ -25,11 +31,10 @@ Lead with what works immediately, not with what is most impressive:
 | Available | Metric |
 |---|---|
 | Immediately | Stock on hand, stock value, expiry risk |
-| Day 1 | Sold today, sold this week |
-| ~1 week | Best sellers, best margin items |
+| Day 1 | Sold today, sold this week, gross profit month-to-date; partial-period labels |
+| From first sales | Best sellers and margin rankings with short-window/completeness labels |
 | 2–4 weeks | Reorder suggestions, velocity |
-| 1 month | Period gross profit |
-| **12+ months** | Seasonality, year-over-year |
+| **12+ months** | Year-over-year where matching periods exist; seasonality evidence improves with additional cycles |
 
 ### Insufficient-data states are a first-class design task
 
@@ -46,20 +51,20 @@ someone uses to commit real purchasing money is worse than no trend.
 ## Dashboard content
 
 **KPI row — stat tiles, not charts.** Stock on hand, sold today, gross profit month-to-date
-*(manager only)*, expiring within 30 days. Value, delta versus the previous period, sparkline. A
+*(margin permission only)*, expiring within 30 days. Value, delta versus the previous period, sparkline. A
 single number is a stat tile; never a one-bar bar chart.
 
 **Then, in priority order:**
 
 - **Sales trend** — line chart, day/week/month granularity. Works from day one.
 - **Expiry risk** — buckets (expired, ≤7d, ≤30d, ≤90d) using the status palette, with value at
-  risk for managers. Actionable: click through to the items.
+  risk with valuation permission. Actionable: click through to authorized items.
 - **Reorder suggestions** — a ranked table, not a chart. Item, current stock, daily velocity,
   supplier lead time, suggested quantity, and **why** it was suggested. The recommendation must be
   explainable in one line; a manager will not act on a number they cannot justify.
 - **Best sellers** — horizontal bar, **single sequential hue**. This is a magnitude comparison, not
   an identity one. Do not give the top ten ten different colours.
-- **Best margin items** — same treatment, manager only. Often a different list from best sellers,
+- **Best margin items** — same treatment, margin permission required. Often a different list from best sellers,
   which is precisely the insight.
 - **Category mix over time** — stacked bar, categorical palette, maximum eight series with the tail
   folded into "Other".
@@ -99,13 +104,17 @@ Also design the stale/disconnected state.
 
 ## Permissions
 
-Staff and viewers see no cost, margin, profit or stock-value figures. Design a genuinely useful
-staff dashboard — stock, expiry, what sold, what to reorder — rather than the manager dashboard
-with holes in it.
+Use explicit report/data/location permissions from `README.md`: stock/expiry, sales quantities,
+sales totals, supplier costs, valuation/margin and exports are not one report-access toggle.
+Warehouse/viewer examples show stock and expiry; sales summaries appear only when authorized.
+Receipt-cost access does not grant financial analytics. Finance and manager presets may have
+different scopes. Restricted data must be absent from charts, tooltips, drill-downs and exports.
+Design useful compact summaries for each job, plus a separately authorized full Reports view.
 
 ## Deliverables
 
 Desktop dashboard in three lifecycles: **day one** (nearly empty), **month three** (partial —
-some metrics live, some still collecting), and **year two** (full). Manager and staff variants.
+some metrics live, some still collecting), and **year two** (full where coverage supports it).
+Stock-only, sales-authorized and financial-authorized variants, with separate export permission.
 Every chart in its normal, insufficient-data, loading, empty and error state. Tablet and mobile
 layouts. The EUR toggle. The reorder suggestions table with explanations.
