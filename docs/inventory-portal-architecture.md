@@ -1,7 +1,7 @@
 # Inventory Portal Architecture Blueprint
 
 **Status:** Proposed; awaiting approval before PR 00\
-**Reviewed:** 2026-09-03\
+**Reviewed:** 2026-09-05\
 **Primary audience:** Store managers, warehouse managers, and the owners who plan their purchasing\
 **Repository baseline:** `develop` (Prisma 7, Better Auth, portal entitlements), plus the reconciled `main` frontend stack\
 **Depends on:** [Vendor Portal Implementation Blueprint](vendor-portal-implementation-plan.md), [Vendor Portal Decision Log](vendor-portal-decision-log.md)
@@ -12,23 +12,26 @@ The Inventory Portal is the second product on the OmniStock platform. It reuses 
 Organization, portal-subscription, and member-access foundation built for the Vendor Portal
 (VPD-003 through VPD-006) and adds an inventory domain of its own.
 
-Its selling point is not stock tracking. Stock tracking is table stakes. The selling point is
-**analytics that let a manager decide what to buy next**: what sold, when it sold, what it earned,
-what is about to expire, and what the same week looked like last year.
+The first adoption hurdle is getting an existing store set up accurately with minimal effort.
+The release must make opening inventory, daily receiving, sales, corrections and invoicing easy
+and reliable. **Analytics are useful from the first transactions:** what sold, what it earned,
+and what is about to expire. Purchasing suggestions and historical comparisons gain coverage as
+history accumulates; customers do not wait a year for useful analytics.
 
 That single fact drives the whole design. Analytics quality is a function of the fidelity of the
 underlying events, so the core of this system is an **append-only stock movement ledger** with cost
-and price captured at the moment they were true. Current stock, margin, and every report are
-projections of that ledger, never independently maintained numbers.
+and price captured at the moment they were true. Current stock, margin, and reports are projections
+of stock movements, sales facts and linked value corrections, never independently maintained numbers.
 
-Four capabilities define the release:
+Five capabilities define the release:
 
-1. Multi-location stock with lot/batch tracking and per-delivery expiry dates.
-2. Receiving with per-delivery purchase cost, and effective-dated selling prices.
-3. Sales captured from two sources — manual entry in the portal and live external POS ingest —
+1. Complete opening inventory and multi-location stock with lot/batch tracking and expiry dates.
+2. Receiving with mandatory purchase cost, including bulk-total entry, and confirmed selling prices.
+3. Sales captured from two sources — manual entry in the portal and the future OmniStock POS —
    normalised into one sales-document model that covers both fiscal receipts and invoices
    (фактури).
 4. An analytics and gross-profit layer over daily, monthly, quarterly, and yearly rollups.
+5. e-Faktura at launch, plus purchase/sale corrections, returns and damaged/spoiled stock handling.
 
 ## 2. Product principles
 
@@ -38,7 +41,12 @@ Four capabilities define the release:
   effective-dated. Cost of goods sold is recorded on the sale, not recomputed later from today's
   prices.
 - **Corrections are entries, not edits.** Nothing in the ledger is updated or deleted; mistakes are
-  fixed with compensating movements that keep the audit trail intact.
+  fixed with linked quantity or value corrections that keep the audit trail intact. A cost-only or
+  price-only correction must not fabricate physical stock movement.
+- **Cost precedes receipt posting; price precedes selling.** A draft can be incomplete. Opening
+  stock and received stock require an entered purchase cost before posting; a batch is available
+  for new sales only when a selling price has been confirmed. Completed fiscal outcomes recovered
+  remain recordable as exceptions (§6.2).
 - **A manager sees a decision, not a table.** Every analytics screen answers a question a person
   actually asks: what should I reorder, what is about to spoil, what made money.
 - **Money is exact.** All amounts are integer minor units with an explicit currency. No floating
@@ -57,38 +65,47 @@ Four capabilities define the release:
 ### Included
 
 - Stock locations (warehouses and stores) with per-location stock.
+- Guided opening-stock setup/import: all existing items, quantities, lots, expiry, purchase costs,
+  selling prices and location holdings, with preview, saved progress and cutover reconciliation.
 - Inventory items that either wrap a Vendor Portal `ProductVersion` or stand alone against a
   supplier.
-- Suppliers, goods receipts, per-delivery purchase cost, and landed-cost allocation.
+- Suppliers, goods receipts, mandatory per-delivery purchase cost entered per unit or as the total
+  for the received quantity of one item, and landed-cost allocation.
 - Stock lots with expiry dates, expiry reporting per item and per delivery.
 - Effective-dated selling prices and VAT rates.
 - Append-only stock movement ledger with a fast current-balance projection.
-- Sales documents: manual entry in the portal, and ingest from an external POS.
+- Sales documents: manual entry and a shared sales API for the future OmniStock POS; no external
+  POS software integration or external-item mapping work in the current release.
 - Stock counts, adjustments, write-offs, and inter-location transfers.
+- Purchase-cost corrections, sales corrections, selling-price changes, purchase cancellation,
+  customer/supplier returns, and damaged or spoiled stock disposition (§5.7).
 - Live stock and same-day sales views.
 - Analytics: sales by day/week/month, best sellers, category mix, velocity, year-over-year and
   seasonality, expiry risk, and reorder suggestions — each declaring whether it has enough history
   to be trustworthy (§8.5).
 - Financials: revenue, cost of goods sold, and gross profit by month, quarter, and year, in MKD.
 - EUR display conversion on the dashboard, as a presentation lens over MKD (§5.3.1).
-- A mock POS adapter: reference mapper, deterministic sales generator, and a runnable fake till
+- A mock OmniStock client: deterministic sales generator and a runnable fake till
   (§6.4).
 - A seeded demo organization showing the mature two-year analytics experience (§8.5).
-- **e-Faktura** to the UJP specification (§7A): issuing document types 100, 110, 120, 160 and 170;
+- **e-Faktura at launch** to the UJP specification (§7): issuing document types 100, 110, 120, 160 and 170;
   client-side JWS signing; storno and correction; matching plus two-step accept/reject of incoming
   supplier invoices; purchase VAT totals; and synced UJP codelists.
-- Three inventory roles scoped per location.
+- Worker permissions scoped per location, assigned through job presets (IPD-031; exact presets pending).
 - Table and chart primitives added to the shared UI package.
 
 ### Deferred
 
-- Being the point of sale. Checkout and till screens remain a separate future portal.
+- **OmniStock POS is the chosen next product phase.** Build its checkout/till screens after the
+  inventory system. Define its shared sales contract and prove fiscal-device communication early.
+- External POS vendor adapters, external product-code mapping and receipt-import worklists.
 - Hardware fiscalization and Z-report transmission to the UJP. e-Faktura is *not* fiscalization;
   see §7.
 - e-Faktura document types 130 (авансна фактура) and 150 (времена ситуација).
 - Server-side or unattended e-Faktura signing. Signing is client-side only; see §7.5.
 - Subscription billing, payroll, operating expenses, and net profit. This release computes **gross
-  profit on goods only**, as agreed.
+  profit on goods only** for operational use. Accountant-grade period closing and valuation policy
+  are future decisions; invoice correctness and auditability are still release requirements.
 - Manufacturing, bills of materials, assembly, and recipes.
 - Consignment stock, serial-number tracking, and warranty.
 - Demand forecasting beyond descriptive seasonality indices. No ML.
@@ -97,7 +114,8 @@ Four capabilities define the release:
   analytics accrue forward from go-live (§8.5).
 - Multi-currency *transactions*, FX gain/loss, and rate-dated conversion inside rollups. EUR display
   conversion is included; multi-currency accounting is not (§5.3.1).
-- Asynchronous job infrastructure beyond a single scheduled rollup worker.
+- External message brokers. Use durable PostgreSQL work records for rollups, invoice work and
+  later POS fiscal outcomes; a single rollup timer is not the entire background-work requirement.
 
 ## 4. Platform integration
 
@@ -142,27 +160,40 @@ Every inventory request resolves, in order:
 3. `OrganizationPortalSubscription(portalKey: 'inventory')` in `ACTIVE` status and within its date
    window.
 4. Owner status, or `MemberPortalAccess(portalKey: 'inventory', enabled: true)`.
-5. An `InventoryRoleAssignment` granting the required role at the requested location.
+5. Worker permission assignments granting the requested action at every affected location, with
+   explicit scope for organization-wide actions (IPD-031).
 
 Failure at any step denies the request before domain work begins, matching the Vendor Portal's
 established pattern.
 
 ### 4.3 Roles
 
-VPD-005 deferred custom job roles and named exactly this portal as their home. This release adds a
-**minimal, closed set of three** rather than a general RBAC engine:
+**Revised by IPD-031:** different worker types need different action and data access. The earlier
+closed manager/staff/viewer proposal below is historical, not the final authorization contract.
+In particular, receipt-cost access must not be granted to every warehouse worker. The working
+[UX and permissions proposal](inventory-ux-and-permissions.md) separates job presets, location
+scope, viewing sensitive data, preparing documents and posting/approving them. Exact preset grants
+await confirmation of target-store jobs; do not implement the broad staff row as the default.
+
+Earlier proposal, retained for traceability:
 
 | Role | Can |
 |---|---|
 | `INVENTORY_MANAGER` | Everything at the location, including purchase cost, margin, and financial views |
-| `INVENTORY_STAFF` | Receive stock, count, adjust, record sales, view stock — **cannot** see purchase cost, margin, or financials |
+| `INVENTORY_STAFF` | Receive stock including receipt cost entry/view, count, adjust, record sales and view stock; no margin/financial analytics, general stock valuation, posted-cost corrections or selling-price management |
 | `INVENTORY_VIEWER` | Read-only stock and expiry; no financials |
 
-`InventoryRoleAssignment(memberId, stockLocationId, role)`. A null `stockLocationId` means
-organization-wide. Owners implicitly hold `INVENTORY_MANAGER` everywhere.
+The earlier `InventoryRoleAssignment(memberId, stockLocationId, role)` sketch and null-location
+organization-wide grant need revision before implementation. Organization-wide authority must be
+explicit. Owners retain administration, but permissions never bypass domain or signing requirements.
 
-Hiding cost from `INVENTORY_STAFF` is an authorization rule enforced at the **service and
-serializer** layer, not by omitting a column in the UI. Cost redaction has a dedicated test.
+**Receiving permission chosen under founder delegation:** receiving staff may see and enter the
+supplier costs on receiving documents at their authorized locations, including bulk totals, and
+post complete receipts. Managers control posted-cost corrections, selling-price changes, profit
+and financial analytics. Staff may release stock using an already manager-approved price; creating
+or changing that price needs a manager. This avoids making every delivery wait for a manager to
+retype a supplier invoice. Receipt cost access does not grant general valuation or margin access.
+Enforce the distinction in services/serializers and test each permitted and redacted response.
 
 ## 5. Data model
 
@@ -171,6 +202,7 @@ serializer** layer, not by omitting a column in the UI. Cost redaction has a ded
 ```prisma
 enum InventoryItemSource { CATALOG  EXTERNAL }
 enum StockLocationKind   { WAREHOUSE  STORE }
+enum StockAllocationPolicy { FIFO  FEFO  MANUAL }
 
 model StockLocation {
   id             String  @id @default(uuid())
@@ -178,8 +210,10 @@ model StockLocation {
   code           String            // human key, unique per org
   name           String
   kind           StockLocationKind
+  allocationPolicy StockAllocationPolicy @default(FIFO) // configurable; FEFO suggested for expiry-led warehouses
   timezone       String            // IANA, e.g. "Europe/Skopje"
-  allowNegative  Boolean @default(true)
+  // New sales must not exceed available sellable stock in this release.
+  // Fiscal outcomes recovered after interruption use the separate discrepancy path in §6.2.
   isActive       Boolean @default(true)
   // @@unique([organizationId, code])
 }
@@ -238,9 +272,9 @@ This is the centre of the system.
 
 ```prisma
 enum StockMovementReason {
-  RECEIPT  SALE  SALE_RETURN  SUPPLIER_RETURN
+  OPENING_STOCK  RECEIPT  SALE  SALE_RETURN  SUPPLIER_RETURN  RECEIPT_REVERSAL
   ADJUSTMENT  COUNT_CORRECTION
-  WRITE_OFF_EXPIRED  WRITE_OFF_DAMAGED
+  WRITE_OFF_EXPIRED  WRITE_OFF_DAMAGED  WRITE_OFF_SPOILED
   TRANSFER_OUT  TRANSFER_IN
 }
 
@@ -252,7 +286,12 @@ model StockLot {
   lotCode         String?             // supplier batch code
   expiryDate      DateTime?           // per bulk delivery — the requested capability
   receivedAt      DateTime
-  unitCostMinor   BigInt              // purchase price for THIS delivery
+  receivedQuantity Decimal           // immutable original cost-layer quantity
+  originalCostMinor BigInt            // authoritative total landed cost for this layer
+  saleReadyAt     DateTime?           // price confirmed before release for sale
+  saleReadyByUserId String?
+  saleReadyPriceId String?            // item or batch price reference confirmed at release
+  // Unit cost is derived exactly from total value / quantity, not rounded and stored as truth.
   currency        String   @default("MKD")
   goodsReceiptLineId String?
   // @@index([organizationId, inventoryItemId, expiryDate])
@@ -266,11 +305,13 @@ model StockMovement {                 // APPEND ONLY. Never updated. Never delet
   stockLotId         String?
   quantityDelta      Decimal            // signed; Decimal for weight/volume units
   reason             StockMovementReason
-  unitCostMinor      BigInt?            // COGS at the moment of the movement
+  costAmountMinor    BigInt?            // allocated total value; null only for unresolved recovery facts
   occurredAt         DateTime           // business time, not insert time
   recordedAt         DateTime @default(now())
   sourceDocumentType String?            // 'GOODS_RECEIPT' | 'SALES_DOCUMENT' | 'STOCK_COUNT' | ...
   sourceDocumentId   String?
+  sourceDocumentLineId String?
+  reversalOfMovementId String?
   actorUserId        String?
   note               String?
   // @@index([organizationId, occurredAt])
@@ -303,11 +344,12 @@ lost-update races.
 ### 5.3 Pricing
 
 ```prisma
-model ItemPrice {                     // effective-dated; "change the price" INSERTs, never UPDATEs
+model ItemPrice {                     // effective-dated; changes create versions with explicit interval closure
   id              String    @id @default(uuid())
   organizationId  String
   inventoryItemId String
   stockLocationId String?             // null = applies to all locations
+  stockLotId      String?             // optional batch override; tenant/item/location must agree
   priceMinor      BigInt              // gross, VAT-inclusive
   vatRateId       String
   currency        String    @default("MKD")
@@ -327,9 +369,29 @@ model VatRate {
 ```
 
 Effective dating is not optional here. Margin analytics over a year is wrong the moment a price
-change overwrites history. The current price is the row where
-`now() BETWEEN validFrom AND coalesce(validTo, 'infinity')`; the price selector is a pure function
-in the domain package.
+change overwrites a historical transaction price. Transaction price snapshots preserve margin;
+effective-dated price lists select the price for a new sale. Use non-overlapping half-open intervals
+`validFrom <= at AND (validTo IS NULL OR at < validTo)`, with explicit location precedence and
+interval-closure rules; the selector is a pure function in the domain package.
+
+A received batch may remain on hand while awaiting selling-price confirmation; it is excluded
+from sellable availability. Offer **Use previous selling price for this item** with the previous
+price and its date visible, or enter a new price. Confirming release records the actor and price
+reference. A purchase cost must never be substituted for a missing selling price.
+
+**Price-change scope is an explicit choice:** **This batch only** or **All batches of this item**.
+Show affected locations, lots, quantities and prices before applying. Default to the current
+location, with an explicit authorized-location selector for broader changes. A batch override
+references its lot; normal precedence is batch, location-item, organization-item. Applying to all
+batches must supersede conflicting active batch overrides in the selected scope, with history
+preserved; merely updating a default would not fulfill the user's choice. Batch-only changes do
+not silently alter the default offered for future receipts.
+
+The future POS must identify the actual batch when simultaneously sellable batches have different
+prices: use a batch-specific label/code or explicit cashier selection. A shared item barcode is
+insufficient, and assumed FIFO/FEFO must never silently select what the customer is charged. Split
+sale allocations into correctly priced lines if a quantity spans differently priced batches.
+The precise label/selection UX is a POS design task; the inventory model supports it now.
 
 ### 5.3.1 Currency: MKD is the ledger, EUR is a lens
 
@@ -396,23 +458,47 @@ model GoodsReceiptLine {
   goodsReceiptId  String
   inventoryItemId String
   quantity        Decimal
-  unitCostMinor   BigInt               // the purchase price for this shipment
+  purchaseTotalMinor BigInt            // required total purchase cost for this item quantity
   lotCode         String?
   expiryDate      DateTime?
 }
 ```
 
-Posting a receipt is one transaction: create a `StockLot` per line, emit `RECEIPT` movements,
-update balances. Freight and other costs are allocated across lines by value and folded into
-`StockLot.unitCostMinor`, so cost of goods sold reflects landed cost rather than invoice cost. The
-allocation is a pure function with its own rounding test — the allocated remainder must sum exactly
-back to the total.
+The receiver enters quantity and either unit purchase cost or **total cost for this item quantity**.
+For example, 200 milk cartons costing 12,000 MKD require only those two inputs; the portal shows
+60 MKD per carton automatically. Preserve the authoritative line total, the entered cost basis,
+and tax/discount treatment; suppliers may quote amounts with or without VAT, so the input must
+make that basis explicit. Do not make the receiver divide or distribute rounding remainders.
+
+Posting requires cost on every line. It creates a `StockLot` per line, emits `RECEIPT` movements,
+and updates balances in one transaction. Freight and other charges are allocated into total layer
+values. The exact quantity/value allocation must conserve the total across partial sales and
+returns, including residual minor units; a rounded displayed unit cost is not authoritative.
+Cost correction remains possible later through linked value adjustments (§5.7).
 
 A `DRAFT` receipt writes nothing to the ledger. Only `POSTED` moves stock.
 
+### 5.4.1 Opening inventory and onboarding
+
+Opening inventory is not historical sales backfill and is not a current-period purchase. Provide
+an `OpeningStockDocument` with location, cutover time, item/lot lines, existing quantities, expiry
+where tracked, required purchase totals and provenance, and selling-price/release confirmation.
+Support manual entry and bulk import with row validation, preview, save/resume, correction before
+posting, and an explicit reconciliation/sign-off step. Post idempotently as `OPENING_STOCK`.
+Existing stock contributes to stock value and later COGS, but not new-period purchase totals.
+
+Missing cost blocks posting that line; missing sale price blocks release for sale. An entered zero
+cost must be distinguishable from an absent value; the treatment of genuinely free supplier units
+and costs unavailable during opening setup needs an explicit exception decision. Never default to
+zero. Unknown lot/expiry information must be identified, not invented.
+
+Measure time and manual effort from signup to reconciled opening stock and the first successful
+sale. Provide an actionable checklist for uncosted rows, missing prices and missing item barcodes.
+Record the exact POS cutover boundary so opening quantities and imported sales do not overlap.
+
 ### 5.5 Sales
 
-One model covers manual entry, POS ingest, fiscal receipts, and invoices.
+One model covers manual entry, our future POS, fiscal receipts, and invoices.
 
 ```prisma
 enum SalesDocumentType    { FISCAL_RECEIPT  INVOICE  CREDIT_NOTE }
@@ -432,18 +518,19 @@ model SalesDocument {
   netMinor         BigInt
   vatMinor         BigInt
   grossMinor       BigInt
-  cogsMinor        BigInt                 // captured at posting; never recomputed
+  cogsMinor        BigInt?                // original capture; null only for unresolved recovery facts
+  valuationStatus String                 // COMPLETE | PENDING; corrections are linked value entries
   customerName     String?
   customerTaxNumber String?               // ЕДБ, required on an invoice
-  // --- external origin, for POS ingest ---
-  externalSystem   String?
-  externalRef      String?
+  // --- stable operation identity for manual entry / our future POS ---
+  operationId      String
+  sourceTillId     String?
   // --- fiscal / e-invoice references (this portal RECORDS these; it does not produce them) ---
   fiscalReceiptNumber String?
   fiscalDeviceId      String?
   eInvoiceId          String?
   eInvoiceStatus      String?
-  // @@unique([organizationId, externalSystem, externalRef])   // ingest idempotency
+  // @@unique([organizationId, operationId])   // shared sale lifecycle idempotency
   // @@index([organizationId, stockLocationId, issuedAt])
 }
 
@@ -457,15 +544,26 @@ model SalesDocumentLine {
   vatRateId        String
   lineNetMinor     BigInt
   lineVatMinor     BigInt
-  lineCogsMinor    BigInt                 // sum of allocated lot costs
+  lineCogsMinor    BigInt?                // original allocated total; recovery exceptions may be pending
 }
 ```
 
-Posting a sales document, in one transaction:
+For a new portal sale, require a confirmed selling price and enough available, sale-ready stock
+for the entire requested quantity, including other lines in the same document. Check and allocate
+atomically so two tills cannot both acquire the last unit. Blocking only when stock is already
+negative is insufficient: selling three units when two remain must also be blocked. A completed
+fiscal sale discovered during recovery uses the separate fact-capture path (§6.2).
 
-1. Allocate each line against lots — **FEFO** (first-expired-first-out) when the item tracks
-   expiry, **FIFO** otherwise.
-2. Emit one `SALE` movement per allocated lot, each carrying that lot's `unitCostMinor`.
+Posting a new sales document, in one transaction:
+
+1. Allocate each line against sale-ready lots using the location's configurable FIFO, FEFO or
+   manual policy. Suggest FEFO for expiry-led warehouses. Stores may use assumed FIFO when actual
+   shelf selection is not tracked. Record observed versus assumed allocations; a setting does not
+   prove shoppers picked that batch. Warehouse pick lists recommend the batch and staff confirm
+   the actual pick/override. Differently priced batches require actual selection (§5.3).
+   Expired/held goods remain unavailable under every policy. Financial costing policy remains a
+   separate decision; changing physical rotation must not rewrite historical costing.
+2. Emit one `SALE` movement per allocated lot, carrying the exact allocated total cost.
 3. Sum allocated cost into `lineCogsMinor` and `cogsMinor`.
 4. Update balances.
 
@@ -473,7 +571,12 @@ Step 2 is what makes gross profit correct and permanently auditable: profit is
 `netMinor - cogsMinor` over immutable rows, not a subtraction against whatever the purchase price
 happens to be today.
 
-Voiding a document emits `SALE_RETURN` compensating movements. It never deletes anything.
+That expression is the original-sale baseline. Corrected operational margin incorporates linked
+sales-value and cost adjustments. Pending recovery valuation must remain visibly incomplete and
+must never be treated as zero cost. The correction-period policy is still open (§5.7).
+
+Corrections and voids use the explicit physical/financial effects in §5.7. A financial document
+cancellation does not automatically prove that goods were returned.
 
 ### 5.6 Counts and transfers
 
@@ -482,107 +585,96 @@ the difference. `StockTransfer` / `StockTransferLine` emit a `TRANSFER_OUT` at t
 `TRANSFER_IN` at the destination, moving lot identity (and therefore expiry and cost) with the
 goods.
 
-## 6. Sales capture: manual and external POS
+### 5.7 Corrections, purchase cancellation, returns and losses
 
-Both requested paths land on the same `SalesDocument`. The difference is only how it is created.
+These are first-release workflows. Every posted correction references its original document and
+line, with actor, reason, effective time, recorded time and idempotency protection.
+
+| Action | Stock effect | Value/document effect |
+|---|---|---|
+| Correct a purchase cost | None | Append a value adjustment; allocate between remaining stock and previously consumed quantities |
+| Change a future selling price | None | New effective price; existing sales keep their original price |
+| Correct a completed sale's price/discount | None unless goods also move | Linked sales value correction and applicable invoice correction |
+| Correct a sold quantity/item | Only the actual reversal/replacement quantity | Linked line and original cost-allocation correction |
+| Cancel a draft purchase/receipt | None | Mark cancelled; retain draft audit metadata |
+| Reverse an incorrectly posted receipt | Compensating quantity, with dependency checks | Reverse the corresponding value; do not erase downstream sales |
+| Return goods to supplier | Remove the actual returned quantity | Record claim/credit separately from physical return |
+| Customer return | Restore only goods actually received | Reverse original allocation/value for the accepted returned quantity |
+| Damaged, dysfunctional or spoiled goods | Hold out of sellable stock, then write off or return | Record loss or supplier claim; never create fictional sales |
+
+Use a linked `InventoryValueAdjustment` (receipt/lot/allocation references, signed amount, currency,
+effective and recorded times) for value-only corrections. Posted original costs remain immutable;
+current reports incorporate the correction trail. Partial returns must not exceed the original
+sale/receipt quantities after earlier returns. A price-only correction has zero stock delta.
+
+**Period/export policy pending:** operational reports must reflect corrections, but whether a
+correction restates an earlier period or appears as an adjustment in a later period is not yet
+decided. Preserve enough history to identify what an earlier export contained and when it was
+produced. Formal accounting period locks are not implied by the initial management-report scope.
+
+## 6. Sales capture: manual entry and the future OmniStock POS
+
+The founder has selected an OmniStock POS, developed after inventory. External POS software
+adapters and external item-code reconciliation are out of scope. Both our manual entry and POS
+will call the same inventory sales services with canonical item/lot IDs.
 
 ### 6.1 Manual entry
 
-An item-search-driven entry screen reusing `SearchableCategorySelect` and the trigram item search.
-Choose document type (fiscal receipt or invoice), add lines, post. This is the path for a warehouse
-issuing an invoice, or for a small shop with no till system.
+Provide item search, quantities, confirmed prices, tax/discount calculations and company invoice
+details. Check sellable stock and price eligibility atomically. Before the POS phase, manual
+entry is useful for warehouse invoicing and development/pilot validation; it is not a replacement
+for a working fiscal checkout in a retail store. e-Faktura remains an inventory launch requirement.
 
-### 6.2 POS ingest
+### 6.2 Shared sale lifecycle
 
-`POST /api/v1/inventory/sales-documents/ingest` — an authenticated, rate-limited, idempotent
-endpoint.
+The contracts package owns versioned request/response schemas for preparing a sale, reserving
+stock, committing its confirmed outcome, cancelling/releasing, and resolving an uncertain outcome.
+Money and quantities cross the wire as exact decimal/integer strings. The server resolves price
+versions and validates submitted totals; it does not trust arbitrary prices from a till.
 
-- Idempotency is a database guarantee: `@@unique([organizationId, externalSystem, externalRef])`.
-  A replay returns `200` with the original document rather than creating a second one. This is not
-  optional; POS systems retry.
-- A registered `ExternalSystem(organizationId, key, name, itemMatchStrategy)` record identifies the
-  source and how its product codes map to our items (`BARCODE` | `SKU` | `EXTERNAL_ID`).
-- Unmatched lines do not reject the payload. The document posts, and the unmatched line lands in a
-  **reconciliation queue** a manager resolves by mapping the code to an item. Rejecting a sale
-  because our catalog is stale would lose real revenue data.
-- `allowNegative` on the location governs whether stock may go below zero. For POS ingest it should
-  normally be `true`: the sale physically happened, and a negative balance is a *discrepancy signal*,
-  surfaced as an alert, not an error to be thrown at a till.
+Identify each operation by organization, location, registered till and stable operation ID, with
+a payload hash. Same ID/same payload returns the recorded result; a changed payload conflicts.
+Canonical item IDs replace external-code mapping. Unknown/deactivated items are rejected before
+a new sale; an already completed fiscal fact discovered during recovery is preserved as evidence
+and reconciled, not erased or assigned zero cost.
 
-`ExternalItemMapping(organizationId, externalSystemId, externalCode, inventoryItemId)` persists a
-manager's resolution so the same code never needs resolving twice.
+Reserve/allocate stock atomically across tills. Reserve before fiscal submission and finalize the
+inventory effect once the outcome is known. Fiscal hardware and PostgreSQL do not share one
+transaction. Persist sale intent, approved prices/allocations, fiscal job, attempt and outcome
+references. Hold an uncertain operation for recovery; do not create a new fiscal receipt or
+release its reserved stock solely because a response timed out. Price changes while a cart is
+open must be detected before fiscalization, with explicit confirmation/repricing.
 
-### 6.3 Adapter boundary
+An offline-sales policy has not been selected. Online stock authorization is the planning default;
+full autonomous offline checkout needs a separate stock-allotment/synchronization design and
+estimate. A local printer bridge surviving a browser restart does not by itself enable offline sales.
 
-`@inventory-system/contracts` owns the `SalesIngestPayload` schema. Each POS gets a thin adapter
-that maps its payload onto that schema and nothing more — **no business rules live in adapters**.
-An adapter is a pure function `(vendorPayload) => SalesIngestPayload`, so it is testable with
-fixtures and no I/O.
+### 6.3 Fiscal-device adapter boundary
 
-```ts
-interface SalesIngestPayload {
-    externalSystem: string;          // registered ExternalSystem.key
-    externalRef: string;             // vendor's own document id — the idempotency key
-    type: SalesDocumentType;         // FISCAL_RECEIPT | INVOICE | CREDIT_NOTE
-    locationCode: string;            // resolved to StockLocation by code
-    issuedAt: string;                // ISO 8601, with offset
-    currency: 'MKD';
-    lines: Array<{
-        externalCode: string;        // barcode / SKU / vendor id, per itemMatchStrategy
-        description?: string;        // retained for the reconciliation queue
-        quantity: string;            // decimal string; never a float
-        unitPriceMinor: string;      // integer minor units as a string
-        discountMinor?: string;
-        vatRatePercent: string;
-    }>;
-    fiscal?: { receiptNumber?: string; deviceId?: string };
-}
-```
+Our POS sends structured receipt requests to a local fiscal bridge on the till computer. That
+bridge implements one supported device/firmware protocol first and serializes operations per
+printer. The inventory domain contains no serial-port or printer-specific code.
 
-Amounts and quantities cross the wire as **strings**, not JSON numbers. A denar total in minor
-units can exceed the range where IEEE-754 stays exact, and `JSON.parse` would silently round it.
-The ingest validator parses them into `BigInt` and `Decimal`.
+Suggested flow: OmniStock POS -> shared sale authorization -> local fiscal bridge -> certified
+device -> confirmed fiscal result -> idempotent sale finalization.
 
-### 6.4 The mock POS adapter
+The bridge exposes device identity/status, fiscal receipt submission/outcome recovery and
+supported void/report operations. It stores a durable job journal, checks caller/device binding,
+and accepts authorized structured operations rather than arbitrary public print commands. Device
+initialization/tax programming is outside routine cashier control and must follow provider rules.
+See the official documentation and proof checklist in the fiscal-printer research note.
 
-No real vendor API is available yet, and waiting for one would block the entire sales, analytics,
-and financial chain. The mock adapter is therefore a **first-class deliverable**, not a test
-fixture, and it serves four jobs at once:
+### 6.4 Simulator and independent correctness fixtures
 
-1. **Reference implementation.** It is the worked example every real vendor adapter is written
-   against, so the contract is proven before a vendor is chosen.
-2. **Deterministic test data.** A seeded generator produces reproducible sales streams. The same
-   generator feeds the unit tests, the golden-dataset assertions (§13), and the 1M-movement
-   performance benchmark.
-3. **A runnable fake till.** A small service that POSTs to the real ingest endpoint on a timer,
-   over HTTP, exactly as a real POS would. This exercises authentication, rate limiting,
-   idempotency, and the reconciliation queue end to end rather than in a mocked unit test.
-4. **The demo dataset generator.** The same engine, run over a compressed simulated timeline,
-   produces the seeded demo organization described in §8.5.
+Retain a deterministic sales generator and runnable fake OmniStock till using the shared sale
+lifecycle. Simulate duplicates, last-unit contention, changed-price conflicts, batch-specific
+prices, receipt corrections, and fiscal timeouts/disconnects. Add a fiscal-adapter simulator with
+known, failed and uncertain results. These tools do not communicate with real fiscal hardware.
 
-```text
-packages/inventory-domain/src/ingest/
-  payload.ts            SalesIngestPayload schema + parsing
-  adapters/mock.ts      pure mapper: MockPosSale -> SalesIngestPayload
-tools/mock-pos/
-  generate.ts           seeded, deterministic sales-stream generator
-  serve.ts              runnable fake till -> POST /inventory/sales-documents/ingest
-```
-
-The generator is deliberately not random noise. To be useful for analytics it must produce the
-shapes the analytics are meant to detect: a weekday/weekend rhythm, paydays, seasonal lift on
-selected categories, occasional stock-outs, returns and voids, and a small rate of unmatched item
-codes so the reconciliation queue is exercised. It takes an explicit seed, so a failing analytics
-assertion is always reproducible.
-
-Deliberate adversarial behaviour is built in and enabled by flag: **duplicate submissions** (must
-be absorbed by the idempotency constraint), **out-of-order arrivals** (`issuedAt` earlier than
-already-ingested documents, which must land in the correct rollup bucket), **unknown item codes**,
-and **sales that drive stock negative**. These are the failure modes a real till will produce, and
-they are cheaper to design for now than to discover in production.
-
-When a real vendor is selected, the work is a new `adapters/<vendor>.ts` mapper and an
-`ExternalSystem` row. Nothing else in the chain changes — which is the point of the boundary.
+Keep the small hand-computed financial oracle independent of production costing code. A separate
+seeded generator can create the larger demo/performance dataset through the same application
+services, without printing real receipts. Real-device testing is a separate supervised proof on
+an appropriately provisioned test device, not a performance-test target.
 
 ## 7. Macedonian fiscal context and e-Faktura
 
@@ -590,9 +682,10 @@ Research findings, and the architectural stance they produce.
 
 **Hardware fiscalization.** North Macedonia runs a hardware-based fiscalization regime. Certified
 fiscal devices with fiscal memory and a GPRS security module sign, store, and automatically
-transmit daily Z-reports to the Public Revenue Office (UJP). The POS *application* itself does not
-require certification, but communication with the tax authority via the certified device is
-mandatory, and fiscal records must be retained for ten years.
+transmit daily financial reports to the Public Revenue Office (UJP). The exact certification and
+integration obligations for the selected software/device combination must be verified with its
+authorized provider. See [Macedonian POS research](inventory-pos-macedonia-research.md) for primary
+sources and the distinction between fiscal equipment and POS software.
 
 **Stance on fiscalization.** Do not build it here. It requires certified hardware and belongs to
 the future POS portal or the device vendor. This portal *records* `fiscalReceiptNumber` and
@@ -601,15 +694,19 @@ fiscalization are different obligations: a retail sale to a walk-in customer pro
 receipt from a certified device; an invoice to a company produces an e-Faktura. They are not
 substitutes for each other.
 
-**Retention.** Ten years of sales documents and their ledger movements is the reason §8 partitions
-by time rather than deleting, and the reason nothing in the ledger is destructive.
+**Retention verification pending.** The earlier blanket ten-year assertion was unsupported. UJP's
+guide describes five years for receipt control trails; other records may have different obligations
+and the guide contains older provisions. Determine current retention per record type before setting
+policy. Preserve the append-only audit trail; §8 does not yet specify a partition implementation.
 
 **VAT is modelled from day one.** Macedonia has a standard 18% rate plus reduced rates, so a single
 hardcoded percentage would be wrong immediately, and gross profit needs the net figure.
 
 ### 7.1 e-Faktura is in release scope
 
-e-Faktura is now **in release scope**. This section is written against the primary source, the UJP
+e-Faktura is **required at launch**, reconfirmed on 2026-09-05. A supported browser/certificate
+signing and submission proof belongs at the beginning of implementation, not after analytics.
+This section was written against the primary source, the UJP
 wiki at `efakturawiki.ujp.gov.mk`, and its test environment at `efakturatest.ujp.gov.mk`.
 
 ### 7.2 A correction to the earlier draft
@@ -623,10 +720,12 @@ This matters because the two designs are not close: an EN 16931 mapping layer, a
 and a Peppol-style access-point integration would all have been wasted work. Everything below is
 taken from the UJP wiki rather than from general European e-invoicing practice.
 
-**Legal status.** The e-Faktura law is still a **draft (Предлог-закон), published on ENER for
-public consultation** at the time of writing. The technical platform and test environment are live
-and stable enough to build against, but obligation dates can move. Build to the published API;
-treat the go-live date as a configuration value, not a hardcoded assumption.
+**Legal/technical verification pending.** The earlier draft-law description and detailed wiki
+claims were not reverified in the 2026-09-05 review; the technical wiki could not be retrieved.
+Confirm the current enacted obligations, API version and supported test/production access before
+implementation sign-off. The founder requires e-Faktura at launch regardless of an assumed future
+mandate date. The early integration proof must validate the technical contract rather than relying
+on this document's unverified details.
 
 ### 7.3 The submission model
 
@@ -938,7 +1037,7 @@ few times a minute.
 | What is my best seller? | `DailyItemMetrics` ranked | Horizontal bar | ~1 week |
 | What earns the most (not just sells most)? | `grossProfitMinor` ranked | Horizontal bar | ~1 week |
 | What should I reorder? | velocity × lead time vs. on-hand | Ranked table | 2–4 weeks |
-| What did I make this month/quarter? | `FinancialPeriodSummary` | Hero figure + table | 1 period |
+| What did I make this month/quarter? | `FinancialPeriodSummary` | Hero figure + table | From first sale; show period-to-date coverage |
 | When in the year does this sell? | `MonthlyItemMetrics`, 24 months | Heatmap | **12+ months** |
 | Is this week better than last year's? | `DailyItemMetrics` YoY | Diverging bar | **12+ months** |
 
@@ -953,12 +1052,16 @@ again a pure function over `MonthlyItemMetrics` / `DailyItemMetrics`.
 
 ### 8.5 The cold start — no historical backfill
 
-**Decided: customers will not have importable history. Every analytic starts from an empty ledger
-on day one and fills forward.** This is the single most consequential product constraint in the
+**Decided: customers will not have importable prior sales history. Opening inventory seeds stock
+and value; sales history fills forward from cutover.** This is a consequential product constraint in the
 plan, because the headline selling point — previous-year purchasing patterns — cannot produce a
 real answer for roughly twelve months after a customer starts trading.
 
-Saying that plainly is better than discovering it during a demo. Three things follow.
+This limits historical comparisons, not current analytics. Sales, revenue, margin and expiry
+views work from the first valid facts, with partial-period and completeness labels. Descriptive
+reorder rules can become useful earlier than a year, but are not promised as proven purchasing
+predictions. Year two progressively supplies comparable periods; it does not automatically provide
+two full years of evidence. Initial setup effort is the primary adoption risk. Three things follow.
 
 **1. Every metric declares its own sufficiency.** Analytics responses carry the window they were
 computed over, not just a number:
@@ -979,17 +1082,18 @@ returning a confident-looking curve.
 
 **2. The UI leads with what works today.** The dashboard is ordered by time-to-value, not by
 ambition: live stock and expiry risk (useful hour one), then today/this-week sales (day one), then
-best sellers and margin ranking (week one), then reorder suggestions (week two to four), then
-period financials (month one). Year-over-year and seasonality panels are present but render an
+best sellers and margin ranking (available immediately with a short-window label), and period-to-date
+gross profit from the first costed sale. Reorder suggestions require sufficient coverage and inputs.
+Year-over-year and seasonality panels are present but render an
 explicit **"needs N more weeks of data"** state with the current progress — never an empty chart or
 a flat zero line. An empty axis reads as "this product is broken"; a progress state reads as "this
 is accruing."
 
 **3. A seeded demo organization shows year two.** A separate, clearly-labelled demo organization,
-generated by the mock POS engine (§6.4) over a simulated two-year timeline, exists so the full
+generated by the mock OmniStock engine (§6.4) over a simulated two-year timeline, exists so the full
 analytics story can be shown to a prospect on day one. It is generated by the *same* code path as
-real ingest — seeded, deterministic, and never mixed with a real tenant's data. It is not a
-fixture file of pre-computed charts: it posts through the real ingest endpoint and the real
+real sales — seeded, deterministic, and never mixed with a real tenant's data. It is not a
+fixture file of pre-computed charts: it posts through the shared sales services and the real
 rollups, so the demo cannot drift away from what the product actually does.
 
 **What we do not do:** no synthetic "estimated history", no extrapolating a year from three weeks,
@@ -998,8 +1102,8 @@ to commit real purchasing money would be worse than no trend at all.
 
 Because the rollup schema is year-ready from day one (§8.1), nothing needs re-engineering when the
 history does accrue — the same queries simply start returning `sufficient: true`. And if a customer
-ever does turn up with exportable POS history, the mock adapter's payload contract (§6.3) is
-already the import path: a backfill would be a batch of dated ingest documents, not a new subsystem.
+ever requests historical import, that is separate future scope requiring cutover and source
+reconciliation. External POS import is not a launch dependency for our own checkout.
 
 ## 9. Backend architecture
 
@@ -1054,10 +1158,10 @@ testability decision in the design.
 ### 9.4 Concurrency and integrity
 
 - Balance updates take `SELECT ... FOR UPDATE` on `(location, item, lot)` inside the movement
-  transaction. Two concurrent sales of the last unit cannot both succeed unless the location allows
-  negative stock.
+  transaction. Two concurrent new sales of the last unit cannot both succeed. Recovered fiscal
+  facts may expose a discrepancy; they are not a negative-stock override for new-sale authorization.
 - Lot allocation reads under the same lock.
-- POS ingest idempotency is a unique constraint, not application logic.
+- Shared sale operation IDs and persisted fiscal outcomes enforce idempotency across retries.
 - Document numbering per organization and location uses a dedicated sequence row taken under lock,
   because gaps and duplicates in invoice numbering are an accounting problem.
 - A nightly integrity check asserts `sum(StockMovement.quantityDelta) == StockBalance.quantityOnHand`
@@ -1077,8 +1181,8 @@ POST   /api/v1/inventory/adjustments
 CRUD   /api/v1/inventory/goods-receipts            + POST :id/post
 CRUD   /api/v1/inventory/prices
 CRUD   /api/v1/inventory/sales-documents           + POST :id/post, POST :id/void
-POST   /api/v1/inventory/sales-documents/ingest    (idempotent external POS ingest)
-GET    /api/v1/inventory/reconciliation            + POST :id/resolve
+POST   /api/v1/inventory/sales/prepare             (our POS shared lifecycle; reserve/commit/release contracts in §6.2)
+GET    /api/v1/inventory/reconciliation            (sale/fiscal recovery discrepancies; no external-item mapping)
 CRUD   /api/v1/inventory/counts                    + POST :id/post
 CRUD   /api/v1/inventory/transfers                 + POST :id/post
 GET    /api/v1/inventory/analytics/overview        ?locationId&from&to
@@ -1278,12 +1382,19 @@ Three more non-negotiable suites, following precedent already set in this reposi
   denial test.
 - **Ledger integrity:** after any generated sequence of operations,
   `sum(movements) == balance`, and `rebuildBalances` reproduces the projection exactly.
-- **Ingest resilience:** driven by the mock till's adversarial modes — duplicate submissions produce
-  exactly one document, out-of-order `issuedAt` lands in the correct rollup bucket, unknown item
-  codes reach the reconciliation queue without rejecting the sale, and negative-stock sales post
-  with a discrepancy alert.
+- **Sale/fiscal resilience:** duplicates produce one sale, concurrent tills cannot reserve the
+  same final unit, changed prices are revalidated, and unknown item IDs fail before fiscalization.
+  Lost responses and delayed fiscal outcomes reconcile without duplicate receipts or stock effects;
+  backdated corrections reach the correct rollup buckets.
 
 Two smaller but easily-missed cases, both of which would corrupt figures a manager trusts:
+
+The 2026-09-05 requirements also add release cases: opening import replay does not duplicate stock
+or purchasing; missing receipt cost blocks posting; bulk costs allocate exactly through partial
+sales/returns; missing confirmed price and insufficient stock block new sales; concurrent tills
+cannot both reserve the final unit; completed fiscal exceptions remain captured; price-only
+corrections move no stock; spoiled/held returns cannot be sold. Pending POS failure semantics and
+correction-period policy must have acceptance cases before their implementation begins.
 
 - **Sufficiency:** a metric with less than its `requiredDays` of history returns
   `sufficient: false`, and the analytics UI renders the progress state rather than a chart.
@@ -1299,18 +1410,25 @@ Two smaller but easily-missed cases, both of which would corrupt figures a manag
    written to storage and never present in statements of record. See §5.3.1.
 2. **Timezone — `Europe/Skopje`,** carried per `StockLocation` so a future cross-border location
    needs no migration. All period boundaries are computed in the location's timezone.
-3. **POS adapters — mock first.** A named vendor is no longer a prerequisite. The mock adapter
-   (§6.4) is the reference implementation, the test-data engine, and a runnable fake till. Real
-   vendor adapters are additive.
+3. **Our own POS, after inventory.** Shared sales contracts and a mock till come first; fiscal
+   printer protocol feasibility is researched early. External POS integrations are out of scope.
 4. **Historical backfill — none.** Customers are not expected to have importable history. All
    analytics accrue forward from go-live, every metric declares its own sufficiency, and a seeded
    demo organization carries the mature story until real data exists. See §8.5.
-5. **e-Faktura — in scope, to the UJP JSON specification.** Document types 100, 110, 120, 160 and
-   170; client-side JWS signing only; two-step verified accept/reject on incoming invoices. See §7A.
+5. **e-Faktura — required at launch, to the UJP JSON specification.** Document types 100, 110, 120, 160 and
+   170; client-side JWS signing only; two-step verified accept/reject on incoming invoices. See §7.
 6. **EUR display rate — sourced from UJP.** `POST /api/v1/currency-exchange/rate` returns the
    official NBRM middle rate, dated and attributable, with the manual setting kept as a fallback.
 
 ### Still open
+
+The founder's 2026-09-05 answers establish opening inventory, required bulk purchase cost,
+price-before-sale, strict new-sale stock checks, correction/return workflows, operational analytics
+and e-Faktura at launch (IPD-022–IPD-026). Further answers choose our own POS after inventory,
+batch-only or all-batch price changes, configurable allocation, and staff receiving-cost access
+under delegated judgment (IPD-027–IPD-030). Still unresolved: first printer model/firmware/test
+device, POS offline scope and batch-label/selection UX, financial costing method, and correction
+period/export policy. Stock rotation settings do not establish actual retail batch picking.
 
 1. **Scale.** Expected SKUs, locations, and transactions per day. This sets the escalation trigger
    for TimescaleDB and the size of the performance benchmark. *Blocks only the benchmark's target
@@ -1318,9 +1436,9 @@ Two smaller but easily-missed cases, both of which would corrupt figures a manag
 2. **Is the inventory organization always also a vendor organization?** If some customers buy only
    the Inventory Portal, registration must create an organization with no `VendorProfile` — worth
    confirming the onboarding path exists. *Blocks the entitlement PR.*
-3. **e-Faktura go-live date.** The law is still a draft under public consultation (§7.2), so
-   obligation dates may move. The date is treated as configuration rather than a build-time
-   assumption. *Blocks nothing; needs monitoring.*
+3. **e-Faktura legal and integration verification.** Confirm current obligations and supported
+   API/certificate behavior (§7.2). e-Faktura is a product launch requirement; the technical proof
+   blocks release readiness even if a statutory mandate date remains uncertain.
 
 ## 15. Ordered roadmap
 
@@ -1332,15 +1450,18 @@ the convention already used for the Vendor Portal. `main`'s frontend refactor ha
 | # | Branch | Purpose |
 |---|---|---|
 | 00 | `codex/inventory-00-architecture` | This document, the inventory decision log, and `docs/inventory-portal-handoff.md` |
+| 00a | `codex/inventory-00a-integration-proofs` | Official fiscal-printer protocol and test-device proof; e-Faktura signing/submission proof; no external POS integration |
 | 01 | `codex/inventory-01-entitlement` | Seed the `inventory` Portal row, subscription and access middleware, roles, `/context`, app shell |
 | 02 | `codex/inventory-02-locations-suppliers` | `StockLocation`, `Supplier`, org settings incl. display currency, org scoping, seeds |
 | 03 | `codex/inventory-03-items` | `InventoryItem` with the catalog/external CHECK invariant, trigram search, catalog sync |
 | 04 | `codex/inventory-04-ledger` | `packages/inventory-domain`, `StockMovement`, `StockLot`, `StockBalance`, projection, concurrency and integrity tests |
-| 05 | `codex/inventory-05-receiving` | Goods receipts, per-delivery purchase cost, expiry, landed-cost allocation |
-| 06 | `codex/inventory-06-pricing-vat` | Effective-dated `ItemPrice` and `VatRate` |
+| 04a | `codex/inventory-04a-opening-stock` | Guided opening setup/import and preview UI, required costs, idempotent posting, saved progress and cutover reconciliation; selling release follows PR 06 |
+| 05 | `codex/inventory-05-receiving` | Required unit-or-bulk-total cost entry, expiry, exact landed layer values, receipt cancellation/reversal and cost corrections |
+| 06 | `codex/inventory-06-pricing-vat` | Effective-dated item/batch prices, explicit batch/all-batch change scope, previous-price reuse and confirmation before release |
 | 07 | `codex/inventory-07-sales-manual` | `SalesDocument`, FEFO/FIFO allocation, COGS capture, void as compensation |
-| 08 | `codex/inventory-08-ingest-contract-mock` | `SalesIngestPayload` contract, mock adapter, seeded generator, runnable fake till |
-| 09 | `codex/inventory-09-pos-ingest` | Idempotent ingest endpoint, external systems, item mapping, reconciliation queue — driven by the fake till |
+| 08 | `codex/inventory-08-sales-contract-mock` | Shared sale lifecycle contracts, seeded generator, fake OmniStock till and fiscal-adapter simulator |
+| 09 | `codex/inventory-09-sales-lifecycle` | Idempotent reserve/commit/release/recovery foundation for our future POS; no external-code mapping |
+| 09a | `codex/inventory-09a-sales-corrections` | Partial customer/supplier returns, sales value/quantity corrections, original allocation links, damaged/spoiled disposition |
 | 10 | `codex/inventory-10-counts-transfers` | Stock counts and inter-location transfers |
 | 11 | `codex/inventory-11-rollups` | Daily and monthly metrics, watermarked refresh worker, rebuild command, **golden-dataset test** |
 | 12 | `codex/inventory-12-analytics-api` | Analytics endpoints, seasonality, reorder suggestions, **`MetricWindow` sufficiency** |
@@ -1348,7 +1469,7 @@ the convention already used for the Vendor Portal. `main`'s frontend refactor ha
 | 13a | `codex/inventory-13a-efaktura-foundation` | UJP codelist sync, `EInvoiceCredential`, server-time offset, JSON builder, totals arithmetic to UJP rounding order |
 | 13b | `codex/inventory-13b-efaktura-outgoing` | Client-side JWS signing, send, EUID/QR storage, storno and correction, awaiting-signature worklist |
 | 13c | `codex/inventory-13c-efaktura-incoming` | Incoming document pull, receipt matching, two-step verified accept/reject, purchase VAT totals |
-| 14 | `codex/inventory-14-demo-dataset` | Seeded demo organization generated through the real ingest path (§8.5) |
+| 14 | `codex/inventory-14-demo-dataset` | Seeded demo organization through shared sales services, without real fiscal printing (§8.5) |
 | 15 | `codex/inventory-15-ui-primitives` | `DataTable`, `FilterBar`, chart organisms, palette tokens, validator run, Storybook coverage |
 | 16 | `codex/inventory-16-ui-stock` | Stock list, item detail, lot and expiry views, counts, adjustments |
 | 17 | `codex/inventory-17-ui-receiving-sales` | Receiving and manual sales entry, reconciliation queue |
@@ -1358,10 +1479,12 @@ the convention already used for the Vendor Portal. `main`'s frontend refactor ha
 | 20 | `codex/inventory-20-alerts` | Low stock, expiry, and reorder alerting |
 | 21 | `codex/inventory-21-hardening` | Accessibility, performance benchmark, adversarial tenancy, release evidence |
 
-PR 08 deliberately precedes the ingest endpoint. Building the payload contract and its generator
-first means PR 09 is developed and tested against realistic, reproducible traffic — including
-duplicates, out-of-order arrivals, and unknown item codes — rather than against hand-written happy
-paths. It also gives PRs 11–13 a data source large enough to be meaningful.
+PR 08 precedes the shared sale lifecycle so PR 09 is tested against reproducible retries,
+last-unit contention, price changes and interrupted fiscal outcomes. It also supplies analytics
+test data. Once inventory is usable, a separate POS phase adds checkout/scanning/payments, till
+sessions and cash reconciliation, one supported fiscal-device bridge, then field recovery testing.
+A retail go-live that depends on our checkout requires that POS phase; inventory-only readiness
+does not mean a shop can replace its till. See the estimate in the printer research note.
 
 The frontend-reconciliation PR that previously sat at position 01 is **done and merged** into
 `develop`; it is no longer part of this roadmap.
@@ -1370,12 +1493,20 @@ Each pull request follows the standard already set in §17 of the Vendor Portal 
 
 ## 16. Success measures
 
+- Time and manual effort from signup to reconciled opening inventory and first successful sale;
+  measure setup completion and identify abandonment steps with the pilot customer.
+- Every posted opening/receipt line has explicit purchase cost; bulk-total entry requires no
+  manual per-unit calculation. Every newly authorized sale has confirmed price and sufficient
+  sellable quantity. Recovered fiscal discrepancies are visible and reconciled separately.
+- Purchase/sale corrections and returns preserve original facts, quantity/value conservation and
+  operator attribution. e-Faktura succeeds on a supported integration before launch.
+
 - Time from receiving a delivery to it being visible in stock, under one minute.
 - Ledger integrity: zero drift between movements and balances across a full release cycle.
 - Analytics correctness: golden-dataset assertions exact to the denar, every run.
 - Rollup freshness: prior-day metrics available within five minutes of midnight, location-local.
-- POS ingest: zero duplicated sales under replay; unmatched-line rate trending down as mappings
-  accumulate.
+- Own-POS lifecycle: zero duplicated sales under replay, no overselling under concurrent online
+  tills, and uncertain fiscal outcomes resolved without blind reprinting.
 - Reorder suggestions acted on, and stock-out days per item per month.
 - Expiry write-off value as a share of purchase value, trending down.
 - **Time-to-first-value:** a new customer gets a decision-grade answer from the portal within the
