@@ -283,6 +283,43 @@ describe('product versions', () => {
 
         consoleError.mockRestore();
         expect(response.status).toBe(500);
+        expect(response.body.message).toBe('Internal Server Error');
         expect(StorageService.deleteFile).toHaveBeenCalledWith(imageUrl);
+    });
+
+    it('rechecks the image limit after upload and removes the uncommitted object', async () => {
+        const imageUrl = 'https://media.example.test/products/overflow.webp';
+        mockPrisma.productVersion.findFirst
+            .mockResolvedValueOnce({ ...copied, images: [] })
+            .mockResolvedValueOnce({ ...copied, images: Array(4).fill(original.images[0]) });
+        (StorageService.uploadFile as jest.Mock).mockResolvedValue(imageUrl);
+        const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        const response = await request(app)
+            .post(`/api/v1/products/${productId}/versions/${copyId}/images`)
+            .set('Authorization', `Bearer ${token}`)
+            .attach('image', Buffer.from([0xff, 0xd8, 0xff]), {
+                filename: 'version.jpg', contentType: 'image/jpeg',
+            });
+        consoleError.mockRestore();
+        expect(response.status).toBe(409);
+        expect(response.body.code).toBe('IMAGE_LIMIT_EXCEEDED');
+        expect(mockPrisma.productImage.create).not.toHaveBeenCalled();
+        expect(StorageService.deleteFile).toHaveBeenCalledWith(imageUrl);
+    });
+
+    it('does not replace the cover when the uploaded version ceased being primary', async () => {
+        mockPrisma.productVersion.findFirst
+            .mockResolvedValueOnce({ ...original, images: [] })
+            .mockResolvedValueOnce({ ...original, isPrimary: false, images: [] });
+        (StorageService.uploadFile as jest.Mock).mockResolvedValue('https://media.example.test/image.webp');
+        mockPrisma.productImage.create.mockResolvedValue({ id: 'image-2' });
+        const response = await request(app)
+            .post(`/api/v1/products/${productId}/versions/${originalId}/images`)
+            .set('Authorization', `Bearer ${token}`)
+            .attach('image', Buffer.from([0xff, 0xd8, 0xff]), {
+                filename: 'version.jpg', contentType: 'image/jpeg',
+            });
+        expect(response.status).toBe(201);
+        expect(mockPrisma.product.update).not.toHaveBeenCalled();
     });
 });

@@ -36,17 +36,34 @@ export const lockOwnedProduct = async (
  * file was never stored renders a broken image the vendor cannot clear.
  */
 export const createVersionImage = (
+    vendorProfileId: string,
     productId: string,
     versionId: string,
-    imageUrl: string,
-    sortOrder: number,
-    setAsCover: boolean
+    imageUrl: string
 ) =>
     prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        await lockOwnedProduct(tx, productId, vendorProfileId);
+        // Recheck after the upload: another request may have filled the last slot,
+        // deleted the version, or selected a different primary in the meantime.
+        const version = await tx.productVersion.findFirst({
+            where: { id: versionId, productId, vendorProfileId, deletedAt: null },
+            include: { images: { orderBy: { sortOrder: 'desc' } } },
+        });
+        if (!version) {
+            throw Object.assign(new Error('Product version not found'), {
+                statusCode: 404, code: 'VERSION_NOT_FOUND',
+            });
+        }
+        if (version.images.length >= 4) {
+            throw Object.assign(new Error('Maximum of 4 images per version'), {
+                statusCode: 409, code: 'IMAGE_LIMIT_EXCEEDED',
+            });
+        }
+        const sortOrder = (version.images[0]?.sortOrder ?? -1) + 1;
         const createdImage = await tx.productImage.create({
             data: { productId, productVersionId: versionId, imageUrl, sortOrder },
         });
-        if (setAsCover) {
+        if (version.isPrimary && version.images.length === 0) {
             await tx.product.update({ where: { id: productId }, data: { imageUrl } });
         }
         return createdImage;

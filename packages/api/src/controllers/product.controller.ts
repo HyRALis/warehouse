@@ -7,6 +7,7 @@ import { StorageService } from '../services/storage.service';
 import { QRCodeService } from '../services/qrcode.service';
 import type { CsvImportErrorCode, CsvImportRowError } from '@inventory-system/contracts';
 import { productInclude, updateProduct } from '../repositories/product.repository';
+import { createVersionImage } from '../repositories/product-version.repository';
 import { buildSearchText } from '../domain/product-search-text';
 import {
     csvRowError,
@@ -403,20 +404,9 @@ export class ProductController {
             const imageUrl = await StorageService.uploadFile(req.file);
             let productImage;
             try {
-                productImage = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-                    const image = await tx.productImage.create({
-                        data: {
-                            productId: id,
-                            productVersionId: primaryVersion.id,
-                            imageUrl,
-                            sortOrder: primaryVersion.images.length,
-                        },
-                    });
-                    if (primaryVersion.images.length === 0) {
-                        await tx.product.update({ where: { id }, data: { imageUrl } });
-                    }
-                    return image;
-                });
+                productImage = await createVersionImage(
+                    req.vendorProfileId!, id, primaryVersion.id, imageUrl
+                );
             } catch (databaseError) {
                 try {
                     await StorageService.deleteFile(imageUrl);

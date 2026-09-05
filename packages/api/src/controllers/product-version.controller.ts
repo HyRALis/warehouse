@@ -573,11 +573,10 @@ export class ProductVersionController {
             let image;
             try {
                 image = await createVersionImage(
+                    req.vendorProfileId!,
                     productId,
                     versionId,
-                    imageUrl,
-                    version.images.length,
-                    version.isPrimary && version.images.length === 0
+                    imageUrl
                 );
             } catch (databaseError) {
                 try {
