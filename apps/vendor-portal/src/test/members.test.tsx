@@ -33,13 +33,25 @@ const renderMembers = () => {
     return render(
         <QueryClientProvider client={queryClient}>
             <ToastProvider>
-                <MemberList />
+                <MemberList organizationId="org-1" />
             </ToastProvider>
         </QueryClientProvider>
     );
 };
 
 describe('member portal access', () => {
+    it('shows an access update failure without pretending access changed', async () => {
+        const user = userEvent.setup();
+        vi.spyOn(browserApi.platform, 'members').mockResolvedValue({ success: true, data: [member()] });
+        vi.spyOn(browserApi.platform, 'updateMemberAccess').mockRejectedValue(
+            new Error('The subscription is no longer active')
+        );
+        renderMembers();
+        await user.click(await screen.findByRole('button', { name: /Grant portal access/ }));
+        expect(await screen.findByRole('alert')).toHaveTextContent('The subscription is no longer active');
+        expect(screen.getByRole('button', { name: /Grant portal access/ })).toBeEnabled();
+    });
+
     it('grants access to a member and refreshes the list', async () => {
         const user = userEvent.setup();
         const list = vi

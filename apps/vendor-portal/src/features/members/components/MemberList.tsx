@@ -47,12 +47,17 @@ const MemberRow = ({ member }: { member: VendorMemberAccessResponse }) => {
                 <AccessIcon pending={updateAccess.isPending} granted={granted} />
                 {accessLabel(owner, granted)}
             </Button>
+            {updateAccess.error && (
+                <Alert variant="danger" role="alert">
+                    {getErrorMessage(updateAccess.error)}
+                </Alert>
+            )}
         </div>
     );
 };
 
-const MemberRows = () => {
-    const members = useMembers();
+const MemberRows = ({ organizationId }: { organizationId: string }) => {
+    const members = useMembers(organizationId);
 
     if (members.isPending) return <Spinner size={5} />;
     if (members.error) return <Alert variant="danger">{getErrorMessage(members.error)}</Alert>;
@@ -67,13 +72,13 @@ const MemberRows = () => {
     );
 };
 
-export const MemberList = () => (
+export const MemberList = ({ organizationId }: { organizationId: string }) => (
     <Card>
         <CardHeader>
             <CardTitle>Organization members</CardTitle>
         </CardHeader>
         <CardContent>
-            <MemberRows />
+            <MemberRows organizationId={organizationId} />
         </CardContent>
     </Card>
 );
