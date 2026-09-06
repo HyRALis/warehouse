@@ -46,9 +46,7 @@ const startTestDatabase = async (): Promise<TestDatabase> => {
     const baseUrl = process.env.DATABASE_URL;
     if (!baseUrl) throw new Error('DATABASE_URL is required for local integration testing');
 
-    const databaseName = `better_auth_test_${Date.now()}_${Math.random()
-        .toString(36)
-        .slice(2, 8)}`;
+    const databaseName = `better_auth_test_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const adminUrl = new URL(baseUrl);
     adminUrl.pathname = '/postgres';
     adminUrl.searchParams.delete('schema');
@@ -70,8 +68,9 @@ const startTestDatabase = async (): Promise<TestDatabase> => {
     };
 };
 
-const integrationTest =
-    ['true', 'local'].includes(process.env.RUN_DATABASE_INTEGRATION ?? '') ? test : test.skip;
+const integrationTest = ['true', 'local'].includes(process.env.RUN_DATABASE_INTEGRATION ?? '')
+    ? test
+    : test.skip;
 
 integrationTest(
     'Better Auth migration preserves credentials and creates one Owner organization per Vendor',
@@ -102,23 +101,25 @@ integrationTest(
 
         const legacyPassword = '$2a$12$DlM9tGsOBA.EeEVg2qBaauLyXV1Z5/ek3FEo6ZOyyX14V2L/eOZrq';
         const legacy = createPrismaClient({ databaseUrl: database.url, maxConnections: 1 });
-        await legacy.vendor.create({
-            data: {
-                id: '11111111-1111-4111-8111-111111111111',
-                email: 'Owner@Example.com',
-                passwordHash: legacyPassword,
-                companyName: 'Legacy Supply',
-                passwordResetTokenHash: 'unused-reset-token-hash',
-                passwordResetExpiresAt: new Date(Date.now() + 60_000),
-            },
-        });
+        await legacy.$executeRawUnsafe(
+            `INSERT INTO vendors (
+                id, email, password_hash, company_name, password_reset_token_hash,
+                password_reset_expires_at, created_at, updated_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            '11111111-1111-4111-8111-111111111111',
+            'Owner@Example.com',
+            legacyPassword,
+            'Legacy Supply',
+            'unused-reset-token-hash',
+            new Date(Date.now() + 60_000)
+        );
         await legacy.$disconnect();
 
         await runPrisma(database.url, 'migrate', 'deploy');
         prisma = createPrismaClient({ databaseUrl: database.url, maxConnections: 2 });
 
         const identity = await prisma.user.findUniqueOrThrow({
-            where: { legacyVendorId: '11111111-1111-4111-8111-111111111111' },
+            where: { id: '11111111-1111-4111-8111-111111111111' },
             include: { accounts: true, members: { include: { organization: true } } },
         });
         assert.equal(identity.id, '11111111-1111-4111-8111-111111111111');
@@ -133,11 +134,15 @@ integrationTest(
         assert.equal(identity.members[0]?.organization.name, 'Legacy Supply');
         assert.equal(await prisma.session.count({ where: { userId: identity.id } }), 0);
 
-        const migratedVendor = await prisma.vendor.findUniqueOrThrow({
-            where: { id: identity.legacyVendorId! },
+        const migratedProfile = await prisma.vendorProfile.findUniqueOrThrow({
+            where: { id: identity.id },
         });
-        assert.equal(migratedVendor.email, 'owner@example.com');
-        assert.equal(migratedVendor.passwordResetTokenHash, null);
-        assert.equal(migratedVendor.passwordResetExpiresAt, null);
+        assert.equal(migratedProfile.displayName, 'Legacy Supply');
+        const legacyTables = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+            `SELECT count(*)::bigint AS count
+             FROM information_schema.tables
+             WHERE table_schema = 'public' AND table_name = 'vendors'`
+        );
+        assert.equal(Number(legacyTables[0]?.count ?? 0), 0);
     }
 );

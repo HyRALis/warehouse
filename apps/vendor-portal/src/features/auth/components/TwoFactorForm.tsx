@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { KeyRound, ShieldCheck } from 'lucide-react';
 import { Alert, Button, Input, Label, Spinner } from '@inventory-system/ui';
 import { getErrorMessage } from '@/lib/api/client';
@@ -11,7 +12,7 @@ import { AuthShell } from './AuthShell';
 export const TwoFactorForm = () => {
     const [mode, setMode] = useState<'totp' | 'backup'>('totp');
     const [code, setCode] = useState('');
-    const verify = useVerifyTwoFactor();
+    const verify = useVerifyTwoFactor(useSearchParams().get('returnTo'));
 
     const switchMode = () => {
         setMode(mode === 'totp' ? 'backup' : 'totp');

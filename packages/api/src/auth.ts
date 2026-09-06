@@ -10,10 +10,10 @@ import { hashPassword, verifyPassword } from './services/password.service';
 const portalOrigin = config.corsOrigins[0] ?? 'http://localhost:3000';
 
 const hasRole = (role: string | string[] | null | undefined, expected: string): boolean =>
-    (Array.isArray(role) ? role : role?.split(',') ?? []).includes(expected);
+    (Array.isArray(role) ? role : (role?.split(',') ?? [])).includes(expected);
 
 const ensureSupportedRole = (role: string | string[] | null | undefined): void => {
-    const roles = Array.isArray(role) ? role : role?.split(',') ?? [];
+    const roles = Array.isArray(role) ? role : (role?.split(',') ?? []);
     if (roles.length === 0 || roles.some((value) => value !== 'owner' && value !== 'member')) {
         throw APIError.from('BAD_REQUEST', {
             code: 'UNSUPPORTED_ORGANIZATION_ROLE',
@@ -73,14 +73,6 @@ export const auth = betterAuth({
                 };
             }
         },
-        additionalFields: {
-            legacyVendorId: {
-                type: 'string',
-                required: false,
-                input: false,
-                returned: false,
-            },
-        },
     },
     session: {
         expiresIn: 60 * 60 * 24 * 7,
@@ -115,7 +107,6 @@ export const auth = betterAuth({
                     const identity = await prisma.user.findUnique({
                         where: { id: session.userId },
                         select: {
-                            legacyVendor: { select: { deletedAt: true } },
                             members: {
                                 orderBy: { createdAt: 'asc' },
                                 take: 1,
@@ -124,7 +115,7 @@ export const auth = betterAuth({
                         },
                     });
 
-                    if (!identity || identity.legacyVendor?.deletedAt) {
+                    if (!identity) {
                         throw APIError.from('FORBIDDEN', {
                             code: 'ACCOUNT_INACTIVE',
                             message: 'This account is not active',

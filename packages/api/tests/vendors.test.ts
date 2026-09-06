@@ -8,14 +8,14 @@ const token = generateTestToken(vendorId);
 describe('vendor settings contract', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendorId });
     });
 
-    it('updates the current vendor at PUT /vendors/me', async () => {
-        mockPrisma.vendor.update.mockResolvedValue({
+    it('updates User, Organization, and Vendor Profile at PUT /vendors/me', async () => {
+        mockPrisma.user.update.mockResolvedValue({ email: 'owner@example.com' });
+        mockPrisma.organization.update.mockResolvedValue({ id: `organization:${vendorId}` });
+        mockPrisma.vendorProfile.update.mockResolvedValue({
             id: vendorId,
-            email: 'owner@example.com',
-            companyName: 'Updated Supply',
+            displayName: 'Updated Supply',
             createdAt: new Date(),
             updatedAt: new Date(),
         });
@@ -29,23 +29,22 @@ describe('vendor settings contract', () => {
         expect(response.body.data.companyName).toBe('Updated Supply');
     });
 
-    it('deactivates the current vendor and revokes sessions at DELETE /vendors/me', async () => {
-        mockPrisma.vendor.update.mockResolvedValue({ id: vendorId });
-        mockPrisma.user.findUniqueOrThrow.mockResolvedValue({
-            id: vendorId,
-        });
+    it('deactivates the Organization Vendor Portal and revokes its sessions', async () => {
+        mockPrisma.vendorProfile.update.mockResolvedValue({ id: vendorId });
+        mockPrisma.organizationPortalSubscription.update.mockResolvedValue({ id: 'subscription' });
+        mockPrisma.memberPortalAccess.updateMany.mockResolvedValue({ count: 1 });
 
         const response = await request(app)
             .delete('/api/v1/vendors/me')
             .set('Authorization', `Bearer ${token}`);
 
         expect(response.status).toBe(200);
-        expect(mockPrisma.vendor.update).toHaveBeenCalledWith({
+        expect(mockPrisma.vendorProfile.update).toHaveBeenCalledWith({
             where: { id: vendorId },
-            data: { deletedAt: expect.any(Date), tokenVersion: { increment: 1 } },
+            data: { deletedAt: expect.any(Date) },
         });
         expect(mockPrisma.session.deleteMany).toHaveBeenCalledWith({
-            where: { userId: vendorId },
+            where: { activeOrganizationId: `organization:${vendorId}` },
         });
         expect(mockPrisma.verification.deleteMany).toHaveBeenCalledWith({
             where: { value: vendorId },

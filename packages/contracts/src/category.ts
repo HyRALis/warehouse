@@ -31,8 +31,6 @@ export type Category = {
     name: string;
     aliases?: string[];
     parentId?: string | null;
-    vendorId?: string | null;
-    /** Primary catalog owner. `vendorId` remains during the authentication cleanup window. */
     vendorProfileId?: string | null;
     defaultTemplateId?: string | null;
     defaultTemplate?: z.infer<typeof categoryDefaultTemplateSchema> | null;
@@ -48,7 +46,6 @@ export const categorySchema: z.ZodType<Category> = z.lazy(() =>
         name: z.string(),
         aliases: z.array(z.string()).optional(),
         parentId: z.string().nullable().optional(),
-        vendorId: z.string().nullable().optional(),
         vendorProfileId: z.string().nullable().optional(),
         defaultTemplateId: z.string().nullable().optional(),
         defaultTemplate: categoryDefaultTemplateSchema.nullable().optional(),

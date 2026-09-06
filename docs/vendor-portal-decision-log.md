@@ -82,3 +82,31 @@ Schema, migrations, contracts, services, authorization, and API tests merge befo
 All Vendor Portal completion branches start from the `develop` history. The divergent `main` frontend refactor is excluded from this release and may be evaluated separately later.
 
 **Reason:** The Vendor Portal stages are already merged into `develop`; keeping one implementation base avoids an unrelated architecture reconciliation during the Prisma and identity cutover.
+
+## VPD-010 - Remove the legacy system while retaining stable auth URLs temporarily
+
+**Date:** 2026-09-03\
+**Status:** Accepted
+
+The final backend cleanup removes the Vendor table, handwritten JWT/session implementation,
+legacy credential fields, compatibility triggers, and transitional catalog ownership columns.
+The established `/api/v1/auth` URLs remain temporarily as thin Better Auth-backed routes until
+the stacked frontend authentication branch replaces every caller.
+
+**Reason:** The security and data-model cutover should complete now, but deleting routes still
+used by an open dependent frontend branch would create a known broken stack. Retaining stable URLs
+does not retain the legacy authentication implementation or duplicate session state.
+
+## VPD-011 - Enforce owner retention and aggregate tenancy at persistence boundaries
+
+**Date:** 2026-09-06\
+**Status:** Implemented on the backend review-corrections branch; pending PR review
+
+Application owner-count checks remain for friendly errors, with a database trigger serializing
+owner loss to prevent concurrent demotion/removal from leaving an organization without an Owner.
+Counts on system categories and templates are scoped to the requesting profile's visible relations,
+not to the global usage of the shared record.
+
+**Reason:** Separate preflight checks cannot guarantee concurrent invariants, and shared parent-row
+visibility does not authorize disclosure of other vendors' related records. See the
+[review checkpoint](vendor-review-2026-09-06.md) for rationale, PostgreSQL tests, rollback and remaining gates.
