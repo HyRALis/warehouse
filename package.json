@@ -1,10 +1,10 @@
 {
     "name": "inventory-system",
     "private": true,
-    "packageManager": "npm@11.6.2",
+    "packageManager": "npm@11.18.0",
     "engines": {
-        "node": ">=22 <25",
-        "npm": ">=11"
+        "node": ">=22.9 <25",
+        "npm": ">=11.18 <12"
     },
     "workspaces": [
         "apps/*",
@@ -17,7 +17,8 @@
     },
     "overrides": {
         "deepmerge-ts": "8.0.2",
-        "mysql2": "3.24.2"
+        "mysql2": "3.24.2",
+        "qs": "6.16.0"
     },
     "scripts": {
         "dev": "turbo run dev",

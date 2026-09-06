@@ -97,7 +97,9 @@ The following require further implementation or acceptance evidence before relea
    prevent actions through stale tenant context.
 3. Finish image deletion/cover consistency and shared-object deletion-race review, plus live-storage
    regression evidence. Upload rollback has tests; it is not proof of every deletion path.
-4. Review the three moderate dependency findings and apply a narrowly tested compatible update.
+4. Dependency follow-up: the three moderate findings are resolved on the separate
+   `codex/backend-vendor-dependency-security` branch. See [parser security evidence](vendor-parser-security.md)
+   for the patched runtime, npm workspace-override correction and clean-install verification.
 5. Finish authenticated browser flows (including MFA, invitations, revocation and suspension),
    manual accessibility checks and the measured search acceptance corpus. Do not over-optimize search.
 6. Reconcile final release documentation and the canonical Google Docs-ready DOCX, render every page,

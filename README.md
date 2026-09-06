@@ -4,8 +4,8 @@ OmniStock is a monorepo for the vendor-facing catalog portal and the inventory p
 
 ## Requirements
 
-- Node.js 22 (see `.nvmrc`)
-- npm 11+
+- Node.js 22.9+ within Node 22 (see `.nvmrc`)
+- npm 11.18.0 (the repository and CI pin this version)
 - PostgreSQL 14+
 
 ## Local setup
@@ -13,11 +13,15 @@ OmniStock is a monorepo for the vendor-facing catalog portal and the inventory p
 1. Copy `.env.example` to `.env` and replace `DATABASE_URL` and `BETTER_AUTH_SECRET`. The
    authentication secret must be unique and contain at least 32 characters. Configure SMTP when
    verification, invitation, and reset links need delivery.
-2. Install the locked dependency graph:
+2. Use the pinned npm version and install the locked dependency graph. Without changing your global
+   npm installation, run:
 
     ```sh
-    npm ci
+    npx --yes npm@11.18.0 ci
     ```
+
+   npm 11.18.0 is required for workspace security overrides; see
+   [the parser security review](docs/vendor-parser-security.md). CI installs the same npm version.
 
 3. Generate the Prisma client and apply development migrations:
 
