@@ -8,12 +8,14 @@ import { z } from 'zod';
 import { ArrowLeft, Plus, Save, Trash2 } from 'lucide-react';
 import {
     createProductRequestSchema,
+    characteristicSchema,
     productStatusSchema,
     type ProductStatus,
 } from '@inventory-system/contracts';
-import { Alert, Button, Card, CardContent, FileDropzone, PageHeader, Select } from '@inventory-system/ui';
-import { useCategories } from '@/features/categories/hooks';
-import { useTemplates } from '@/features/templates/hooks';
+import { Alert, AlertDialog, Button, Card, CardContent, FileDropzone, PageHeader, Select } from '@inventory-system/ui';
+import { useCategories } from '@/features/categories';
+import { useTemplates } from '@/features/templates';
+import SearchableCategorySelect from '@/components/SearchableCategorySelect';
 import { useObjectUrl } from '@/hooks/use-object-url';
 import { getErrorMessage, getFieldIssue } from '@/lib/api/client';
 import { useAppForm } from '@/lib/forms/app-form';
@@ -26,17 +28,23 @@ interface ProductFormValues {
     barcode: string;
     categoryId: string;
     status: ProductStatus;
+    versionStatus: ProductStatus;
+    designNotes: string;
+    generateQrCode: boolean;
     characteristics: { name: string; value: string; measurement: string }[];
 }
 
-const initialValues: ProductFormValues = { baseName: '', sku: '', barcode: '', categoryId: '', status: 'DRAFT', characteristics: [] };
+const initialValues: ProductFormValues = { baseName: '', sku: '', barcode: '', categoryId: '', status: 'DRAFT', versionStatus: 'DRAFT', designNotes: '', generateQrCode: false, characteristics: [] };
 const productFormSchema = z.object({
     baseName: createProductRequestSchema.shape.baseName,
     sku: z.string().trim().max(100),
     barcode: z.string(),
     categoryId: createProductRequestSchema.shape.categoryId,
     status: productStatusSchema,
-    characteristics: z.array(z.object({ name: z.string().trim().min(1), value: z.string().trim().min(1), measurement: z.string() })),
+    versionStatus: productStatusSchema,
+    designNotes: createProductRequestSchema.shape.designNotes.unwrap(),
+    generateQrCode: z.boolean(),
+    characteristics: z.array(characteristicSchema.required({ measurement: true })).max(100),
 });
 
 export const ProductCreateView = () => {
@@ -49,6 +57,7 @@ export const ProductCreateView = () => {
     const [imageError, setImageError] = useState<string | null>(null);
     const [formError, setFormError] = useState<string | null>(null);
     const [createdProductId, setCreatedProductId] = useState<string | null>(null);
+    const [pendingFields, setPendingFields] = useState<ProductFormValues['characteristics'] | null>(null);
     const previewUrl = useObjectUrl(imageFile);
     const form = useAppForm({
         defaultValues: initialValues,
@@ -61,7 +70,9 @@ export const ProductCreateView = () => {
                 sku: value.sku || undefined,
                 barcode: value.barcode || undefined,
                 productStatus: value.status,
-                versionStatus: value.status,
+                versionStatus: value.versionStatus,
+                designNotes: value.designNotes || undefined,
+                generateQrCode: value.generateQrCode,
                 characteristics: value.characteristics.filter((item) => item.name || item.value),
             });
             if (!parsed.success) { setFormError(parsed.error.issues[0]?.message ?? 'Check the product details.'); return; }
@@ -90,7 +101,8 @@ export const ProductCreateView = () => {
     return <div className="mx-auto max-w-4xl space-y-6">
         <div className="flex items-center gap-4"><Link href="/dashboard/products" aria-label="Back to products" className="rounded-lg border border-slate-800 bg-slate-900 p-2 text-slate-400 hover:bg-slate-800"><ArrowLeft className="h-5 w-5" /></Link><PageHeader title="Add New Product" description="Create a new product listing in your catalog" /></div>
         {(formError || createProduct.error) && <Alert variant="danger">{formError || getErrorMessage(createProduct.error)}</Alert>}
-        {dependencyError && <Alert variant="danger">{getErrorMessage(dependencyError, 'Could not load categories and templates.')}</Alert>}
+        {dependencyError && <Alert variant="danger">{getErrorMessage(dependencyError, 'Could not load categories and templates.')} <Button type="button" onClick={() => { void categories.refetch(); void templates.refetch(); }}>Retry setup data</Button></Alert>}
+        <AlertDialog open={pendingFields !== null} onOpenChange={(open) => { if (!open) setPendingFields(null); }} title="Replace characteristics?" description="This category has a default template. Replace the current characteristics, or cancel to keep them." confirmLabel="Load category template" onConfirm={() => { if (pendingFields) form.setFieldValue('characteristics', pendingFields); setPendingFields(null); }} />
         <form className="space-y-6" noValidate onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }}>
             <form.AppForm>
                 <div className="grid gap-6 lg:grid-cols-3">
@@ -103,8 +115,18 @@ export const ProductCreateView = () => {
                                 <form.AppField name="barcode">{(field) => <field.TextField label="Barcode (optional)" className="font-mono" placeholder="812345678901" serverError={getFieldIssue(createProduct.error, 'barcode')} />}</form.AppField>
                             </div>
                             <div className="grid gap-4 sm:grid-cols-2">
-                                <form.AppField name="categoryId">{(field) => <field.SelectField label="Category" serverError={getFieldIssue(createProduct.error, 'categoryId')}><option value="">Select category…</option>{(categories.data ?? []).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</field.SelectField>}</form.AppField>
-                                <form.AppField name="status">{(field) => <field.SelectField label="Status" serverError={getFieldIssue(createProduct.error, 'status')}><option value="DRAFT">Draft</option><option value="ACTIVE">Active</option></field.SelectField>}</form.AppField>
+                                <form.AppField name="categoryId">{(field) => <SearchableCategorySelect categories={categories.data ?? []} value={field.state.value} disabled={categories.isPending || Boolean(categories.error)} onChange={(id, category) => {
+                                    field.handleChange(id);
+                                    const template = templates.data?.find((item) => item.id === category.defaultTemplateId);
+                                    if (!template) return;
+                                    const fields = template.fields.map((item) => ({ name: item.name, value: '', measurement: item.measurement || '' }));
+                                    if (form.getFieldValue('characteristics').length) setPendingFields(fields);
+                                    else form.setFieldValue('characteristics', fields);
+                                }} />}</form.AppField>
+                                <form.AppField name="status">{(field) => <field.SelectField label="Product status"><option value="DRAFT">Draft</option><option value="ACTIVE">Active</option><option value="DISCONTINUED">Discontinued</option></field.SelectField>}</form.AppField>
+                                <form.AppField name="versionStatus">{(field) => <field.SelectField label="Initial version status"><option value="DRAFT">Draft</option><option value="ACTIVE">Active</option><option value="DISCONTINUED">Discontinued</option></field.SelectField>}</form.AppField>
+                                <form.AppField name="designNotes">{(field) => <field.TextField label="Design notes (optional)" />}</form.AppField>
+                                <form.AppField name="generateQrCode">{(field) => <label className="text-sm text-slate-300"><input type="checkbox" checked={field.state.value} onChange={(event) => field.handleChange(event.target.checked)} /> Generate QR code</label>}</form.AppField>
                             </div>
                         </CardContent></Card>
                         <Card><CardContent className="space-y-5 p-6">
@@ -124,11 +146,11 @@ export const ProductCreateView = () => {
                     </div>
                     <div className="space-y-6">
                         <Card><CardContent className="space-y-4 p-6"><h2 className="border-b border-slate-800 pb-3 text-lg font-semibold text-white">Product Image</h2>
-                            <FileDropzone label="Upload primary image" description="JPEG or WebP, up to 2 MB" accept="image/jpeg,image/webp" onFileChange={(file) => { if (!file) { setImageFile(null); setImageError(null); return; } const error = validateProductImage(file); setImageError(error); setImageFile(error ? null : file); }}
+                            <FileDropzone label="Upload primary image" description="JPEG, PNG or WebP, up to 2 MB" accept="image/jpeg,image/png,image/webp" onFileChange={(file) => { if (!file) { setImageFile(null); setImageError(null); return; } const error = validateProductImage(file); setImageError(error); setImageFile(error ? null : file); }}
                                 preview={previewUrl ? <Image src={previewUrl} alt="Selected product preview" fill unoptimized className="object-cover" /> : undefined} />
                             {imageError && <Alert variant="danger">{imageError}</Alert>}
                         </CardContent></Card>
-                        <Card><CardContent className="p-6"><form.SubmitButton className="w-full" pendingLabel="Saving product…"><Save className="mr-2 h-5 w-5" /> Save Product</form.SubmitButton></CardContent></Card>
+                        <Card><CardContent className="p-6"><form.SubmitButton disabled={categories.isPending || Boolean(categories.error) || Boolean(imageError)} className="w-full" pendingLabel="Saving product…"><Save className="mr-2 h-5 w-5" /> Save Product</form.SubmitButton></CardContent></Card>
                     </div>
                 </div>
             </form.AppForm>

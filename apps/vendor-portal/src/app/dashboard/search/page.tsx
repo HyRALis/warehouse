@@ -8,24 +8,16 @@ import type {
     UniversalSearchResponse,
 } from '@inventory-system/contracts';
 import { Button, Input } from '@inventory-system/ui';
-import { useUniversalSearchResults } from '@/features/search/hooks';
+import { useUniversalSearchResults, parseSearchUrl, searchFilters as filters } from '@/features/search';
 import { getErrorMessage } from '@/lib/api/client';
 import SearchResultRow from '@/components/SearchResultRow';
-
-const filters: Array<{ value: UniversalSearchEntityType; label: string }> = [
-    { value: 'product', label: 'Products' },
-    { value: 'version', label: 'Versions' },
-    { value: 'category', label: 'Categories' },
-    { value: 'template', label: 'Templates' },
-];
 
 function SearchResults() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const query = searchParams.get('q') || '';
-    const types = searchParams.get('types') || '';
-    const page = Math.max(1, Number(searchParams.get('page') || 1));
+    const { page, types } = parseSearchUrl(searchParams.get('page'), searchParams.get('types'));
     const [draftQuery, setDraftQuery] = useState(query);
     const {
         data: response = null,
@@ -37,10 +29,7 @@ function SearchResults() {
         ? getErrorMessage(searchError, 'Search is temporarily unavailable.')
         : '';
 
-    const selectedTypes = useMemo(
-        () => new Set(types.split(',').filter(Boolean) as UniversalSearchEntityType[]),
-        [types]
-    );
+    const selectedTypes = useMemo(() => new Set(types.split(',').filter(Boolean)), [types]);
 
     useEffect(() => setDraftQuery(query), [query]);
 

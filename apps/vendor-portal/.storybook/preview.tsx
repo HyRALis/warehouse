@@ -1,15 +1,17 @@
 import type { Preview } from '@storybook/react-vite';
 import { ToastProvider } from '@inventory-system/ui';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 import '../src/app/globals.css';
 
 const preview: Preview = {
     decorators: [
         (Story) => (
-            <ToastProvider>
+            <QueryClientProvider client={queryClient}><ToastProvider>
                 <div className="min-h-screen bg-slate-950 p-6 text-slate-100 sm:p-8">
                     <Story />
                 </div>
-            </ToastProvider>
+            </ToastProvider></QueryClientProvider>
         ),
     ],
     tags: ['autodocs', 'test'],

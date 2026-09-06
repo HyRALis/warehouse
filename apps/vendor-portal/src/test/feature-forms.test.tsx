@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -25,10 +26,10 @@ const renderFeature = (view: React.ReactNode, options?: { categories?: boolean; 
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     queryClient.setQueryData(sessionQueryKey, vendor);
     if (options?.categories) {
-        queryClient.setQueryData(tenantKeys.categories(vendor.id), [{ id: '9c163a55-5f52-4e38-bddc-844d84ee80d8', name: 'Audio', vendorId: vendor.id, createdAt: vendor.createdAt }]);
+        queryClient.setQueryData(tenantKeys.categories(vendor.id), [{ id: '9c163a55-5f52-4e38-bddc-844d84ee80d8', name: 'Audio', vendorProfileId: vendor.id, createdAt: vendor.createdAt }]);
     }
     if (options?.templates) queryClient.setQueryData(tenantKeys.templates(vendor.id), []);
-    return render(<QueryClientProvider client={queryClient}><ToastProvider>{view}</ToastProvider></QueryClientProvider>);
+    return render(<NuqsTestingAdapter><QueryClientProvider client={queryClient}><ToastProvider>{view}</ToastProvider></QueryClientProvider></NuqsTestingAdapter>);
 };
 
 describe('feature forms', () => {
@@ -49,7 +50,7 @@ describe('feature forms', () => {
         const create = vi.spyOn(browserApi.products, 'create').mockResolvedValue({
             success: true,
             data: {
-                id: 'product-1', vendorId: vendor.id, categoryId, sku: 'SKU-1', baseName: 'Headphones', imageUrl: null,
+                id: 'product-1', vendorProfileId: vendor.id, categoryId, sku: 'SKU-1', baseName: 'Headphones', imageUrl: null,
                 status: 'DRAFT', characteristics: [], createdAt: vendor.createdAt, updatedAt: vendor.createdAt, images: [],
             },
         });
@@ -58,7 +59,8 @@ describe('feature forms', () => {
 
         await user.type(screen.getByLabelText('Product name'), 'Headphones');
         await user.type(screen.getByLabelText('SKU'), 'SKU-1');
-        await user.selectOptions(screen.getByLabelText('Category'), categoryId);
+        await user.click(screen.getByRole('combobox', { name: 'Category' }));
+        await user.click(screen.getByRole('option', { name: /Audio/ }));
         await user.upload(screen.getByLabelText('Upload primary image'), new File(['jpeg'], 'photo.jpg', { type: 'image/jpeg' }));
         await user.click(screen.getByRole('button', { name: 'Save Product' }));
 

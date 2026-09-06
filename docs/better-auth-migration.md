@@ -2,11 +2,11 @@
 
 ## Scope
 
-This stage replaces the Vendor Portal's handwritten JWT sessions with Better Auth 1.7 and
-adds the identity structures required for organization membership. It is deliberately additive:
-the legacy `Vendor` remains the catalog tenancy context until the following entitlement and
-Vendor Profile migration. The temporary `/api/v1/auth` facade keeps the current portal contract
-working while the frontend is migrated.
+This document records the additive Better Auth 1.7 identity stage. In that stage the legacy
+`Vendor` remained temporarily as the catalog tenancy context while the frontend and entitlement
+changes were stacked. The final removal is now defined by
+[Vendor authentication cleanup and rollback](vendor-auth-cleanup.md). The established
+`/api/v1/auth` paths remain temporarily, but their implementation is Better Auth-only.
 
 ## Identity model
 
@@ -22,11 +22,12 @@ working while the frontend is migrated.
 - `TwoFactor` holds encrypted TOTP configuration, encrypted recovery codes, failed-attempt
   counters, and lockout state.
 
-Registration through `/api/v1/auth/register` creates the legacy Vendor, User, credential
-Account, Organization, and sole Owner membership in one serializable transaction. It then asks
-Better Auth to create the database session. Organization deletion and user-created additional
-organizations are disabled for this release. Only `owner` and `member` roles are accepted, and
-the final Owner cannot be removed or demoted.
+During the additive stage, registration through `/api/v1/auth/register` created the legacy Vendor,
+User, credential Account, Organization, and sole Owner membership in one serializable transaction.
+After final cleanup, the same route creates only the User, credential Account, Organization, Owner
+membership, entitlement, and primary VendorProfile graph before Better Auth creates the session.
+Organization deletion and user-created additional organizations are disabled for this release.
+Only `owner` and `member` roles are accepted, and the final Owner cannot be removed or demoted.
 
 ## Existing-data cutover
 
@@ -49,8 +50,9 @@ Run the post-migration audit after deployment:
 npm run auth:verify-migration --workspace @inventory-system/database
 ```
 
-The command fails unless Vendor, migrated User, credential Account, Organization, and Owner
-counts match and every legacy reset token is cleared.
+Before final cleanup, the migration SQL itself checks legacy Vendor backfill completeness and reset
+token invalidation. The maintained verifier checks that every User has a credential Account and
+Organization membership and that Organizations retain Owner coverage.
 
 ## Password transition
 
@@ -60,8 +62,9 @@ hash and replaces only that Account credential with the current scrypt represent
 credentials always receive the same response, and credential lookup happens only after Better
 Auth has completed password verification.
 
-The old Vendor credential fields and JWT code are intentionally retained in this stage. They are
-removed only after the frontend uses Better Auth and the migration audit has passed.
+The old Vendor credential fields and JWT code were intentionally retained in this additive stage.
+They are removed by `20260902213000_remove_legacy_vendor_auth` after the entitlement and ownership
+audits pass. See [Vendor authentication cleanup and rollback](vendor-auth-cleanup.md).
 
 ## Email, proxy, and cookie configuration
 
@@ -120,4 +123,3 @@ After new registrations, password resets, password rehashes, invitations, or MFA
 occurred, do not drop the new tables or blindly redeploy the old authentication service. Restore
 the pre-cutover database backup or perform an audited forward repair. The SQL migration has no
 automatic down migration because removing identity records would be destructive.
-

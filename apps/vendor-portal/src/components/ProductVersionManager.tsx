@@ -17,6 +17,7 @@ import { Badge, Button, Input, Label, Spinner } from '@inventory-system/ui';
 import { ProductStatus, type ProductVersionComparison } from '@inventory-system/contracts';
 import { browserApi } from '@/lib/api/browser';
 import { getErrorMessage } from '@/lib/api/client';
+import { validateProductImage, calculateEffectiveStatus } from '@/features/products';
 
 interface Characteristic {
     name: string;
@@ -64,20 +65,6 @@ const badgeVariants: Record<ProductStatus, 'success' | 'warning' | 'danger' | 'd
 
 const badgeVariant = (status: ProductStatus) => badgeVariants[status] ?? 'danger';
 
-const calculateEffectiveStatus = (
-    productStatus: ProductStatus,
-    versionStatus: ProductStatus
-): ProductStatus => {
-    if (
-        productStatus === ProductStatus.DISCONTINUED ||
-        versionStatus === ProductStatus.DISCONTINUED
-    ) {
-        return ProductStatus.DISCONTINUED;
-    }
-    return productStatus === ProductStatus.ACTIVE && versionStatus === ProductStatus.ACTIVE
-        ? ProductStatus.ACTIVE
-        : ProductStatus.DRAFT;
-};
 
 const emptyCharacteristic = (): Characteristic => ({ name: '', value: '', measurement: '' });
 
@@ -155,7 +142,8 @@ export default function ProductVersionManager({
 }: ProductVersionManagerProps) {
     const [createOpen, setCreateOpen] = useState(false);
     const [createMode, setCreateMode] = useState<'BLANK' | 'COPY'>('BLANK');
-    const [sourceVersionId, setSourceVersionId] = useState(versions[0]?.id || '');
+    const [selectedSourceId, setSourceVersionId] = useState(versions[0]?.id || '');
+    const sourceVersionId = versions.some((version) => version.id === selectedSourceId) ? selectedSourceId : versions[0]?.id || '';
     const [createDraft, setCreateDraft] = useState<VersionDraft>({
         label: '',
         sku: '',
@@ -194,6 +182,7 @@ export default function ProductVersionManager({
 
     const createVersion = async (event: React.FormEvent) => {
         event.preventDefault();
+        if (createMode === 'COPY' && !sourceVersionId) { setError('Choose a source version to copy.'); return; }
         await runAction('create', async () => {
             await browserApi.productVersions.create(productId, {
                 label: createDraft.label,
@@ -271,6 +260,8 @@ export default function ProductVersionManager({
 
     const uploadImage = async (version: ManagedProductVersion, file?: File) => {
         if (!file) return;
+        const imageError = validateProductImage(file);
+        if (imageError) { setError(imageError); return; }
         const formData = new FormData();
         formData.append('image', file);
         await runAction(`image-${version.id}`, async () => {

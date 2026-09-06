@@ -2,6 +2,7 @@
  * The auth feature's public surface. Server-only helpers stay in `./server`, which route files
  * import directly so that `import 'server-only'` never reaches the client graph.
  */
+export { authClient, unwrap } from './auth-client';
 export { AuthShell } from './components/AuthShell';
 export { ForgotPasswordForm } from './components/ForgotPasswordForm';
 export { LoginForm } from './components/LoginForm';
@@ -47,3 +48,4 @@ export {
 } from './query-options';
 
 export { portalAccessDenial } from './utils/portal-access';
+export { DEFAULT_RETURN_TO, safeReturnTo } from './utils/return-to';
