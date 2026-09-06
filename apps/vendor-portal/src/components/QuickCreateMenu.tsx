@@ -11,6 +11,12 @@ interface QuickCreateMenuProps {
     className?: string;
 }
 
+/** Wraps around the menu, and enters from the correct end when nothing is focused yet. */
+const nextFocusIndex = (current: number, direction: number, count: number): number => {
+    if (current < 0) return direction > 0 ? 0 : count - 1;
+    return (current + direction + count) % count;
+};
+
 const actions = [
     {
         href: '/dashboard/products/new',
@@ -72,11 +78,12 @@ export default function QuickCreateMenu({ variant = 'header', className }: Quick
     }, [open]);
 
     const handleMenuKeyDown = (event: React.KeyboardEvent) => {
+        if (!open) return;
         const current = itemRefs.current.indexOf(document.activeElement as HTMLAnchorElement);
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
             const direction = event.key === 'ArrowDown' ? 1 : -1;
-            const next = current < 0 ? (direction > 0 ? 0 : actions.length - 1) : (current + direction + actions.length) % actions.length;
+            const next = nextFocusIndex(current, direction, actions.length);
             itemRefs.current[next]?.focus();
         }
         if (event.key === 'Home' || event.key === 'End') {
@@ -115,10 +122,11 @@ export default function QuickCreateMenu({ variant = 'header', className }: Quick
                 aria-haspopup="menu"
                 aria-expanded={open}
                 aria-controls={menuId}
-                onClick={() => setOpen((value) => !value)}
+                onClick={(event) => { event.currentTarget.focus(); setOpen((value) => !value); }}
                 onKeyDown={(event) => {
                     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                         event.preventDefault();
+                        event.stopPropagation();
                         setOpen(true);
                         requestAnimationFrame(() => itemRefs.current[event.key === 'ArrowDown' ? 0 : actions.length - 1]?.focus());
                     }

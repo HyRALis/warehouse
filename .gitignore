@@ -9,3 +9,5 @@ storybook-static
 playwright-report
 test-results
 packages/database/src/generated/prisma
+.storybook-cache/
+**/storybook-static/

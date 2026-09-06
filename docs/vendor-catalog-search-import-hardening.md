@@ -13,7 +13,7 @@ recoverable path for larger catalogs.
 
 - System categories remain visibly read-only; Vendor Profile-owned categories retain edit and
   guarded delete actions.
-- Name, code, alias, and parent search continues to filter both ownership groups.
+- Name, code, and alias search filters both ownership groups, with query state preserved in the URL.
 - A failed initial category/template dependency request shows a Retry action instead of an empty
   catalog.
 - Save and safe-deletion errors remain local to the page without discarding loaded records.
@@ -42,8 +42,8 @@ recoverable path for larger catalogs.
 - Failed imports retain the selected file so the vendor can retry without selecting it again.
 - Successful imports clear the file chooser, including its native value so the same filename can
   be selected later.
-- Import summaries and row-level errors are announced and the full error list remains
-  downloadable.
+- Import summaries and row-level errors remain visible. After partial success, vendors are
+  instructed to upload only corrected failed rows; the completed file is cleared to prevent accidental resubmission.
 - Export failures are shown independently and do not erase import feedback.
 
 ## Why this implementation
@@ -85,9 +85,9 @@ npm.cmd run build --workspace @inventory-system/vendor-portal
 npm.cmd run lint --workspace @inventory-system/vendor-portal
 ```
 
-Coverage includes ownership presentation, system duplication, quick-create routing, field/alias
-search, load retry, safe-deletion conflicts, URL restoration, invalid search parameters, search
-retry, CSV type/size rejection, row errors, import retry, and export failure/success.
+Network-backed component tests cover ownership presentation, system duplication, quick-create routing,
+custom category edits without clearing aliases, list refresh, load retry, and partial CSV recovery.
+The search suite covers URL restoration, invalid parameters and retry; pure file validation tests cover size and format limits.
 
 ## Deferred work
 

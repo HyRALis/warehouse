@@ -1,8 +1,20 @@
 import '@testing-library/jest-dom/vitest';
+import { afterAll, afterEach, beforeAll, expect, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
-import { afterEach } from 'vitest';
+import { toHaveNoViolations } from 'jest-axe';
+import { server } from './test-server';
 
-afterEach(() => cleanup());
+expect.extend(toHaveNoViolations);
+Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:test') });
+Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
 
+// Focus management in the search palette and quick-create menu schedules through rAF.
 globalThis.requestAnimationFrame = (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0) as unknown as number;
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => {
+    cleanup();
+    server.resetHandlers();
+});
+afterAll(() => server.close());

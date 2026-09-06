@@ -20,12 +20,13 @@ presentation only; it does not add business features or claim formal accessibili
   focus ring.
 - Reduced-motion preferences collapse decorative animation and transition durations.
 - Product previews, catalog cards, version thumbnails, and QR codes use `next/image` with explicit
-  dimensions/sizing and an unoptimized passthrough loader. This supports local object URLs and the
+  dimensions/sizing and unoptimized rendering. This supports local object URLs and the
   configured R2/CDN URLs without hard-coding a deployment hostname.
 
 ## Why this implementation
 
-Focus management is implemented in the two modal-like interactions that can otherwise strand a
+Mobile navigation retains the reconciled shared Radix Sheet instead of restoring the legacy custom drawer.
+Focus management covers the two modal-like interactions that can otherwise strand a
 keyboard user: mobile navigation and universal search. Quick Create retains menu semantics and
 arrow navigation while adding a mobile-only Tab boundary. The browser's authenticated API and
 tenancy behavior remain unchanged.
@@ -76,18 +77,18 @@ npx.cmd playwright install chromium
 
 Acceptance evidence for this branch:
 
-- 19 Vitest files and 60 tests passed.
-- Four jest-axe component/workflow audits reported no detectable violations.
+- The reconciled component suite covers the TanStack-based editor, shared mobile navigation, shortcut dismissal, closed-menu Tab behavior, and search-button Enter handling.
+- Five jest-axe component/workflow audits include the populated search suggestions, not only the empty dialog.
 - Five Playwright desktop/mobile checks passed; the mobile-only focus test is intentionally skipped
   in the desktop project.
 - Next.js and Storybook production builds passed.
 - ESLint passed without warnings or errors.
-- The production high-severity audit gate passed; three moderate upstream `qs` advisories remain
-  documented for release review.
+- The final release must rerun the production dependency audit; earlier evidence is not treated as current approval.
 
 Rendered evidence is stored in `docs/screenshots/vendor-11-*` for the product editor and version
 manager at desktop/mobile sizes and the open mobile Quick Create sheet. Set
 `CAPTURE_VENDOR_A11Y_EVIDENCE=true` when running the Playwright suite to regenerate these files.
+The Storybook link mock forwards its anchor ref, so browser focus tests exercise the same reference behavior as Next.js links.
 
 Automated tools cannot prove WCAG conformance. The release stage retains manual keyboard,
 screen-reader, zoom, contrast, and responsive verification as a human acceptance gate.

@@ -1,9 +1,12 @@
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ProductStatus } from '@inventory-system/shared-types';
-import ProductDetailsEditor from '@/components/ProductDetailsEditor';
+import { ProductStatus } from '@inventory-system/contracts';
+import { ProductDetailsEditor } from '@/components/ProductDetailsEditor';
+import { renderWithProviders as render } from './render-with-providers';
+import { http, HttpResponse } from 'msw';
+import { server } from './test-server';
 import ProductVersionManager from '@/components/ProductVersionManager';
 import QuickCreateMenu from '@/components/QuickCreateMenu';
 import Sidebar from '@/components/Sidebar';
@@ -15,11 +18,11 @@ vi.mock('next/navigation', () => ({
     usePathname: () => '/dashboard/products',
     useRouter: () => ({ replace: mocks.replace, push: vi.fn() }),
 }));
-vi.mock('@/context/AuthContext', () => ({ useAuth: mocks.useAuth }));
 
 describe('Vendor workflow accessibility', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        server.use(http.get('*/api/v1/platform/context', () => HttpResponse.json({ success: false, statusCode: 403, code: 'FORBIDDEN', message: 'Unavailable' }, { status: 403 })));
         mocks.useAuth.mockReturnValue({
             user: { email: 'owner@example.test' },
             platform: {

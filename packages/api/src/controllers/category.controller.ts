@@ -1,20 +1,11 @@
 import { Response, NextFunction } from 'express';
 import prisma from '@inventory-system/database';
 import { AuthRequest } from '../middleware/auth';
-
-const categorySearchText = (name: string, aliases: string[] = [], parentName?: string): string =>
-    [name, ...aliases, parentName].filter(Boolean).join(' ').trim().toLocaleLowerCase();
-
-const findAvailableTemplate = (id: string, vendorProfileId: string) =>
-    prisma.characteristicTemplate.findFirst({
-        where: { id, OR: [{ vendorProfileId: null }, { vendorProfileId }] },
-        select: { id: true },
-    });
-
-const findAvailableCategory = (id: string, vendorProfileId: string) =>
-    prisma.category.findFirst({
-        where: { id, OR: [{ vendorProfileId: null }, { vendorProfileId }] },
-    });
+import {
+    findAvailableCategory,
+    findAvailableTemplateId,
+} from '../repositories/catalog.repository';
+import { categorySearchText } from '../domain/catalog-search-text';
 
 export class CategoryController {
     /**
@@ -72,7 +63,7 @@ export class CategoryController {
 
             if (
                 defaultTemplateId &&
-                !(await findAvailableTemplate(defaultTemplateId, req.vendorProfileId!))
+                !(await findAvailableTemplateId(defaultTemplateId, req.vendorProfileId!))
             ) {
                 res.status(400).json({
                     success: false,
@@ -177,7 +168,7 @@ export class CategoryController {
 
             if (
                 defaultTemplateId &&
-                !(await findAvailableTemplate(defaultTemplateId, req.vendorProfileId!))
+                !(await findAvailableTemplateId(defaultTemplateId, req.vendorProfileId!))
             ) {
                 res.status(400).json({
                     success: false,

@@ -8,6 +8,14 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('QuickCreateMenu', () => {
+    it('does not trap Tab while the floating menu is closed', async () => {
+        const user = userEvent.setup();
+        render(<><QuickCreateMenu variant="floating" /><button>Next control</button></>);
+        await user.tab();
+        expect(screen.getByRole('button', { name: 'Open quick create menu' })).toHaveFocus();
+        await user.tab();
+        expect(screen.getByRole('button', { name: 'Next control' })).toHaveFocus();
+    });
     it('presents product creation as the primary option and exposes every route', async () => {
         const user = userEvent.setup();
         render(<QuickCreateMenu />);

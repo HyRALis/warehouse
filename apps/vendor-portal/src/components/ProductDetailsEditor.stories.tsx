@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { ProductStatus } from '@inventory-system/shared-types';
-import ProductDetailsEditor from './ProductDetailsEditor';
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { ProductStatus } from '@inventory-system/contracts';
+import { ProductDetailsEditor } from './ProductDetailsEditor';
 
 const meta = {
     title: 'Vendor products/Product details editor',

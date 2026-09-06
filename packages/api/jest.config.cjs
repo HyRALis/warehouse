@@ -5,7 +5,7 @@ module.exports = {
     roots: ['<rootDir>/tests'],
     setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
     moduleNameMapper: {
-        '^@inventory-system/shared-types$': '<rootDir>/../shared-types/src/index.ts',
+        '^@inventory-system/contracts$': '<rootDir>/../contracts/src/index.ts',
         '^(\\.{1,2}/.*)\\.js$': '$1',
     },
 };

@@ -6,11 +6,11 @@ import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowRight, Loader2, Search, X } from 'lucide-react';
 import type {
     UniversalSearchGroup,
-    UniversalSearchResponse,
     UniversalSearchResult,
-} from '@inventory-system/shared-types';
-import { api } from '@/lib/api';
-import SearchResultRow from './SearchResultRow';
+} from '@inventory-system/contracts';
+import { useUniversalSearchSuggestions } from '@/features/search/hooks';
+import { getErrorMessage } from '@/lib/api/client';
+import { SearchSuggestions } from '@/features/search';
 
 export default function UniversalSearch() {
     const router = useRouter();
@@ -18,10 +18,20 @@ export default function UniversalSearch() {
     const inputRef = useRef<HTMLInputElement>(null);
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
-    const [groups, setGroups] = useState<UniversalSearchGroup[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [retryKey, setRetryKey] = useState(0);
+    const {
+        data: suggestions,
+        isFetching: loading,
+        error: searchError,
+        refetch,
+    } = useUniversalSearchSuggestions(open ? query : '');
+
+    const groups: UniversalSearchGroup[] = useMemo(
+        () => suggestions?.query === query.trim() ? suggestions.groups : [],
+        [suggestions, query]
+    );
+    const error = searchError
+        ? getErrorMessage(searchError, 'Search is temporarily unavailable.')
+        : '';
     const [activeIndex, setActiveIndex] = useState(0);
 
     const results = useMemo(
@@ -39,12 +49,13 @@ export default function UniversalSearch() {
         const handleShortcut = (event: KeyboardEvent) => {
             if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 'k') {
                 event.preventDefault();
-                setOpen((current) => !current);
+                if (open) close();
+                else setOpen(true);
             }
         };
         window.addEventListener('keydown', handleShortcut);
         return () => window.removeEventListener('keydown', handleShortcut);
-    }, []);
+    }, [open, close]);
 
     useEffect(() => {
         if (!open) return;
@@ -57,40 +68,8 @@ export default function UniversalSearch() {
     }, [open]);
 
     useEffect(() => {
-        if (!open || !query.trim()) {
-            setGroups([]);
-            setLoading(false);
-            setError('');
-            return;
-        }
-
-        const controller = new AbortController();
-        setLoading(true);
-        setError('');
-        setGroups([]);
         setActiveIndex(0);
-        const timeout = window.setTimeout(async () => {
-            try {
-                const response: UniversalSearchResponse = await api.universalSearch(
-                    { q: query.trim(), mode: 'suggestions', limit: 20 },
-                    controller.signal
-                );
-                setGroups(response.groups);
-                setActiveIndex(0);
-            } catch (searchError) {
-                if ((searchError as Error).name !== 'AbortError') {
-                    setError((searchError as Error).message || 'Search is temporarily unavailable.');
-                }
-            } finally {
-                if (!controller.signal.aborted) setLoading(false);
-            }
-        }, 220);
-
-        return () => {
-            window.clearTimeout(timeout);
-            controller.abort();
-        };
-    }, [open, query, retryKey]);
+    }, [suggestions, query]);
 
     useEffect(() => {
         if (!open || !results[activeIndex]) return;
@@ -118,13 +97,13 @@ export default function UniversalSearch() {
         if (event.key === 'Escape') {
             event.preventDefault();
             close();
-        } else if (event.key === 'ArrowDown' && results.length > 0) {
+        } else if (event.target === inputRef.current && event.key === 'ArrowDown' && results.length > 0) {
             event.preventDefault();
             setActiveIndex((current) => (current + 1) % results.length);
-        } else if (event.key === 'ArrowUp' && results.length > 0) {
+        } else if (event.target === inputRef.current && event.key === 'ArrowUp' && results.length > 0) {
             event.preventDefault();
             setActiveIndex((current) => (current - 1 + results.length) % results.length);
-        } else if (event.key === 'Enter' && results[activeIndex]) {
+        } else if (event.target === inputRef.current && event.key === 'Enter' && results[activeIndex]) {
             event.preventDefault();
             selectResult(results[activeIndex]);
         } else if (event.key === 'Tab') {
@@ -226,11 +205,8 @@ export default function UniversalSearch() {
                             className="flex-1 overflow-y-auto p-3"
                         >
                             <div className="sr-only" role="status" aria-live="polite">
-                                {loading
-                                    ? 'Searching'
-                                    : error
-                                      ? ''
-                                      : `${results.length} search suggestion${results.length === 1 ? '' : 's'} available`}
+                                {loading && 'Searching'}
+                                {!loading && !error && `${results.length} search suggestion${results.length === 1 ? '' : 's'} available`}
                             </div>
                             {!query.trim() && (
                                 <div className="px-4 py-12 text-center" role="status">
@@ -246,7 +222,7 @@ export default function UniversalSearch() {
                                     <p className="mt-3 text-sm text-slate-300">{error}</p>
                                     <button
                                         type="button"
-                                        onClick={() => setRetryKey((value) => value + 1)}
+                                        onClick={() => void refetch()}
                                         className="mt-4 rounded-lg border border-slate-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-800"
                                     >
                                         Try again
@@ -258,49 +234,7 @@ export default function UniversalSearch() {
                                     No matches for “{query.trim()}”. Try a name, SKU, barcode, or category.
                                 </p>
                             )}
-                            {!error && groups.length > 0 && (
-                                <div
-                                    id="universal-search-options"
-                                    role="listbox"
-                                    aria-label="Search suggestions"
-                                >
-                                    {groups.map((group) => (
-                                        <div
-                                            key={group.type}
-                                            role="group"
-                                            aria-labelledby={`search-group-${group.type}`}
-                                            className="mb-3 last:mb-0"
-                                        >
-                                            <h3
-                                                id={`search-group-${group.type}`}
-                                                className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500"
-                                            >
-                                                {group.label}
-                                            </h3>
-                                            <div className="space-y-1">
-                                                {group.results.map((result) => {
-                                                    const resultIndex = results.findIndex(
-                                                        (candidate) =>
-                                                            candidate.type === result.type &&
-                                                            candidate.id === result.id
-                                                    );
-                                                    return (
-                                                        <SearchResultRow
-                                                            key={`${result.type}-${result.id}`}
-                                                            id={`search-result-${resultIndex}`}
-                                                            result={result}
-                                                            query={query.trim()}
-                                                            active={resultIndex === activeIndex}
-                                                            onSelect={close}
-                                                            option
-                                                        />
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            {!error && groups.length > 0 && <SearchSuggestions groups={groups} results={results} query={query.trim()} activeIndex={activeIndex} onSelect={close} />}
                         </div>
 
                         {query.trim() && !error && (

@@ -6,80 +6,34 @@ import { AlertCircle, ChevronLeft, ChevronRight, Loader2, Search } from 'lucide-
 import type {
     UniversalSearchEntityType,
     UniversalSearchResponse,
-} from '@inventory-system/shared-types';
+} from '@inventory-system/contracts';
 import { Button, Input } from '@inventory-system/ui';
-import { api } from '@/lib/api';
+import { useUniversalSearchResults, parseSearchUrl, searchFilters as filters } from '@/features/search';
+import { getErrorMessage } from '@/lib/api/client';
 import SearchResultRow from '@/components/SearchResultRow';
-
-const filters: Array<{ value: UniversalSearchEntityType; label: string }> = [
-    { value: 'product', label: 'Products' },
-    { value: 'version', label: 'Versions' },
-    { value: 'category', label: 'Categories' },
-    { value: 'template', label: 'Templates' },
-];
-const validTypes = new Set<UniversalSearchEntityType>(filters.map((filter) => filter.value));
-
-const parsePage = (value: string | null) => {
-    const parsed = Number(value);
-    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
-};
 
 function SearchResults() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const query = searchParams.get('q') || '';
-    const rawTypes = searchParams.get('types') || '';
-    const page = parsePage(searchParams.get('page'));
+    const { page, types } = parseSearchUrl(searchParams.get('page'), searchParams.get('types'));
     const [draftQuery, setDraftQuery] = useState(query);
-    const [response, setResponse] = useState<UniversalSearchResponse | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [retryKey, setRetryKey] = useState(0);
+    const {
+        data: response = null,
+        isFetching: loading,
+        error: searchError,
+        refetch,
+    } = useUniversalSearchResults({ q: query, types, page, limit: 20 });
+    const error = searchError
+        ? getErrorMessage(searchError, 'Search is temporarily unavailable.')
+        : '';
 
-    const selectedTypes = useMemo(() => {
-        const selected = rawTypes
-            .split(',')
-            .filter((type): type is UniversalSearchEntityType =>
-                validTypes.has(type as UniversalSearchEntityType)
-            );
-        return new Set(selected);
-    }, [rawTypes]);
-    const types = useMemo(() => Array.from(selectedTypes).join(','), [selectedTypes]);
+    const selectedTypes = useMemo(() => new Set(types.split(',').filter(Boolean)), [types]);
 
     useEffect(() => setDraftQuery(query), [query]);
 
-    useEffect(() => {
-        if (!query.trim()) {
-            setResponse(null);
-            setLoading(false);
-            setError('');
-            return;
-        }
-        const controller = new AbortController();
-        setLoading(true);
-        setError('');
-        api.universalSearch(
-            {
-                q: query.trim(),
-                mode: 'results',
-                types,
-                page,
-                limit: 20,
-            },
-            controller.signal
-        )
-            .then(setResponse)
-            .catch((searchError) => {
-                if ((searchError as Error).name !== 'AbortError') {
-                    setError((searchError as Error).message || 'Search is temporarily unavailable.');
-                }
-            })
-            .finally(() => {
-                if (!controller.signal.aborted) setLoading(false);
-            });
-        return () => controller.abort();
-    }, [page, query, retryKey, types]);
+
 
     const updateUrl = (updates: Record<string, string | null>) => {
         const next = new URLSearchParams(searchParams.toString());
@@ -173,7 +127,7 @@ function SearchResults() {
                 <div className="flex flex-col items-center rounded-2xl border border-rose-500/30 bg-rose-500/5 px-6 py-12 text-center">
                     <AlertCircle className="h-7 w-7 text-rose-400" />
                     <p className="mt-3 text-sm text-slate-300">{error}</p>
-                    <Button className="mt-4" variant="secondary" onClick={() => setRetryKey((value) => value + 1)}>
+                    <Button className="mt-4" variant="secondary" onClick={() => void refetch()}>
                         Try again
                     </Button>
                 </div>

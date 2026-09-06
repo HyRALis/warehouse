@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { ProductStatus } from '@inventory-system/shared-types';
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { ProductStatus } from '@inventory-system/contracts';
 import ProductVersionManager from './ProductVersionManager';
 
 const meta = {
