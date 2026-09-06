@@ -15,6 +15,7 @@ const prismaConfig = path.join(repositoryRoot, 'prisma.config.ts');
 const migrationRoot = path.join(databaseRoot, 'prisma', 'migrations');
 const identityMigration = '20260901204932_better_auth_identity';
 const entitlementMigration = '20260902083000_vendor_entitlements';
+const cleanupMigration = '20260902213000_remove_legacy_vendor_auth';
 const prismaCli = createRequire(import.meta.url).resolve('prisma/build/index.js');
 
 const runPrisma = async (databaseUrl: string, ...args: string[]): Promise<void> => {
@@ -101,14 +102,15 @@ integrationTest(
         }
 
         const legacy = createPrismaClient({ databaseUrl: database.url, maxConnections: 1 });
-        await legacy.vendor.create({
-            data: {
-                id: '22222222-2222-4222-8222-222222222222',
-                email: 'entitlement-owner@example.test',
-                passwordHash: '$2a$12$DlM9tGsOBA.EeEVg2qBaauLyXV1Z5/ek3FEo6ZOyyX14V2L/eOZrq',
-                companyName: 'Entitlement Supply',
-            },
-        });
+        await legacy.$executeRawUnsafe(
+            `INSERT INTO vendors (
+                id, email, password_hash, company_name, created_at, updated_at
+             ) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            '22222222-2222-4222-8222-222222222222',
+            'entitlement-owner@example.test',
+            '$2a$12$DlM9tGsOBA.EeEVg2qBaauLyXV1Z5/ek3FEo6ZOyyX14V2L/eOZrq',
+            'Entitlement Supply'
+        );
         await legacy.$disconnect();
 
         await runPrisma(
@@ -157,10 +159,32 @@ integrationTest(
         `);
         await beforeEntitlements.$disconnect();
 
-        await runPrisma(database.url, 'migrate', 'deploy');
-        prisma = createPrismaClient({ databaseUrl: database.url, maxConnections: 2 });
+        const entitlementMigrationNames = (await readdir(migrationRoot, { withFileTypes: true }))
+            .filter(
+                (entry) =>
+                    entry.isDirectory() &&
+                    entry.name >= entitlementMigration &&
+                    entry.name < cleanupMigration
+            )
+            .map((entry) => entry.name)
+            .sort();
+        for (const migrationName of entitlementMigrationNames) {
+            await runPrisma(
+                database.url,
+                'db',
+                'execute',
+                '--file',
+                path.join(migrationRoot, migrationName, 'migration.sql')
+            );
+            await runPrisma(database.url, 'migrate', 'resolve', '--applied', migrationName);
+        }
 
-        await prisma.$executeRawUnsafe(`
+        const compatibilityWriter = createPrismaClient({
+            databaseUrl: database.url,
+            maxConnections: 1,
+        });
+
+        await compatibilityWriter.$executeRawUnsafe(`
             INSERT INTO products (
                 id, vendor_id, category_id, sku, base_name, status, characteristics,
                 search_text, created_at, updated_at
@@ -170,9 +194,13 @@ integrationTest(
                 '[]'::jsonb, 'legacy writer product', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             )
         `);
+        await compatibilityWriter.$disconnect();
+
+        await runPrisma(database.url, 'migrate', 'deploy');
+        prisma = createPrismaClient({ databaseUrl: database.url, maxConnections: 2 });
 
         const profile = await prisma.vendorProfile.findUniqueOrThrow({
-            where: { legacyVendorId: '22222222-2222-4222-8222-222222222222' },
+            where: { id: '22222222-2222-4222-8222-222222222222' },
         });
         assert.equal(profile.id, '22222222-2222-4222-8222-222222222222');
         assert.equal(profile.profileKey, 'primary');
@@ -222,6 +250,35 @@ integrationTest(
         assert.equal(category.vendorProfileId, profile.id);
         assert.equal(template.vendorProfileId, profile.id);
         assert.equal(systemCategory.vendorProfileId, null);
+
+        const legacyStructures = await prisma.$queryRawUnsafe<Array<{ name: string }>>(`
+            SELECT table_name AS name
+            FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'vendors'
+            UNION ALL
+            SELECT table_name || '.' || column_name AS name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND (
+                  (table_name = 'user' AND column_name = 'legacyVendorId')
+                  OR (table_name = 'vendor_profiles' AND column_name = 'legacy_vendor_id')
+                  OR (
+                      table_name IN (
+                          'categories',
+                          'products',
+                          'product_versions',
+                          'characteristic_templates'
+                      )
+                      AND column_name = 'vendor_id'
+                  )
+              )
+            UNION ALL
+            SELECT trigger_name AS name
+            FROM information_schema.triggers
+            WHERE trigger_schema = 'public'
+              AND trigger_name LIKE '%sync_vendor_profile_ownership'
+        `);
+        assert.deepEqual(legacyStructures, []);
 
         await assert.rejects(
             prisma.vendorProfile.create({

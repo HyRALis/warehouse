@@ -16,9 +16,7 @@ export const updateTemplateRequestSchema = createTemplateRequestSchema.partial()
 export const templateSchema = z.object({
     id: z.string(),
     /** `null` for read-only system templates. */
-    vendorId: z.string().nullable(),
-    /** Primary catalog owner. `vendorId` remains during the authentication cleanup window. */
-    vendorProfileId: z.string().nullable().optional(),
+    vendorProfileId: z.string().nullable(),
     /** Stable key on seeded system templates; `null` for vendor-owned templates. */
     key: z.string().nullable().optional(),
     name: z.string(),

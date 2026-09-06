@@ -4,7 +4,7 @@ import { ProductCard } from '@/features/products/components/ProductCard';
 
 const baseProduct: Product = {
     id: 'product-1',
-    vendorId: 'vendor-1',
+    vendorProfileId: 'vendor-1',
     categoryId: 'category-1',
     sku: 'AUD-1042',
     baseName: 'Wireless Noise-Cancelling Headphones',

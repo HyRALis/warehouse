@@ -66,7 +66,7 @@ export const CategoriesView = () => {
 
     if (categories.isPending) return <div className="space-y-6"><Skeleton className="h-16" /><Skeleton className="h-80" /></div>;
 
-    const [vendorCategories, systemCategories] = partition(categories.data ?? [], (category) => category.vendorId === vendor?.id);
+    const [vendorCategories, systemCategories] = partition(categories.data ?? [], (category) => category.vendorProfileId === vendor?.id);
 
     return (
         <div className="mx-auto max-w-4xl space-y-6">

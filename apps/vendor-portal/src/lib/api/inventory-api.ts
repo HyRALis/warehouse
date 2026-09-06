@@ -29,8 +29,12 @@ import {
     type UpdateProductRequest,
     type UpdateProductVersionRequest,
     type UpdateTemplateRequest,
+    type UpdateMemberPortalAccessRequest,
     type UpdateVendorProfileRequest,
     type UpdateVendorRequest,
+    memberPortalAccessApiResponseSchema,
+    publicInvitationSummaryApiResponseSchema,
+    vendorMembersApiResponseSchema,
     vendorPlatformContextApiResponseSchema,
     vendorProfileApiResponseSchema,
 } from '@inventory-system/contracts';
@@ -85,6 +89,20 @@ export const createInventoryApi = (client: ApiClient) => ({
                 method: 'PUT',
                 body,
             }),
+        invitationSummary: (invitationId: string, signal?: AbortSignal) =>
+            client.request(
+                `/platform/invitations/${encodeURIComponent(invitationId)}`,
+                publicInvitationSummaryApiResponseSchema,
+                { signal }
+            ),
+        members: (signal?: AbortSignal) =>
+            client.request('/platform/vendor/members', vendorMembersApiResponseSchema, { signal }),
+        updateMemberAccess: (memberId: string, body: UpdateMemberPortalAccessRequest) =>
+            client.request(
+                `/platform/vendor/members/${encodeURIComponent(memberId)}/access`,
+                memberPortalAccessApiResponseSchema,
+                { method: 'PUT', body }
+            ),
     },
     vendors: {
         update: (body: UpdateVendorRequest) =>

@@ -84,6 +84,33 @@ export const vendorPlatformContextApiResponseSchema = apiSuccessSchema(
 export const vendorProfileApiResponseSchema = apiSuccessSchema(vendorProfileContextSchema);
 export const vendorMembersApiResponseSchema = apiSuccessSchema(z.array(vendorMemberAccessSchema));
 
+/** Readable before sign-in, so it carries no member or organization detail beyond the invite. */
+export const publicInvitationSummarySchema = z.object({
+    id: z.string(),
+    email: z.string().email(),
+    organizationId: z.string(),
+    organizationName: z.string(),
+    inviterEmail: z.string().email(),
+    role: z.string(),
+    status: z.string(),
+    expiresAt: isoDateSchema,
+});
+
+export const publicInvitationSummaryApiResponseSchema = apiSuccessSchema(
+    publicInvitationSummarySchema
+);
+
+export const updateMemberPortalAccessRequestSchema = z.object({ enabled: z.boolean() });
+
+export const memberPortalAccessResultSchema = z.object({
+    memberId: z.string(),
+    vendorPortalAccess: memberPortalAccessContextSchema,
+});
+
+export const memberPortalAccessApiResponseSchema = apiSuccessSchema(
+    memberPortalAccessResultSchema
+);
+
 export type PortalSubscriptionStatus = z.infer<typeof portalSubscriptionStatusSchema>;
 export type PortalSubscriptionContext = z.infer<typeof portalSubscriptionContextSchema>;
 export type MemberPortalAccessContext = z.infer<typeof memberPortalAccessContextSchema>;
@@ -91,3 +118,8 @@ export type VendorProfileContext = z.infer<typeof vendorProfileContextSchema>;
 export type UpdateVendorProfileRequest = z.infer<typeof updateVendorProfileRequestSchema>;
 export type VendorPlatformContext = z.infer<typeof vendorPlatformContextSchema>;
 export type VendorMemberAccessResponse = z.infer<typeof vendorMemberAccessSchema>;
+export type PublicInvitationSummary = z.infer<typeof publicInvitationSummarySchema>;
+export type UpdateMemberPortalAccessRequest = z.infer<
+    typeof updateMemberPortalAccessRequestSchema
+>;
+export type MemberPortalAccessResult = z.infer<typeof memberPortalAccessResultSchema>;

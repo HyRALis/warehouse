@@ -13,7 +13,6 @@ const categoryId = '32dbce22-6db5-4e2c-9b59-06ed5460a7e3';
 describe('bulk product operations', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendorId });
         mockPrisma.category.findMany.mockResolvedValue([
             { id: categoryId, code: 'creator-merchandise', name: 'Creator Merchandise' },
         ]);
@@ -44,7 +43,6 @@ describe('bulk product operations', () => {
         expect(mockPrisma.product.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 data: expect.objectContaining({
-                    vendorId,
                     vendorProfileId: vendorId,
                     status: 'ACTIVE',
                 }),
@@ -173,6 +171,26 @@ describe('bulk product operations', () => {
         expect(mockPrisma.product.create).not.toHaveBeenCalled();
     });
 
+    it('returns row-level errors for fields that exceed API limits', async () => {
+        const csv = `productName,categoryCode,sku\n${'P'.repeat(201)},creator-merchandise,SKU-1`;
+
+        const response = await request(app)
+            .post('/api/v1/products/import')
+            .set('Authorization', `Bearer ${token}`)
+            .attach('file', Buffer.from(csv), {
+                filename: 'products.csv',
+                contentType: 'text/csv',
+            });
+
+        expect(response.status).toBe(200);
+        expect(response.body.data).toMatchObject({ importedProducts: 0, failedRows: 1 });
+        expect(response.body.data.errors[0]).toMatchObject({
+            row: 2,
+            code: 'FIELD_TOO_LONG',
+            field: 'productName',
+        });
+    });
+
     it('enforces the 1,000-row and 5 MB limits', async () => {
         const rows = Array.from(
             { length: 1001 },
@@ -246,5 +264,38 @@ describe('bulk product operations', () => {
                 where: { vendorProfileId: vendorId, deletedAt: null },
             })
         );
+    });
+
+    it('neutralizes spreadsheet formulas in exported user-controlled cells', async () => {
+        mockPrisma.product.findMany.mockResolvedValue([
+            {
+                id: 'product-1',
+                baseName: '=HYPERLINK("https://attacker.example")',
+                status: 'DRAFT',
+                category: { code: 'creator-merchandise', name: '@Category' },
+                versions: [
+                    {
+                        label: '+Version',
+                        status: 'DRAFT',
+                        sku: '-SKU',
+                        barcode: null,
+                        characteristics: [],
+                        designNotes: '=FORMULA()',
+                        isPrimary: true,
+                    },
+                ],
+            },
+        ]);
+
+        const response = await request(app)
+            .get('/api/v1/products/export')
+            .set('Authorization', `Bearer ${token}`);
+
+        expect(response.status).toBe(200);
+        expect(response.text).toContain(`'=HYPERLINK`);
+        expect(response.text).toContain(`'@Category`);
+        expect(response.text).toContain(`'+Version`);
+        expect(response.text).toContain(`'-SKU`);
+        expect(response.text).toContain(`'=FORMULA()`);
     });
 });
