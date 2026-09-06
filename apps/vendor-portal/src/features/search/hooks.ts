@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { useDebounceValue } from 'usehooks-ts';
 import { browserApi } from '@/lib/api/browser';
 import { useCurrentVendor } from '@/features/auth/queries';
@@ -14,7 +15,10 @@ const SEARCH_DEBOUNCE_MS = 200;
  */
 export const useUniversalSearchSuggestions = (term: string, limitPerType = 5) => {
     const { data: vendor } = useCurrentVendor();
-    const [debounced] = useDebounceValue(term.trim(), SEARCH_DEBOUNCE_MS);
+    const [debounced, updateDebounced] = useDebounceValue(term.trim(), SEARCH_DEBOUNCE_MS);
+    // Cancel the returned callback itself: usehooks-ts 3.1.1 unmount cleanup
+    // references a different debounce instance and can leave this timer alive.
+    useEffect(() => () => updateDebounced.cancel(), [updateDebounced]);
     const enabled = Boolean(vendor) && debounced.length >= MIN_SEARCH_LENGTH;
 
     return useQuery({
