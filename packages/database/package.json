@@ -7,9 +7,9 @@
     "types": "dist/index.d.ts",
     "scripts": {
         "build": "npm run generate && tsc -p tsconfig.json",
-        "test": "tsx --test tests/prisma-migrations.test.ts tests/better-auth-migration.test.ts tests/vendor-entitlements-migration.test.ts",
-        "test:integration": "cross-env RUN_DATABASE_INTEGRATION=true tsx --test tests/prisma-migrations.test.ts tests/better-auth-migration.test.ts tests/vendor-entitlements-migration.test.ts",
-        "test:integration:local": "cross-env RUN_DATABASE_INTEGRATION=local tsx --test tests/prisma-migrations.test.ts tests/better-auth-migration.test.ts tests/vendor-entitlements-migration.test.ts",
+        "test": "tsx --test tests/prisma-migrations.test.ts tests/better-auth-migration.test.ts tests/vendor-entitlements-migration.test.ts tests/vendor-review.test.ts",
+        "test:integration": "cross-env RUN_DATABASE_INTEGRATION=true tsx --test tests/prisma-migrations.test.ts tests/better-auth-migration.test.ts tests/vendor-entitlements-migration.test.ts tests/vendor-review.test.ts",
+        "test:integration:local": "cross-env RUN_DATABASE_INTEGRATION=local tsx --test tests/prisma-migrations.test.ts tests/better-auth-migration.test.ts tests/vendor-entitlements-migration.test.ts tests/vendor-review.test.ts",
         "generate": "prisma generate --config ../../prisma.config.ts",
         "migrate:dev": "prisma migrate dev --config ../../prisma.config.ts",
         "migrate:deploy": "prisma migrate deploy --config ../../prisma.config.ts",

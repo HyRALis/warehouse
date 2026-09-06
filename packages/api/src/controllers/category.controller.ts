@@ -6,6 +6,7 @@ import {
     findAvailableTemplateId,
 } from '../repositories/catalog.repository';
 import { categorySearchText } from '../domain/catalog-search-text';
+import { catalogService } from '../services/catalog.service';
 
 export class CategoryController {
     /**
@@ -13,21 +14,7 @@ export class CategoryController {
      */
     static async list(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
         try {
-            const categories = await prisma.category.findMany({
-                where: {
-                    OR: [{ vendorProfileId: null }, { vendorProfileId: req.vendorProfileId }],
-                },
-                include: {
-                    parent: { select: { id: true, name: true } },
-                    defaultTemplate: {
-                        select: { id: true, key: true, name: true, fields: true },
-                    },
-                    _count: { select: { products: true, children: true } },
-                },
-                orderBy: {
-                    name: 'asc',
-                },
-            });
+            const categories = await catalogService.listCategories(req.vendorProfileId!);
             res.status(200).json({ success: true, data: categories });
         } catch (error) {
             next(error);

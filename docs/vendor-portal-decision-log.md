@@ -96,3 +96,17 @@ the stacked frontend authentication branch replaces every caller.
 **Reason:** The security and data-model cutover should complete now, but deleting routes still
 used by an open dependent frontend branch would create a known broken stack. Retaining stable URLs
 does not retain the legacy authentication implementation or duplicate session state.
+
+## VPD-011 - Enforce owner retention and aggregate tenancy at persistence boundaries
+
+**Date:** 2026-09-06\
+**Status:** Implemented on the backend review-corrections branch; pending PR review
+
+Application owner-count checks remain for friendly errors, with a database trigger serializing
+owner loss to prevent concurrent demotion/removal from leaving an organization without an Owner.
+Counts on system categories and templates are scoped to the requesting profile's visible relations,
+not to the global usage of the shared record.
+
+**Reason:** Separate preflight checks cannot guarantee concurrent invariants, and shared parent-row
+visibility does not authorize disclosure of other vendors' related records. See the
+[review checkpoint](vendor-review-2026-09-06.md) for rationale, PostgreSQL tests, rollback and remaining gates.

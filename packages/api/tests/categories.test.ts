@@ -81,7 +81,16 @@ describe('categories', () => {
                 include: expect.objectContaining({
                     parent: expect.any(Object),
                     defaultTemplate: expect.any(Object),
-                    _count: { select: { products: true, children: true } },
+                    _count: {
+                        select: {
+                            products: { where: { vendorProfileId: vendorId, deletedAt: null } },
+                            children: {
+                                where: {
+                                    OR: [{ vendorProfileId: null }, { vendorProfileId: vendorId }],
+                                },
+                            },
+                        },
+                    },
                 }),
             })
         );

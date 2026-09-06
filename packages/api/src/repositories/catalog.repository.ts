@@ -22,17 +22,45 @@ export const findAvailableTemplateId = (id: string, vendorProfileId: string) =>
         select: { id: true },
     });
 
-const templateCounts = { _count: { select: { defaultForCategories: true } } };
+const templateCounts = (vendorProfileId: string) => ({
+    _count: {
+        select: {
+            defaultForCategories: {
+                where: { OR: [{ vendorProfileId: null }, { vendorProfileId }] },
+            },
+        },
+    },
+});
 
-export const listAvailableTemplates = (vendorProfileId: string) =>
-    prisma.characteristicTemplate.findMany({
+export const listAvailableCategories = (vendorProfileId: string, database = prisma) =>
+    database.category.findMany({
         where: { OR: [{ vendorProfileId: null }, { vendorProfileId }] },
-        include: templateCounts,
+        include: {
+            parent: { select: { id: true, name: true } },
+            defaultTemplate: { select: { id: true, key: true, name: true, fields: true } },
+            _count: {
+                select: {
+                    products: { where: { vendorProfileId, deletedAt: null } },
+                    children: { where: { OR: [{ vendorProfileId: null }, { vendorProfileId }] } },
+                },
+            },
+        },
+        orderBy: { name: 'asc' },
+    });
+
+export const listAvailableTemplates = (vendorProfileId: string, database = prisma) =>
+    database.characteristicTemplate.findMany({
+        where: { OR: [{ vendorProfileId: null }, { vendorProfileId }] },
+        include: templateCounts(vendorProfileId),
         orderBy: [{ vendorProfileId: 'asc' }, { name: 'asc' }],
     });
 
-export const findAvailableTemplateWithCounts = (id: string, vendorProfileId: string) =>
-    prisma.characteristicTemplate.findFirst({
+export const findAvailableTemplateWithCounts = (
+    id: string,
+    vendorProfileId: string,
+    database = prisma
+) =>
+    database.characteristicTemplate.findFirst({
         where: availableTo(id, vendorProfileId),
-        include: templateCounts,
+        include: templateCounts(vendorProfileId),
     });

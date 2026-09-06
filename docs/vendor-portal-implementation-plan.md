@@ -1,7 +1,7 @@
 # Vendor Portal Implementation Blueprint
 
 **Status:** Product roadmap stages 00-09 merged; final platform and release completion approved\
-**Reviewed:** 2026-09-01\
+**Reviewed:** 2026-09-06\
 **Primary audience:** First-time producers, creators, influencers, small brands, and growing vendors\
 **Repository baseline:** Next.js Vendor Portal, Express API, PostgreSQL/Prisma, Cloudflare R2
 
@@ -364,6 +364,14 @@ uses them; they no longer read or write a legacy credential or session system.
 PRs 09 through 11 finish the quick-create, product/version, catalog/template, universal-search, CSV, mobile, keyboard, focus, screen-reader, and responsive behavior already defined in this blueprint.
 
 PR 12 contains only clean-install and upgrade verification, release notes, security and license evidence, setup/migration/rollback documentation, final screenshots, and regenerated Markdown/DOCX artifacts.
+
+### Review correction checkpoint — 2026-09-06
+
+PRs #16–#22 have been reconciled with develop and passed CI; they remain unmerged. The separate
+backend review-corrections branch, dependent on #19, adds database-enforced last-owner protection
+and tenant-scoped shared-taxonomy counts. See [the review checkpoint](vendor-review-2026-09-06.md)
+for exact verification results, migration/rollback notes and remaining identity, media, frontend,
+dependency and release-documentation gates. Passing these scoped checks is not release approval.
 
 ## 15. Test and release gates
 
