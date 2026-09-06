@@ -6,6 +6,7 @@
         "build": "next build",
         "start": "next start",
         "test": "vitest run",
+        "test:e2e": "playwright test",
         "lint": "eslint .",
         "storybook": "storybook dev -p 6006 --no-open",
         "build-storybook": "storybook build -o storybook-static",
@@ -30,6 +31,7 @@
         "zustand": "^5.0.15"
     },
     "devDependencies": {
+        "@playwright/test": "1.62.1",
         "@storybook/addon-a11y": "^10.5.10",
         "@storybook/addon-docs": "^10.5.10",
         "@storybook/addon-vitest": "^10.5.10",

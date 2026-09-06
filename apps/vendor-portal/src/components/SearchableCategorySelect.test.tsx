@@ -26,7 +26,7 @@ const categories: CategoryOption[] = [
             },
         ],
     },
-    { id: 'custom', name: 'Limited Editions', vendorId: 'vendor-1', aliases: ['drops'] },
+    { id: 'custom', name: 'Limited Editions', vendorProfileId: 'vendor-1', aliases: ['drops'] },
 ];
 
 describe('SearchableCategorySelect', () => {

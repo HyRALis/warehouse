@@ -14,7 +14,7 @@ export const AuthShell = ({
     footer?: React.ReactNode;
     children: React.ReactNode;
 }) => (
-    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-slate-950 p-4">
+    <main id="main-content" tabIndex={-1} className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-slate-950 p-4">
         <div className="pointer-events-none absolute left-1/4 top-1/4 h-96 w-96 rounded-full bg-indigo-600/20 blur-3xl" />
         <div className="pointer-events-none absolute bottom-1/4 right-1/4 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
         <div className="relative z-10 w-full max-w-md">

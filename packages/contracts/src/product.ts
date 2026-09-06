@@ -35,14 +35,19 @@ export const createProductRequestSchema = z.object({
     status: productStatusSchema.optional(),
 });
 
-export const updateProductRequestSchema = z.object({
-    categoryId: z.string().uuid().optional(),
-    sku: z.string().trim().min(1).max(100).optional(),
-    baseName: z.string().trim().min(1).max(200).optional(),
-    barcode: z.string().trim().min(1).max(100).optional(),
-    characteristics: z.array(characteristicSchema).max(100).optional(),
-    status: productStatusSchema.optional(),
-});
+export const updateProductRequestSchema = z
+    .object({
+        categoryId: z.string().uuid().optional(),
+        sku: z.string().trim().min(1).max(100).optional(),
+        baseName: z.string().trim().min(1).max(200).optional(),
+        /** Nullable so an existing barcode can be cleared, which `undefined` cannot express. */
+        barcode: z.string().trim().min(1).max(100).nullable().optional(),
+        characteristics: z.array(characteristicSchema).max(100).optional(),
+        status: productStatusSchema.optional(),
+    })
+    .refine((body) => Object.keys(body).length > 0, {
+        message: 'At least one product field is required',
+    });
 
 export const createProductVersionRequestSchema = z
     .object({
@@ -102,9 +107,7 @@ export const productImageSchema = z.object({
 export const productVersionSchema = z.object({
     id: z.string(),
     productId: z.string(),
-    vendorId: z.string(),
-    /** Primary catalog owner. `vendorId` remains during the authentication cleanup window. */
-    vendorProfileId: z.string().optional(),
+    vendorProfileId: z.string(),
     versionNumber: z.number().int(),
     label: z.string(),
     sku: z.string(),
@@ -123,9 +126,7 @@ export const productVersionSchema = z.object({
 
 export const productSchema = z.object({
     id: z.string(),
-    vendorId: z.string(),
-    /** Primary catalog owner. `vendorId` remains during the authentication cleanup window. */
-    vendorProfileId: z.string().optional(),
+    vendorProfileId: z.string(),
     categoryId: z.string(),
     sku: z.string(),
     baseName: z.string(),

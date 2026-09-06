@@ -13,12 +13,23 @@ import {
     Settings,
     Sliders,
     Store,
+    UsersRound,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Button, cn } from '@inventory-system/ui';
 import { useCurrentVendor, useLogout, usePlatformContext } from '@/features/auth/queries';
 import { useUiStore } from '@/state/ui-store';
+import { OrganizationSwitcher } from '@/features/auth';
 
-export const navigationGroups = [
+interface NavigationItem {
+    name: string;
+    href: string;
+    icon: LucideIcon;
+    /** Hidden from non-owners; the API still enforces the rule. */
+    ownerOnly?: boolean;
+}
+
+export const navigationGroups: { label: string; items: NavigationItem[] }[] = [
     {
         label: 'Inventory',
         items: [
@@ -36,7 +47,15 @@ export const navigationGroups = [
     },
     {
         label: 'Workspace',
-        items: [{ name: 'Store Settings', href: '/dashboard/settings', icon: Settings }],
+        items: [
+            { name: 'Store Settings', href: '/dashboard/settings', icon: Settings },
+            {
+                name: 'Team Access',
+                href: '/dashboard/members',
+                icon: UsersRound,
+                ownerOnly: true,
+            },
+        ],
     },
 ];
 
@@ -50,6 +69,7 @@ export default function Sidebar({
     const pathname = usePathname();
     const { data: vendor } = useCurrentVendor();
     const { data: platform } = usePlatformContext();
+    const isOwner = platform?.membership.isOwner === true;
     const logout = useLogout();
     const toggleSidebar = useUiStore((state) => state.toggleSidebar);
     const setMobileOpen = useUiStore((state) => state.setMobileNavigationOpen);
@@ -76,6 +96,7 @@ export default function Sidebar({
             </div>
 
             <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-6" aria-label="Vendor portal">
+                {mobile && <OrganizationSwitcher />}
                 {navigationGroups.map((group) => (
                     <div key={group.label}>
                         {!compact && (
@@ -84,7 +105,9 @@ export default function Sidebar({
                             </p>
                         )}
                         <div className="space-y-1.5">
-                            {group.items.map((item) => {
+                            {group.items
+                                .filter((item) => !item.ownerOnly || isOwner)
+                                .map((item) => {
                                 const active =
                                     pathname === item.href ||
                                     (item.href !== '/dashboard' && pathname.startsWith(item.href));

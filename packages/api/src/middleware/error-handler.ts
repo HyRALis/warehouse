@@ -23,8 +23,11 @@ export const errorHandler = (
     );
 
     const statusCode = err instanceof multer.MulterError ? 400 : err.statusCode || 500;
-    const message = err.message || 'Internal Server Error';
-    const code = err instanceof multer.MulterError ? 'UPLOAD_ERROR' : err.code || 'INTERNAL_SERVER_ERROR';
+    // Unexpected storage/database errors can contain SQL, credentials, or filesystem paths.
+    const message = statusCode >= 500 ? 'Internal Server Error' : err.message || 'Request failed';
+    const code = statusCode >= 500
+        ? 'INTERNAL_SERVER_ERROR'
+        : err instanceof multer.MulterError ? 'UPLOAD_ERROR' : err.code || 'REQUEST_FAILED';
 
     res.status(statusCode).json({
         success: false,

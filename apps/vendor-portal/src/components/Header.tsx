@@ -14,6 +14,7 @@ import UniversalSearch from './UniversalSearch';
  */
 export default function Header() {
     const setMobileOpen = useUiStore((state) => state.setMobileNavigationOpen);
+    const mobileOpen = useUiStore((state) => state.mobileNavigationOpen);
 
     return (
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-800 bg-slate-900/80 px-4 backdrop-blur-md sm:px-6 md:justify-between">
@@ -24,6 +25,9 @@ export default function Header() {
                 onClick={() => setMobileOpen(true)}
                 className="shrink-0 md:hidden"
                 aria-label="Open navigation"
+                id="vendor-navigation-trigger"
+                aria-expanded={mobileOpen}
+                aria-haspopup="dialog"
             >
                 <Menu className="h-5 w-5" />
             </Button>

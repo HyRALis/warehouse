@@ -10,7 +10,7 @@ export interface CategoryOption {
     code?: string | null;
     aliases?: string[];
     parentId?: string | null;
-    vendorId?: string | null;
+    vendorProfileId?: string | null;
     defaultTemplateId?: string | null;
     children?: CategoryOption[];
 }
@@ -55,7 +55,7 @@ export default function SearchableCategorySelect({ categories, value, onChange, 
             .filter((category) => !parentIds.has(category.id))
             .map((category) => {
                 const parent = category.parentId ? byId.get(category.parentId) : undefined;
-                const rootName = parent?.name || (category.vendorId ? 'Your categories' : 'Other');
+                const rootName = parent?.name || (category.vendorProfileId ? 'Your categories' : 'Other');
                 const path = parent ? `${parent.name} / ${category.name}` : category.name;
                 return {
                     ...category,
@@ -121,10 +121,12 @@ export default function SearchableCategorySelect({ categories, value, onChange, 
 
     return (
         <div ref={rootRef} className="relative">
+            <label htmlFor={`${listboxId}-input`} className="mb-1.5 block text-sm font-medium text-slate-300">Category</label>
             <div className={cn('flex items-center rounded-lg border bg-slate-950 transition focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20', open ? 'border-indigo-500' : 'border-slate-800', disabled && 'opacity-60')}>
                 <Search className="ml-3 h-4 w-4 shrink-0 text-slate-500" />
                 <input
                     ref={inputRef}
+                    id={`${listboxId}-input`}
                     type="text"
                     role="combobox"
                     aria-label="Category"
@@ -153,7 +155,7 @@ export default function SearchableCategorySelect({ categories, value, onChange, 
                     ) : (
                         groups.map(([group, items]) => (
                             <div key={group} role="group" aria-label={group} className="mb-2 last:mb-0">
-                                <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{group}</p>
+                                <p aria-hidden="true" className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{group}</p>
                                 {items.map((category) => {
                                     const index = filtered.findIndex((item) => item.id === category.id);
                                     return (

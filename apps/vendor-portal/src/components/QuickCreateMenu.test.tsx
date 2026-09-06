@@ -8,6 +8,14 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('QuickCreateMenu', () => {
+    it('does not trap Tab while the floating menu is closed', async () => {
+        const user = userEvent.setup();
+        render(<><QuickCreateMenu variant="floating" /><button>Next control</button></>);
+        await user.tab();
+        expect(screen.getByRole('button', { name: 'Open quick create menu' })).toHaveFocus();
+        await user.tab();
+        expect(screen.getByRole('button', { name: 'Next control' })).toHaveFocus();
+    });
     it('presents product creation as the primary option and exposes every route', async () => {
         const user = userEvent.setup();
         render(<QuickCreateMenu />);
@@ -43,5 +51,17 @@ describe('QuickCreateMenu', () => {
         expect(screen.getByRole('menu')).toBeInTheDocument();
         await user.click(screen.getByRole('button', { name: 'Close quick create menu' }));
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
+
+    it('keeps keyboard focus inside the mobile floating menu', async () => {
+        const user = userEvent.setup();
+        render(<QuickCreateMenu variant="floating" />);
+        const trigger = screen.getByRole('button', { name: 'Open quick create menu' });
+
+        await user.click(trigger);
+        await user.tab({ shift: true });
+        expect(screen.getByRole('menuitem', { name: /Add Category/ })).toHaveFocus();
+        await user.tab();
+        expect(screen.getByRole('button', { name: 'Close quick create menu' })).toHaveFocus();
     });
 });

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Image from 'next/image';
 import {
     ArrowRightLeft,
     Copy,
@@ -17,6 +18,7 @@ import { Badge, Button, Input, Label, Spinner } from '@inventory-system/ui';
 import { ProductStatus, type ProductVersionComparison } from '@inventory-system/contracts';
 import { browserApi } from '@/lib/api/browser';
 import { getErrorMessage } from '@/lib/api/client';
+import { validateProductImage, calculateEffectiveStatus } from '@/features/products';
 
 interface Characteristic {
     name: string;
@@ -64,20 +66,6 @@ const badgeVariants: Record<ProductStatus, 'success' | 'warning' | 'danger' | 'd
 
 const badgeVariant = (status: ProductStatus) => badgeVariants[status] ?? 'danger';
 
-const calculateEffectiveStatus = (
-    productStatus: ProductStatus,
-    versionStatus: ProductStatus
-): ProductStatus => {
-    if (
-        productStatus === ProductStatus.DISCONTINUED ||
-        versionStatus === ProductStatus.DISCONTINUED
-    ) {
-        return ProductStatus.DISCONTINUED;
-    }
-    return productStatus === ProductStatus.ACTIVE && versionStatus === ProductStatus.ACTIVE
-        ? ProductStatus.ACTIVE
-        : ProductStatus.DRAFT;
-};
 
 const emptyCharacteristic = (): Characteristic => ({ name: '', value: '', measurement: '' });
 
@@ -155,7 +143,8 @@ export default function ProductVersionManager({
 }: ProductVersionManagerProps) {
     const [createOpen, setCreateOpen] = useState(false);
     const [createMode, setCreateMode] = useState<'BLANK' | 'COPY'>('BLANK');
-    const [sourceVersionId, setSourceVersionId] = useState(versions[0]?.id || '');
+    const [selectedSourceId, setSourceVersionId] = useState(versions[0]?.id || '');
+    const sourceVersionId = versions.some((version) => version.id === selectedSourceId) ? selectedSourceId : versions[0]?.id || '';
     const [createDraft, setCreateDraft] = useState<VersionDraft>({
         label: '',
         sku: '',
@@ -194,6 +183,7 @@ export default function ProductVersionManager({
 
     const createVersion = async (event: React.FormEvent) => {
         event.preventDefault();
+        if (createMode === 'COPY' && !sourceVersionId) { setError('Choose a source version to copy.'); return; }
         await runAction('create', async () => {
             await browserApi.productVersions.create(productId, {
                 label: createDraft.label,
@@ -271,6 +261,8 @@ export default function ProductVersionManager({
 
     const uploadImage = async (version: ManagedProductVersion, file?: File) => {
         if (!file) return;
+        const imageError = validateProductImage(file);
+        if (imageError) { setError(imageError); return; }
         const formData = new FormData();
         formData.append('image', file);
         await runAction(`image-${version.id}`, async () => {
@@ -420,7 +412,7 @@ export default function ProductVersionManager({
                         <article key={version.id} className={`rounded-xl border bg-slate-900 p-5 ${version.isPrimary ? 'border-indigo-500/50' : 'border-slate-800'}`}>
                             <div className="flex gap-4">
                                 <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
-                                    {image ? <img src={image.imageUrl} alt="" className="h-full w-full object-cover" /> : <ImagePlus className="h-7 w-7 text-slate-600" />}
+                                    {image ? <Image src={image.imageUrl} alt="" width={80} height={80} unoptimized className="h-full w-full object-cover" /> : <ImagePlus className="h-7 w-7 text-slate-600" />}
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2">
@@ -459,7 +451,7 @@ export default function ProductVersionManager({
                                         </p>
                                     </div>
                                     {version.qrCodeUrl && (
-                                        <img
+                                        <Image width={64} height={64} unoptimized
                                             src={version.qrCodeUrl}
                                             alt={`${version.label} QR code`}
                                             className="h-16 w-16 rounded bg-white p-1"
@@ -486,7 +478,7 @@ export default function ProductVersionManager({
                                                     key={image.id}
                                                     className="relative aspect-square overflow-hidden rounded-lg border border-slate-800"
                                                 >
-                                                    <img
+                                                    <Image width={160} height={160} unoptimized
                                                         src={image.imageUrl}
                                                         alt=""
                                                         className="h-full w-full object-cover"

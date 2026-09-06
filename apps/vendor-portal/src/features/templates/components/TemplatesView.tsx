@@ -1,16 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { parseAsBoolean, parseAsString, useQueryState } from 'nuqs';
 import { z } from 'zod';
 import { FileText, Plus, Trash2 } from 'lucide-react';
 import { createTemplateRequestSchema, type Template } from '@inventory-system/contracts';
 import {
     Alert, AlertDialog, Badge, Button, Card, CardContent, CardHeader, CardTitle,
-    EmptyState, PageHeader, Skeleton,
+    EmptyState, Input, PageHeader, Skeleton,
 } from '@inventory-system/ui';
 import { getErrorMessage, getFieldIssue } from '@/lib/api/client';
 import { useAppForm } from '@/lib/forms/app-form';
-import { useCreateTemplate, useDeleteTemplate, useTemplates } from '../hooks';
+import { useCreateTemplate, useDeleteTemplate, useDuplicateTemplate, useUpdateTemplate, useTemplates } from '../hooks';
 
 const templateFormSchema = z.object({
     name: createTemplateRequestSchema.shape.name,
@@ -18,17 +19,29 @@ const templateFormSchema = z.object({
 });
 
 export const TemplatesView = () => {
-    const [showForm, setShowForm] = useState(false);
+    const [showForm, setShowForm] = useQueryState('create', parseAsBoolean.withDefault(false));
+    const [search, setSearch] = useQueryState('q', parseAsString.withDefault(''));
     const [pendingDelete, setPendingDelete] = useState<Template | null>(null);
+    const [editingId, setEditingId] = useState<string | null>(null);
     const templates = useTemplates();
     const createTemplate = useCreateTemplate();
     const deleteTemplate = useDeleteTemplate();
+    const duplicateTemplate = useDuplicateTemplate();
+    const updateTemplate = useUpdateTemplate();
+    const saveTemplate = editingId ? updateTemplate : createTemplate;
+    const visibleTemplates = (templates.data ?? []).filter((template) =>
+        [template.name, ...template.fields.map((field) => field.name)].join(' ').toLowerCase().includes(search.toLowerCase()));
     const form = useAppForm({
         defaultValues: { name: '', fields: [{ name: '', measurement: '' }] },
         validators: { onSubmit: templateFormSchema },
         onSubmit: async ({ value }) => {
-            try { await createTemplate.mutateAsync(createTemplateRequestSchema.parse(value)); } catch { return; }
+            try {
+                const body = createTemplateRequestSchema.parse(value);
+                if (editingId) await updateTemplate.mutateAsync({ id: editingId, body });
+                else await createTemplate.mutateAsync(body);
+            } catch { return; }
             form.reset();
+            setEditingId(null);
             setShowForm(false);
         },
     });
@@ -38,14 +51,16 @@ export const TemplatesView = () => {
     return (
         <div className="mx-auto max-w-5xl space-y-6">
             <PageHeader title="Characteristic Templates" description="Create reusable sets of characteristics for faster product entry" actions={
-                <Button type="button" onClick={() => setShowForm((open) => !open)}><Plus className="mr-2 h-4 w-4" /> Create Template</Button>
+                <Button type="button" onClick={() => { setEditingId(null); form.reset(); createTemplate.reset(); void setShowForm(!showForm); }}><Plus className="mr-2 h-4 w-4" /> Create Template</Button>
             } />
-            {templates.error && <Alert variant="danger">{getErrorMessage(templates.error)}</Alert>}
+            {templates.error && <Alert variant="danger">{getErrorMessage(templates.error)} <Button onClick={() => { void templates.refetch(); }}>Retry templates</Button></Alert>}
+            {duplicateTemplate.error && <Alert variant="danger">{getErrorMessage(duplicateTemplate.error)}</Alert>}
+            <Input aria-label="Search templates" value={search} onChange={(event) => { void setSearch(event.target.value); }} placeholder="Search templates and field names" />
             {showForm && (
                 <Card>
-                    <CardHeader><CardTitle>New Template</CardTitle></CardHeader>
+                    <CardHeader><CardTitle>{editingId ? 'Edit Template' : 'New Template'}</CardTitle></CardHeader>
                     <CardContent>
-                        {createTemplate.error && <Alert variant="danger" className="mb-4">{getErrorMessage(createTemplate.error)}</Alert>}
+                        {saveTemplate.error && <Alert variant="danger" className="mb-4">{getErrorMessage(saveTemplate.error)}</Alert>}
                         <form className="space-y-5" noValidate onSubmit={(event) => { event.preventDefault(); void form.handleSubmit(); }}>
                             <form.AppForm>
                                 <form.AppField name="name">
@@ -84,22 +99,29 @@ export const TemplatesView = () => {
                     </CardContent>
                 </Card>
             )}
-            {(templates.data?.length ?? 0) === 0 && !templates.error ? (
+            {visibleTemplates.length === 0 && !templates.error ? (
                 <EmptyState icon={<FileText className="h-9 w-9" />} title="No templates yet" description="Create one to speed up product entry." />
             ) : (
                 <div className="grid gap-4 md:grid-cols-3">
-                    {(templates.data ?? []).map((template) => (
+                    {visibleTemplates.map((template) => (
                         <Card key={template.id} className="group relative transition-colors hover:border-slate-700">
                             <CardContent className="p-5">
-                                <Button type="button" variant="ghost" size="icon" aria-label={`Delete ${template.name}`}
-                                    onClick={() => setPendingDelete(template)} className="absolute right-4 top-4 text-slate-500 hover:bg-rose-500/10 hover:text-rose-400">
+                                {template.vendorProfileId && <Button type="button" variant="ghost" size="icon" aria-label={`Delete ${template.name}`}
+                                    onClick={() => { deleteTemplate.reset(); setPendingDelete(template); }} className="absolute right-4 top-4 text-slate-500 hover:bg-rose-500/10 hover:text-rose-400">
                                     <Trash2 className="h-4 w-4" />
-                                </Button>
+                                </Button>}
                                 <div className="mb-4 flex items-center gap-3 pr-9">
                                     <div className="rounded-lg bg-amber-500/10 p-2 text-amber-400"><FileText className="h-5 w-5" /></div>
                                     <h2 className="font-medium text-white">{template.name}</h2>
                                 </div>
                                 <p className="mb-3 text-sm text-slate-400">{template.fields.length} fields defined</p>
+                                <Badge variant="outline">{template.vendorProfileId ? 'Custom' : 'System · Read only'}</Badge>
+                                {template.vendorProfileId && <Button type="button" variant="link" onClick={() => {
+                                    setEditingId(template.id); updateTemplate.reset();
+                                    form.reset({ name: template.name, fields: template.fields.map((field) => ({ name: field.name, measurement: field.measurement || '' })) });
+                                    void setShowForm(true);
+                                }}>Edit {template.name}</Button>}
+                                {!template.vendorProfileId && <Button type="button" variant="link" disabled={duplicateTemplate.isPending} onClick={() => duplicateTemplate.mutate(template.id)}>Duplicate {template.name} as custom</Button>}
                                 <div className="flex flex-wrap gap-2">
                                     {template.fields.slice(0, 3).map((field) => <Badge key={`${field.name}-${field.measurement}`} variant="outline">{field.name}</Badge>)}
                                     {template.fields.length > 3 && <span className="py-1 text-xs text-slate-500">+{template.fields.length - 3} more</span>}

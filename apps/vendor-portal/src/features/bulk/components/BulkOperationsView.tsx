@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { CheckCircle2, DownloadCloud, FileSpreadsheet, UploadCloud } from 'lucide-react';
 import {
     Alert,
@@ -14,9 +14,12 @@ import {
 } from '@inventory-system/ui';
 import { getErrorMessage } from '@/lib/api/client';
 import { useExportProducts, useImportProducts } from '../hooks';
+import { validateCsvFile } from '../utils/csv-file';
 
 export const BulkOperationsView = () => {
     const [file, setFile] = useState<File | null>(null);
+    const [fileError, setFileError] = useState<string | null>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const importProducts = useImportProducts();
     const exportProducts = useExportProducts();
     return (
@@ -38,7 +41,15 @@ export const BulkOperationsView = () => {
                                 type="file"
                                 accept=".csv,text/csv"
                                 aria-label="Choose CSV file"
-                                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                                ref={inputRef}
+                                disabled={importProducts.isPending}
+                                onChange={(event) => {
+                                    const selected = event.target.files?.[0] ?? null;
+                                    const error = selected ? validateCsvFile(selected) : null;
+                                    setFileError(error);
+                                    setFile(error ? null : selected);
+                                    importProducts.reset();
+                                }}
                                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                             />
                             <FileSpreadsheet className="mx-auto mb-3 h-10 w-10 text-slate-600" />
@@ -58,11 +69,15 @@ export const BulkOperationsView = () => {
                         <Button
                             className="mt-4 w-full"
                             disabled={!file || importProducts.isPending}
-                            onClick={() => file && importProducts.mutate(file)}
+                            onClick={() => file && importProducts.mutate(file, { onSuccess: () => {
+                                setFile(null);
+                                if (inputRef.current) inputRef.current.value = '';
+                            } })}
                         >
                             {importProducts.isPending && <Spinner size={5} className="mr-2" />}Start
                             Import
                         </Button>
+                        {fileError && <Alert variant="danger" className="mt-4">{fileError}</Alert>}
                         {importProducts.error && (
                             <Alert variant="danger" className="mt-4">
                                 {getErrorMessage(importProducts.error)}
@@ -85,6 +100,7 @@ export const BulkOperationsView = () => {
                                     {importProducts.data.data.importedVersions} versions) · Failed
                                     rows: {importProducts.data.data.failedRows}
                                 </p>
+                                {importProducts.data.data.failedRows > 0 && <p>Correct the failed rows and upload only those rows to avoid importing successful rows again.</p>}
                                 {importProducts.data.data.errors.length > 0 && (
                                     <ul className="mt-2 list-disc pl-5">
                                         {importProducts.data.data.errors.map((error) => (

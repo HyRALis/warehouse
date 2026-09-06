@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateTemplateRequest } from '@inventory-system/contracts';
+import type { CreateTemplateRequest, UpdateTemplateRequest } from '@inventory-system/contracts';
 import { useToast } from '@inventory-system/ui';
 import { browserApi } from '@/lib/api/browser';
 import { useCurrentVendor } from '@/features/auth/queries';
@@ -46,6 +46,35 @@ export const useDeleteTemplate = () => {
                 queryClient.invalidateQueries({ queryKey: tenantKeys.dashboard(vendor.id) }),
             ]);
             notify({ title: 'Template deleted', variant: 'success' });
+        },
+    });
+};
+
+export const useDuplicateTemplate = () => {
+    const { data: vendor } = useCurrentVendor();
+    const queryClient = useQueryClient();
+    const { notify } = useToast();
+    return useMutation({
+        mutationFn: (id: string) => browserApi.templates.duplicate(id),
+        onSuccess: async () => {
+            if (!vendor) return;
+            await queryClient.invalidateQueries({ queryKey: tenantKeys.templates(vendor.id) });
+            notify({ title: 'Custom template created', variant: 'success' });
+        },
+    });
+};
+
+export const useUpdateTemplate = () => {
+    const { data: vendor } = useCurrentVendor();
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, body }: { id: string; body: UpdateTemplateRequest }) => browserApi.templates.update(id, body),
+        onSuccess: async () => {
+            if (!vendor) return;
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: tenantKeys.templates(vendor.id) }),
+                queryClient.invalidateQueries({ queryKey: tenantKeys.categories(vendor.id) }),
+            ]);
         },
     });
 };

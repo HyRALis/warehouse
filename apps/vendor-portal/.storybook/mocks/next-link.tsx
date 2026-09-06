@@ -1,4 +1,4 @@
-import type { AnchorHTMLAttributes, ReactNode } from 'react';
+import { forwardRef, type AnchorHTMLAttributes, type ReactNode } from 'react';
 
 type LinkTarget = string | { pathname?: string };
 
@@ -7,7 +7,9 @@ type NextLinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> & {
     href: LinkTarget;
 };
 
-export default function NextLinkMock({ href, ...props }: NextLinkProps) {
+const NextLinkMock = forwardRef<HTMLAnchorElement, NextLinkProps>(function NextLinkMock({ href, ...props }, ref) {
     const destination = typeof href === 'string' ? href : (href.pathname ?? '#');
-    return <a href={destination} {...props} />;
-}
+    return <a ref={ref} href={destination} {...props} />;
+});
+
+export default NextLinkMock;

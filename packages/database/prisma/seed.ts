@@ -5,7 +5,12 @@ function templateSearchText(name: string, key: string, fields: unknown): string 
     return `${name} ${key} ${JSON.stringify(fields)}`.toLowerCase();
 }
 
-function categorySearchText(name: string, code: string, aliases: string[], rootName?: string): string {
+function categorySearchText(
+    name: string,
+    code: string,
+    aliases: string[],
+    rootName?: string
+): string {
     return [name, rootName, code, ...aliases].filter(Boolean).join(' ').toLowerCase();
 }
 
@@ -18,14 +23,14 @@ export async function seedSystemCatalog(client: PrismaClient = prisma): Promise<
             const record = await tx.characteristicTemplate.upsert({
                 where: { key: template.key },
                 create: {
-                    vendorId: null,
+                    vendorProfileId: null,
                     key: template.key,
                     name: template.name,
                     fields: template.fields as Prisma.InputJsonValue,
                     searchText: templateSearchText(template.name, template.key, template.fields),
                 },
                 update: {
-                    vendorId: null,
+                    vendorProfileId: null,
                     name: template.name,
                     fields: template.fields as Prisma.InputJsonValue,
                     searchText: templateSearchText(template.name, template.key, template.fields),
@@ -42,7 +47,7 @@ export async function seedSystemCatalog(client: PrismaClient = prisma): Promise<
                     name: root.name,
                     aliases: root.aliases,
                     searchText: categorySearchText(root.name, root.code, root.aliases),
-                    vendorId: null,
+                    vendorProfileId: null,
                     parentId: null,
                     defaultTemplateId: templateIds.get(root.defaultTemplateKey)!,
                 },
@@ -50,7 +55,7 @@ export async function seedSystemCatalog(client: PrismaClient = prisma): Promise<
                     name: root.name,
                     aliases: root.aliases,
                     searchText: categorySearchText(root.name, root.code, root.aliases),
-                    vendorId: null,
+                    vendorProfileId: null,
                     parentId: null,
                     defaultTemplateId: templateIds.get(root.defaultTemplateKey)!,
                 },
@@ -63,16 +68,26 @@ export async function seedSystemCatalog(client: PrismaClient = prisma): Promise<
                         code: category.code,
                         name: category.name,
                         aliases: category.aliases,
-                        searchText: categorySearchText(category.name, category.code, category.aliases, root.name),
-                        vendorId: null,
+                        searchText: categorySearchText(
+                            category.name,
+                            category.code,
+                            category.aliases,
+                            root.name
+                        ),
+                        vendorProfileId: null,
                         parentId: rootRecord.id,
                         defaultTemplateId: templateIds.get(category.defaultTemplateKey)!,
                     },
                     update: {
                         name: category.name,
                         aliases: category.aliases,
-                        searchText: categorySearchText(category.name, category.code, category.aliases, root.name),
-                        vendorId: null,
+                        searchText: categorySearchText(
+                            category.name,
+                            category.code,
+                            category.aliases,
+                            root.name
+                        ),
+                        vendorProfileId: null,
                         parentId: rootRecord.id,
                         defaultTemplateId: templateIds.get(category.defaultTemplateKey)!,
                     },

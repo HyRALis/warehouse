@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateCategoryRequest } from '@inventory-system/contracts';
+import type { CreateCategoryRequest, UpdateCategoryRequest } from '@inventory-system/contracts';
 import { useToast } from '@inventory-system/ui';
 import { browserApi } from '@/lib/api/browser';
 import { useCurrentVendor } from '@/features/auth/queries';
@@ -54,6 +54,22 @@ export const useDeleteCategory = () => {
                 queryClient.invalidateQueries({ queryKey: tenantKeys.dashboard(vendor.id) }),
             ]);
             notify({ title: 'Category deleted', variant: 'success' });
+        },
+    });
+};
+
+export const useUpdateCategory = () => {
+    const { data: vendor } = useCurrentVendor();
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, body }: { id: string; body: UpdateCategoryRequest }) => browserApi.categories.update(id, body),
+        onSuccess: async () => {
+            if (!vendor) return;
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: tenantKeys.categories(vendor.id) }),
+                queryClient.invalidateQueries({ queryKey: tenantKeys.categoryOptions(vendor.id) }),
+                queryClient.invalidateQueries({ queryKey: tenantKeys.templates(vendor.id) }),
+            ]);
         },
     });
 };

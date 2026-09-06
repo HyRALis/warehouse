@@ -76,6 +76,27 @@ const renderSearch = () => {
 };
 
 describe('UniversalSearch', () => {
+    it('lets Enter activate Close search instead of opening the highlighted result', async () => {
+        const user = userEvent.setup();
+        renderSearch();
+        await user.click(screen.getByRole('button', { name: /search products/i }));
+        await user.type(screen.getByRole('combobox'), 'hoodie');
+        await screen.findByRole('option', { name: /^creator hoodie/i });
+        await user.tab();
+        expect(screen.getByRole('button', { name: 'Close search' })).toHaveFocus();
+        await user.keyboard('{Enter}');
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(push).not.toHaveBeenCalled();
+    });
+
+    it('restores focus when the shortcut closes search', async () => {
+        const user = userEvent.setup();
+        renderSearch();
+        await user.keyboard('{Control>}k{/Control}');
+        await screen.findByRole('combobox');
+        await user.keyboard('{Control>}k{/Control}');
+        await waitFor(() => expect(screen.getByRole('button', { name: /search products/i })).toHaveFocus());
+    });
     beforeEach(() => {
         vi.clearAllMocks();
         vi.spyOn(browserApi.search, 'universal').mockResolvedValue({

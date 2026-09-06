@@ -9,7 +9,6 @@ const categoryId = '32dbce22-6db5-4e2c-9b59-06ed5460a7e3';
 describe('categories', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockPrisma.vendor.findFirst.mockResolvedValue({ id: vendorId });
     });
 
     it('lists only system and current-vendor categories', async () => {
@@ -40,9 +39,8 @@ describe('categories', () => {
     });
 
     it('forbids editing a system category or another vendor’s category', async () => {
-        mockPrisma.category.findUnique.mockResolvedValue({
+        mockPrisma.category.findFirst.mockResolvedValue({
             id: categoryId,
-            vendorId: null,
             vendorProfileId: null,
         });
 
@@ -52,7 +50,25 @@ describe('categories', () => {
             .send({ name: 'Changed' });
 
         expect(response.status).toBe(403);
+        expect(response.body.code).toBe('SYSTEM_CATEGORY_READ_ONLY');
         expect(mockPrisma.category.update).not.toHaveBeenCalled();
+    });
+
+    it('does not disclose a category owned by another Vendor Profile', async () => {
+        mockPrisma.category.findFirst.mockResolvedValue(null);
+
+        const response = await request(app)
+            .put(`/api/v1/categories/${categoryId}`)
+            .set('Authorization', `Bearer ${token}`)
+            .send({ name: 'Changed' });
+
+        expect(response.status).toBe(404);
+        expect(mockPrisma.category.findFirst).toHaveBeenCalledWith({
+            where: {
+                id: categoryId,
+                OR: [{ vendorProfileId: null }, { vendorProfileId: vendorId }],
+            },
+        });
     });
 
     it('returns breadcrumbs, default templates, and usage counts in list queries', async () => {
@@ -72,9 +88,8 @@ describe('categories', () => {
     });
 
     it('prevents deletion while products or child categories still reference it', async () => {
-        mockPrisma.category.findUnique.mockResolvedValue({
+        mockPrisma.category.findFirst.mockResolvedValue({
             id: categoryId,
-            vendorId,
             vendorProfileId: vendorId,
         });
         mockPrisma.product.count.mockResolvedValue(2);

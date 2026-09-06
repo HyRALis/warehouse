@@ -17,7 +17,6 @@ interface CreateVendorProfileInput {
     organizationId: string;
     profileKey?: string;
     displayName: string;
-    legacyVendorId?: string;
     profileId?: string;
 }
 
@@ -61,7 +60,6 @@ export const createVendorProfile = async (
                 organizationId: input.organizationId,
                 profileKey,
                 displayName: input.displayName,
-                legacyVendorId: input.legacyVendorId,
             },
         });
     } catch (error) {

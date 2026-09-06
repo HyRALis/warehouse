@@ -107,4 +107,52 @@ describe('UniversalSearchPage', () => {
         await user.click(screen.getByRole('button', { name: /previous/i }));
         expect(push).toHaveBeenCalledWith('/dashboard/search?q=hoodie&page=1');
     });
+
+    it('offers a retry when result loading fails', async () => {
+        const successfulResponse = {
+            query: 'hoodie',
+            mode: 'results' as const,
+            groups: [],
+            data: [
+                {
+                    type: 'version' as const,
+                    id: 'version-1',
+                    title: 'Midnight Hoodie',
+                    subtitle: 'Creator Hoodie · HOODIE-MIDNIGHT',
+                    href: '/dashboard/products/product-1?version=version-1',
+                    score: 1200,
+                    matchedField: 'sku',
+                    context: { productId: 'product-1' },
+                },
+            ],
+            total: 1,
+            page: 1,
+            limit: 20,
+            totalPages: 1,
+            tookMs: 4.1,
+        };
+        vi.mocked(browserApi.search.universal)
+            .mockRejectedValueOnce(new Error('Search is temporarily unavailable'))
+            .mockResolvedValueOnce({ success: true, data: successfulResponse });
+        const user = userEvent.setup();
+
+        renderPage();
+
+        expect(await screen.findByText('Search is temporarily unavailable')).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Try again' }));
+        expect(await screen.findByRole('link', { name: /midnight hoodie/i })).toBeInTheDocument();
+        expect(browserApi.search.universal).toHaveBeenCalledTimes(2);
+    });
+
+    it('sanitizes invalid page and entity filters from the URL before searching', async () => {
+        params = new URLSearchParams('q=hoodie&page=not-a-page&types=product,unknown');
+
+        renderPage();
+
+        await screen.findByRole('link', { name: /midnight hoodie/i });
+        expect(browserApi.search.universal).toHaveBeenCalledWith(
+            expect.objectContaining({ page: 1, types: 'product' }),
+            expect.any(AbortSignal)
+        );
+    });
 });
